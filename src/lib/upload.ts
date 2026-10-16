@@ -41,11 +41,14 @@ export async function dateienHochladen(
   dateien: File[],
   sichtbarkeit: Sichtbarkeit,
   beschreibung?: string,
+  /** "dokument": landet im Ordner Dokumente, auch wenn es ein Bild ist (z. B. abfotografierter Lieferschein) */
+  art?: "foto" | "dokument",
 ): Promise<{ ok: number; fehler: string[] }> {
   let ok = 0;
   const fehler: string[] = [];
   for (const roh of dateien) {
-    const datei = await bildVerkleinern(roh);
+    // Dokumente bleiben im Original (Pläne müssen lesbar bleiben), Fotos werden verkleinert
+    const datei = art === "dokument" ? roh : await bildVerkleinern(roh);
     const pfad = `${projektId}/${crypto.randomUUID().slice(0, 8)}-${sichererDateiname(datei.name)}`;
     const { error: e1 } = await supabase.storage
       .from("projekt-dateien")
@@ -57,7 +60,7 @@ export async function dateienHochladen(
       name: roh.name,
       mime: datei.type,
       groesse: datei.size,
-      art: datei.type.startsWith("image/") ? "foto" : "dokument",
+      art: art ?? (datei.type.startsWith("image/") ? "foto" : "dokument"),
       sichtbarkeit,
       beschreibung: beschreibung || null,
     });

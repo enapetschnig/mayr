@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import { SitzungProvider } from "@/hooks/useSitzung";
+import { InstallHinweis } from "@/components/Installieren";
 import Auth from "./pages/Auth";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -61,6 +62,7 @@ const App = () => (
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <InstallHinweis />
           </SitzungProvider>
         </BrowserRouter>
       </TooltipProvider>

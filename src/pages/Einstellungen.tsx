@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ImagePlus, Loader2, Save, Share, Smartphone, Trash2 } from "lucide-react";
+import { ImagePlus, Loader2, Save, Smartphone, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BenutzerVerwaltung } from "@/components/BenutzerVerwaltung";
+import { InstallAnleitung } from "@/components/Installieren";
 import { useSitzung } from "@/hooks/useSitzung";
 import { logoAdresse } from "@/lib/upload";
 import { zahlLesen } from "@/lib/format";
@@ -183,11 +184,7 @@ function Installieren() {
   return (
     <Card>
       <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Smartphone className="h-5 w-5" /> App auf den Startbildschirm</CardTitle></CardHeader>
-      <CardContent className="space-y-4 text-sm">
-        <div><p className="font-semibold">iPhone (Safari)</p><p className="text-muted-foreground">Unten auf <Share className="inline h-4 w-4" /> „Teilen“ tippen → „Zum Home-Bildschirm“.</p></div>
-        <div><p className="font-semibold">Android (Chrome)</p><p className="text-muted-foreground">Oben rechts auf ⋮ tippen → „App installieren“ bzw. „Zum Startbildschirm hinzufügen“.</p></div>
-        <p className="text-muted-foreground">Danach startet die App wie jede andere — ohne Adresszeile, im Vollbild.</p>
-      </CardContent>
+      <CardContent><InstallAnleitung /></CardContent>
     </Card>
   );
 }

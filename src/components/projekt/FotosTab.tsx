@@ -13,7 +13,9 @@ import { signierteAdressen } from "@/lib/upload";
 import { datum } from "@/lib/format";
 import type { Datei } from "@/lib/types";
 
-export function FotosTab({ projektId }: { projektId: string }) {
+/** Fotos bzw. Dokumente eines Projekts — derselbe Speicher, zwei Ordner. */
+export function FotosTab({ projektId, art = "foto" }: { projektId: string; art?: "foto" | "dokument" }) {
+  const dok = art === "dokument";
   const { firma, firmaVon } = useSitzung();
   const neuLaden = useNeuLaden();
   const [hochladenOffen, setHochladenOffen] = useState(false);
@@ -40,8 +42,8 @@ export function FotosTab({ projektId }: { projektId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projektId]);
 
-  const fotos = (data?.liste ?? []).filter((d) => d.art === "foto");
-  const dokumente = (data?.liste ?? []).filter((d) => d.art !== "foto");
+  const fotos = dok ? [] : (data?.liste ?? []).filter((d) => d.art === "foto");
+  const dokumente = dok ? (data?.liste ?? []).filter((d) => d.art !== "foto") : [];
   const urls = data?.urls ?? {};
 
   const loeschen = async (d: Datei) => {
@@ -58,10 +60,12 @@ export function FotosTab({ projektId }: { projektId: string }) {
   return (
     <div className="space-y-6">
       <Button onClick={() => setHochladenOffen(true)} className="gap-2 w-full sm:w-auto" size="lg">
-        <Camera className="h-5 w-5" /> + Foto / Dokument
+        {dok ? <FileText className="h-5 w-5" /> : <Camera className="h-5 w-5" />} {dok ? "+ Dokument hochladen" : "+ Foto"}
       </Button>
 
-      {fotos.length === 0 && dokumente.length === 0 && <Leer icon={Camera} text="Noch keine Fotos oder Dokumente." />}
+      {fotos.length === 0 && dokumente.length === 0 && (
+        <Leer icon={dok ? FileText : Camera} text={dok ? "Noch keine Dokumente — Pläne, Angebote, Lieferscheine hier ablegen." : "Noch keine Fotos."} />
+      )}
 
       {fotos.length > 0 && (
         <section>
@@ -87,6 +91,7 @@ export function FotosTab({ projektId }: { projektId: string }) {
                 <FileText className="h-5 w-5 text-primary shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{d.name}</p>
+                  {d.beschreibung && <p className="text-xs text-muted-foreground truncate">{d.beschreibung}</p>}
                   <p className="text-xs text-muted-foreground flex items-center gap-2">
                     {datum(d.created_at)} <FirmaBadge firma={firmaVon(d.firma_id)} />
                     {d.sichtbarkeit === "privat" && <Lock className="h-3 w-3" />}
@@ -140,7 +145,7 @@ export function FotosTab({ projektId }: { projektId: string }) {
         </DialogContent>
       </Dialog>
 
-      <FotoDialog open={hochladenOffen} onOpenChange={setHochladenOffen} projektId={projektId} />
+      <FotoDialog open={hochladenOffen} onOpenChange={setHochladenOffen} projektId={projektId} art={art} />
     </div>
   );
 }

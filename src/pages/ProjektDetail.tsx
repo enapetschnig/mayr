@@ -4,14 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Archive, ArchiveRestore, CalendarPlus, Camera, Clock, MapPin, MoreVertical, Package, Pencil, Phone,
-  Mail, Receipt, Send, Trash2, Users,
+  Mail, Receipt, Send, Trash2, Users, FileText, LayoutList, Images, CalendarDays,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -33,6 +33,45 @@ import { rolleVon, useNeuLaden, useProjekte } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datum, datumKurz, isoTag, uhrzeit } from "@/lib/format";
 import type { Termin } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+const dateienBasis = (id: string) =>
+  supabase.from("dateien").select("id", { count: "exact", head: true }).eq("projekt_id", id);
+
+const BEREICHE = [
+  { wert: "uebersicht", text: "Übersicht", icon: LayoutList },
+  { wert: "fotos", text: "Fotos", icon: Images },
+  { wert: "dokumente", text: "Dokumente", icon: FileText },
+  { wert: "stunden", text: "Stunden", icon: Clock },
+  { wert: "material", text: "Material", icon: Package },
+  { wert: "termine", text: "Termine", icon: CalendarDays },
+  { wert: "rechnungen", text: "Rechnungen", icon: Receipt },
+] as const;
+
+/** Anzahl je Bereich für die Kacheln. Die Schlüssel beginnen mit dem
+ *  Tabellennamen, damit sie nach jedem Speichern mit neu geladen werden. */
+function useZaehler(projektId: string): Record<string, number | undefined> {
+  const zahl = (tabelle: "dateien" | "zeiten" | "material" | "termine" | "rechnungen", art?: string) => ({
+    queryKey: [tabelle, "zahl", projektId, art ?? ""],
+    enabled: !!projektId,
+    queryFn: async () => {
+      const basis = supabase.from(tabelle).select("id", { count: "exact", head: true }).eq("projekt_id", projektId);
+      // Die Spalte "art" gibt es nur in dateien — dort wird zusätzlich gefiltert.
+      const q = tabelle === "dateien" && art
+        ? (basis as unknown as ReturnType<typeof dateienBasis>)[art === "foto" ? "eq" : "neq"]("art", "foto")
+        : basis;
+      const { count } = await q;
+      return count ?? 0;
+    },
+  });
+  const f = useQuery(zahl("dateien", "foto"));
+  const d = useQuery(zahl("dateien", "dokument"));
+  const z = useQuery(zahl("zeiten"));
+  const m = useQuery(zahl("material"));
+  const t = useQuery(zahl("termine"));
+  const r = useQuery(zahl("rechnungen"));
+  return { fotos: f.data, dokumente: d.data, stunden: z.data, material: m.data, termine: t.data, rechnungen: r.data };
+}
 
 export default function ProjektDetail() {
   const { id = "" } = useParams();
@@ -42,7 +81,7 @@ export default function ProjektDetail() {
   const { firma, firmen, firmaVon } = useSitzung();
   const { data: projekte = [], isLoading } = useProjekte();
   const projekt = projekte.find((p) => p.id === id);
-  const [dialog, setDialog] = useState<null | "bearbeiten" | "zeit" | "material" | "foto" | "termin" | "loeschen">(null);
+  const [dialog, setDialog] = useState<null | "bearbeiten" | "zeit" | "material" | "foto" | "dokument" | "termin" | "loeschen">(null);
   const [termin, setTermin] = useState<Termin | null>(null);
   const [rollenEdit, setRollenEdit] = useState<RollenMap | null>(null);
   const tab = params.get("tab") || "uebersicht";
@@ -55,6 +94,8 @@ export default function ProjektDetail() {
       return data ?? [];
     },
   });
+
+  const zaehler = useZaehler(id);
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Lädt…</div>;
   if (!projekt) {
@@ -139,15 +180,15 @@ export default function ProjektDetail() {
           </DropdownMenu>
         </div>
 
-        {/* Schnellaktionen */}
+        {/* Schnellaktionen — die häufigsten Handgriffe auf der Baustelle */}
         <div className="grid grid-cols-4 gap-2">
           {([
             ["foto", Camera, "Foto"],
+            ["dokument", FileText, "Dokument"],
             ["zeit", Clock, "Stunden"],
             ["material", Package, "Material"],
-            ["termin", CalendarPlus, "Termin"],
           ] as const).map(([d, Icon, text]) => (
-            <Button key={d} variant={d === "foto" ? "default" : "outline"} className="h-auto flex-col gap-1 py-3"
+            <Button key={d} variant={d === "foto" ? "default" : "outline"} className="h-auto flex-col gap-1 py-3 px-1"
               onClick={() => setDialog(d)}>
               <Icon className="h-5 w-5" /><span className="text-xs sm:text-sm">+ {text}</span>
             </Button>
@@ -164,15 +205,29 @@ export default function ProjektDetail() {
         )}
 
         <Tabs value={tab} onValueChange={(t) => setParams({ tab: t }, { replace: true })}>
-          <div className="overflow-x-auto -mx-3 px-3">
-            <TabsList className="w-max">
-              <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
-              <TabsTrigger value="fotos">Fotos & Dateien</TabsTrigger>
-              <TabsTrigger value="stunden">Stunden</TabsTrigger>
-              <TabsTrigger value="material">Material</TabsTrigger>
-              <TabsTrigger value="termine">Termine</TabsTrigger>
-              <TabsTrigger value="rechnungen">Rechnungen</TabsTrigger>
-            </TabsList>
+          {/*
+            Projektordner als Kacheln statt einer Tab-Leiste: Am Handy passten
+            sechs Reiter nicht nebeneinander, man musste seitlich wischen und
+            sah nie, was es alles gibt. Jetzt sieht man alles auf einen Blick,
+            samt Anzahl, und trifft es mit dem Daumen.
+          */}
+          <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+            {BEREICHE.map(({ wert, text, icon: Icon }) => {
+              const aktiv = tab === wert;
+              const n = zaehler[wert];
+              return (
+                <button key={wert} type="button" onClick={() => setParams({ tab: wert }, { replace: true })}
+                  className={cn("relative flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-1 py-2.5 transition-colors",
+                    aktiv ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-muted/50")}>
+                  <Icon className="h-5 w-5" />
+                  <span className="text-[11px] sm:text-xs font-semibold leading-tight text-center">{text}</span>
+                  {n !== undefined && n > 0 && (
+                    <span className={cn("absolute right-1 top-1 min-w-5 rounded-full px-1 text-[10px] font-bold leading-5",
+                      aktiv ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{n}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <TabsContent value="uebersicht" className="space-y-4 mt-4">
@@ -263,7 +318,8 @@ export default function ProjektDetail() {
             </Button>
           </TabsContent>
 
-          <TabsContent value="fotos" className="mt-4"><FotosTab projektId={projekt.id} /></TabsContent>
+          <TabsContent value="fotos" className="mt-4"><FotosTab projektId={projekt.id} art="foto" /></TabsContent>
+          <TabsContent value="dokumente" className="mt-4"><FotosTab projektId={projekt.id} art="dokument" /></TabsContent>
 
           <TabsContent value="stunden" className="mt-4 space-y-3">
             <Button onClick={() => setDialog("zeit")} className="gap-2"><Clock className="h-4 w-4" /> Stunden buchen</Button>
@@ -312,6 +368,7 @@ export default function ProjektDetail() {
       <ZeitDialog open={dialog === "zeit"} onOpenChange={zu} projektId={projekt.id} />
       <MaterialDialog open={dialog === "material"} onOpenChange={zu} projektId={projekt.id} />
       <FotoDialog open={dialog === "foto"} onOpenChange={zu} projektId={projekt.id} />
+      <FotoDialog open={dialog === "dokument"} onOpenChange={zu} projektId={projekt.id} art="dokument" />
       <TerminDialog open={dialog === "termin"} onOpenChange={zu} projektId={projekt.id} termin={termin} />
 
       <AlertDialog open={dialog === "loeschen"} onOpenChange={zu}>

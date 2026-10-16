@@ -21,12 +21,15 @@ import type { Sichtbarkeit } from "@/lib/types";
  * (z. B. einen Lieferschein mit Einkaufspreisen), stellt auf "Nur ich".
  */
 export function FotoDialog({
-  open, onOpenChange, projektId: vorProjekt,
+  open, onOpenChange, projektId: vorProjekt, art = "foto",
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   projektId?: string;
+  /** "dokument": Pläne, PDFs, Lieferscheine — landen im Ordner Dokumente */
+  art?: "foto" | "dokument";
 }) {
+  const dok = art === "dokument";
   const neuLaden = useNeuLaden();
   const { data: projekte = [] } = useProjekte();
   const [projektId, setProjektId] = useState("");
@@ -44,8 +47,9 @@ export function FotoDialog({
     setProjektId(vorProjekt || "");
     setDateien([]);
     setBeschreibung("");
-    setSicht("gemeinsam");
-  }, [open, vorProjekt]);
+    // Dokumente (Lieferscheine mit EK!) standardmäßig nur für mich
+    setSicht(art === "dokument" ? "privat" : "gemeinsam");
+  }, [open, vorProjekt, art]);
 
   useEffect(() => {
     const neu = dateien.map((d) => (d.type.startsWith("image/") ? URL.createObjectURL(d) : ""));
@@ -65,7 +69,7 @@ export function FotoDialog({
   const hochladen = async () => {
     if (!projektId || dateien.length === 0) return;
     setLaedt(true);
-    const erg = await dateienHochladen(projektId, dateien, gemeinsam ? sicht : "privat", beschreibung.trim());
+    const erg = await dateienHochladen(projektId, dateien, gemeinsam ? sicht : "privat", beschreibung.trim(), dok ? "dokument" : undefined);
     setLaedt(false);
     if (erg.ok > 0) {
       toast.success(`${erg.ok} ${erg.ok === 1 ? "Datei" : "Dateien"} abgelegt`);
@@ -83,8 +87,8 @@ export function FotoDialog({
       <FormularDialog
         open={open && !serieOffen}
         onOpenChange={onOpenChange}
-        titel="Foto zum Projekt"
-        beschreibung="Landet direkt im Projekt unter Fotos & Dateien."
+        titel={dok ? "Dokument zum Projekt" : "Foto zum Projekt"}
+        beschreibung={dok ? "Pläne, PDFs, Lieferscheine — landet im Projekt unter Dokumente." : "Landet direkt im Projekt unter Fotos."}
         gesperrt={laedt}
         fuss={
           <>
@@ -93,7 +97,7 @@ export function FotoDialog({
               {laedt ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               {laedt ? "Lädt hoch…"
                 : !projektId ? "Zuerst Projekt wählen"
-                : dateien.length === 0 ? "Zuerst Fotos wählen"
+                : dateien.length === 0 ? (dok ? "Zuerst Datei wählen" : "Zuerst Fotos wählen")
                 : `${dateien.length} ${dateien.length === 1 ? "Datei" : "Dateien"} ablegen`}
             </Button>
           </>
@@ -107,21 +111,33 @@ export function FotoDialog({
 
           <div className="space-y-2">
             <Label>Aufnehmen oder auswählen</Label>
-            <div className="grid grid-cols-3 gap-2">
-              <Button type="button" variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => setSerieOffen(true)}>
-                <Camera className="h-5 w-5" /><span>Fotos machen</span>
-              </Button>
-              <Button type="button" variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => galerie.current?.click()}>
-                <ImagePlus className="h-5 w-5" /><span>Aus Galerie</span>
-              </Button>
-              <Button type="button" variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => dokumente.current?.click()}>
-                <FileUp className="h-5 w-5" /><span>Dokument</span>
-              </Button>
-            </div>
+            {dok ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" className="col-span-2 h-auto flex-col gap-1 py-4" onClick={() => dokumente.current?.click()}>
+                  <FileUp className="h-6 w-6" /><span>Datei auswählen</span>
+                  <span className="text-[0.7rem] font-normal opacity-80">PDF, Plan, Excel, Word …</span>
+                </Button>
+                <Button type="button" variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => setSerieOffen(true)}>
+                  <Camera className="h-5 w-5" /><span>Abfotografieren</span>
+                </Button>
+                <Button type="button" variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => galerie.current?.click()}>
+                  <ImagePlus className="h-5 w-5" /><span>Aus Galerie</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => setSerieOffen(true)}>
+                  <Camera className="h-5 w-5" /><span>Fotos machen</span>
+                </Button>
+                <Button type="button" variant="outline" className="h-auto flex-col gap-1 py-3" onClick={() => galerie.current?.click()}>
+                  <ImagePlus className="h-5 w-5" /><span>Aus Galerie</span>
+                </Button>
+              </div>
+            )}
             <input ref={galerie} type="file" accept="image/*" multiple className="hidden"
               onChange={(e) => { dazu(e.target.files); e.target.value = ""; }} />
             <input ref={dokumente} type="file" multiple className="hidden"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.dwg,.dxf,image/*"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.dwg,.dxf,.zip,image/*"
               onChange={(e) => { dazu(e.target.files); e.target.value = ""; }} />
           </div>
 
@@ -152,7 +168,7 @@ export function FotoDialog({
 
           {gemeinsam && (
             <div className="space-y-2">
-              <Label>Wer sieht die Fotos?</Label>
+              <Label>{dok ? "Wer sieht das Dokument?" : "Wer sieht die Fotos?"}</Label>
               <SichtbarkeitWahl wert={sicht} onChange={setSicht} hinweisGemeinsam="Alle Partner im Projekt" />
             </div>
           )}
@@ -162,7 +178,7 @@ export function FotoDialog({
       <Serienaufnahme
         open={serieOffen}
         onOpenChange={setSerieOffen}
-        titel="Fotos fürs Projekt"
+        titel={dok ? "Dokument abfotografieren" : "Fotos fürs Projekt"}
         onFertig={(neu) => { dazu(neu); setSerieOffen(false); }}
       />
     </>

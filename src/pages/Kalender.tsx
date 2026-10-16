@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarPlus, ChevronLeft, ChevronRight, Lock, MapPin, Users } from "lucide-react";
+import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Lock, MapPin, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,15 @@ export default function Kalender() {
     <div className="min-h-screen bg-background">
       <PageHeader title="Kalender" backPath="/" />
       <main className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-4 max-w-6xl">
+        <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+          <div className="h-9 w-9 shrink-0 rounded-lg bg-white border border-sky-200 flex items-center justify-center">
+            <CalendarDays className="h-5 w-5 text-sky-700" />
+          </div>
+          <div className="text-sm">
+            <p className="font-semibold text-sky-900">Kann auch mit Google Kalender verbunden werden</p>
+            <p className="text-sky-800/80">Dann stehen eure Termine automatisch auch im Google Kalender am Handy. Bei Interesse einfach melden — wir richten es ein.</p>
+          </div>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => blaettern(-1)} aria-label="Vormonat"><ChevronLeft className="h-5 w-5" /></Button>
