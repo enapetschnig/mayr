@@ -34,3 +34,4 @@ supabase/.temp
 .supabase-db-passwort.txt
 
 tests/bilder/
+.vercel
