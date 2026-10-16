@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Corporate Fonts: Montserrat (Überschriften) + system Sans-Serif mit Segoe UI bevorzugt (Fließtext) */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap');
+
+/* Design-System.
+   Die Hauptfarbe wird beim Start aus kunde.config.ts überschrieben
+   (siehe farbenAnwenden() in main.tsx). Der Wert unten ist nur der
+   Ausgangswert, damit der erste Frame nicht ungestylt blitzt.
+   Alle Farben MÜSSEN HSL sein.
+*/
+
+@layer base {
+  :root {
+    /* Clean, hellerer Hintergrund */
+    --background: 0 0% 100%;
+    --foreground: 163 35% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 163 35% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 163 35% 11%;
+
+    /* Hauptfarbe — wird aus kunde.config.ts überschrieben */
+    --primary: 163 73% 20%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Grau hell #F2F2F2 als secondary */
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 163 73% 20%;
+
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 40%;  /* Grau mittel #666666 */
+
+    /* Helleres Grün als accent */
+    --accent: 162 52% 30%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Grün für Success */
+    --success: 152 55% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 95%;
+    --ring: 162 52% 30%;
+
+    --radius: 0.5rem;
+
+    /* Corporate design tokens - Kunde */
+    --marke-primaer: 163 73% 20%;
+    --marke-hell: 162 52% 30%;
+    --marke-grau-hell: 0 0% 95%;
+    --marke-grau-mittel: 0 0% 40%;
+
+    /* Shadows */
+    --shadow-soft: 0 2px 8px hsl(163 73% 20% / 0.08);
+    --shadow-medium: 0 4px 16px hsl(163 73% 20% / 0.12);
+
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 163 73% 20%;
+    --sidebar-primary: 163 73% 20%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 95%;
+    --sidebar-accent-foreground: 163 73% 20%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 162 52% 30%;
+  }
+
+  .dark {
+    --background: 163 22% 8%;
+    --foreground: 152 12% 95%;
+
+    --card: 163 18% 12%;
+    --card-foreground: 152 12% 95%;
+
+    --popover: 163 18% 12%;
+    --popover-foreground: 152 12% 95%;
+
+    --primary: 160 55% 46%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 163 10% 21%;
+    --secondary-foreground: 152 12% 95%;
+
+    --muted: 163 10% 17%;
+    --muted-foreground: 152 9% 63%;
+
+    --accent: 160 55% 46%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 163 10% 21%;
+    --input: 163 10% 21%;
+    --ring: 160 55% 46%;
+    --sidebar-background: 163 22% 8%;
+    --sidebar-foreground: 152 12% 95%;
+    --sidebar-primary: 160 55% 46%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 163 10% 15%;
+    --sidebar-accent-foreground: 152 12% 95%;
+    --sidebar-border: 163 10% 15%;
+    --sidebar-ring: 160 55% 46%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* Body: Segoe UI (Windows/Mac System) mit Fallbacks */
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  /* Überschriften: Montserrat ExtraBold */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Montserrat", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Vollbild-Formulare (FormularDialog) — aus der Tilger-App übernommen.
+   [role="dialog"] erhöht die Spezifität über Tailwinds Hilfsklassen. */
+@layer utilities {
+  [role="dialog"].formular-vollbild {
+    position: fixed;
+    inset: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    width: 100vw;
+    max-width: 100vw;
+    transform: none;
+    gap: 0;
+    overflow: hidden;
+    border-radius: 0;
+    border-width: 0;
+    padding: 0;
+  }
+}

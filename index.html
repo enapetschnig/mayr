@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Die %KUNDE_*%-Platzhalter füllt das Plugin "kunde-html" in
+         vite.config.ts aus src/kunde.config.ts. Hier nichts hart eintragen. -->
+    <title>%KUNDE_TITEL%</title>
+    <meta name="description" content="%KUNDE_BESCHREIBUNG%" />
+    <meta name="author" content="%KUNDE_FIRMA%" />
+
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+
+    <!-- PWA -->
+    <meta name="theme-color" content="%KUNDE_FARBE%" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="%KUNDE_KURZNAME%" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="%KUNDE_TITEL%" />
+    <meta property="og:description" content="%KUNDE_BESCHREIBUNG%" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="%KUNDE_TITEL%" />
+    <meta name="twitter:description" content="%KUNDE_BESCHREIBUNG%" />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Nach einem Deployment sind die alten Chunk-Dateien weg. Statt einer
+      // weißen Seite lädt die App sich in dem Fall einmal neu.
+      window.addEventListener('error', function (e) {
+        if (e.message && e.message.includes('Failed to fetch dynamically imported module')) {
+          window.location.reload();
+        }
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        if (e.reason && e.reason.message && e.reason.message.includes('Failed to fetch dynamically imported module')) {
+          window.location.reload();
+        }
+      });
+    </script>
+  </body>
+</html>

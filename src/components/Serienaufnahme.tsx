@@ -1,0 +1,550 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Camera, X, Check, Image as ImageIcon, Loader2, Maximize2, Minimize2, ZoomIn, ZoomOut } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+/**
+ * Serienaufnahme — aus der App heraus fotografieren, ohne jedes Mal zur
+ * Kamera-App und zurück.
+ *
+ * Übernommen aus schafferhoferbau, weil sich das dort bewährt hat: Der
+ * Kamerastrom bleibt offen, ein Tipp pro Foto. Wer ein Dach dokumentiert,
+ * macht zwanzig Aufnahmen hintereinander — mit dem Umweg über die Kamera-App
+ * wären das zwanzig Mal öffnen, auslösen, bestätigen, zurück.
+ *
+ * Zoom läuft über die Kamera selbst, wo der Browser das hergibt (Chromium),
+ * sonst über Zuschneiden im Bild — damit es auch auf dem iPhone etwas tut.
+ */
+export type CapturedPhoto = {
+  id: string;
+  file: File;
+  preview: string;
+};
+
+interface Props {
+  open: boolean;
+  onOpenChange: (offen: boolean) => void;
+  /** Bekommt am Ende alle aufgenommenen Bilder. */
+  onFertig: (dateien: File[]) => Promise<void> | void;
+  titel?: string;
+}
+
+type FitMode = "fit" | "fill";
+
+type ZoomCaps = { min: number; max: number; step: number };
+
+export function Serienaufnahme({
+  open,
+  onOpenChange,
+  onFertig,
+  titel = "Fotos aufnehmen",
+}: Props) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const pinchStateRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+  const sliderTrackRef = useRef<HTMLDivElement>(null);
+  const [captured, setCaptured] = useState<CapturedPhoto[]>([]);
+  const [finishing, setFinishing] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [streamReady, setStreamReady] = useState(false);
+  const [fitMode, setFitMode] = useState<FitMode>("fit");
+  // Zoom-State
+  const [zoom, setZoom] = useState(1);
+  const [zoomCaps, setZoomCaps] = useState<ZoomCaps | null>(null);
+  // Hardware-Zoom-Flag — wird beim Stream-Start ermittelt.
+  const [useHardwareZoom, setUseHardwareZoom] = useState(false);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setStreamReady(false);
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
+      }
+      setStreamReady(true);
+
+      // Hardware-Zoom-Capabilities pruefen (Chromium-only, ~2026).
+      const [track] = stream.getVideoTracks();
+      // getCapabilities + applyConstraints({ advanced: [{ zoom }] }) sind im
+      // TS-DOM-Lib (noch) nicht typisiert — wir greifen ueber Cast zu.
+      const caps = (track?.getCapabilities?.() ?? {}) as MediaTrackCapabilities & {
+        zoom?: { min: number; max: number; step: number };
+      };
+      if (caps.zoom && caps.zoom.max > caps.zoom.min) {
+        setZoomCaps({
+          min: caps.zoom.min,
+          max: caps.zoom.max,
+          step: caps.zoom.step || 0.1,
+        });
+        setUseHardwareZoom(true);
+        setZoom(caps.zoom.min || 1);
+      } else {
+        // Fallback: digitaler Zoom 1x..4x (Crop des Canvas-Source bei Aufnahme).
+        setZoomCaps({ min: 1, max: 4, step: 0.1 });
+        setUseHardwareZoom(false);
+        setZoom(1);
+      }
+    } catch (err) {
+      console.error("Camera error:", err);
+      toast({
+        variant: "destructive",
+        title: "Kamera-Fehler",
+        description: "Zugriff auf Kamera verweigert oder nicht verfuegbar. Du kannst Fotos aus der Galerie wählen.",
+      });
+      setStreamReady(false);
+    }
+  }, []);
+
+  // Hardware-Zoom anwenden, sobald zoom oder useHardwareZoom sich aendern.
+  useEffect(() => {
+    if (!useHardwareZoom || !streamReady) return;
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    // applyConstraints ist async; Fehler -> auf digitalen Zoom zurueckfallen.
+    track
+      .applyConstraints({
+        advanced: [{ zoom } as MediaTrackConstraintSet],
+      })
+      .catch((err) => {
+        console.warn("Hardware-Zoom fehlgeschlagen, fallback auf digital", err);
+        setUseHardwareZoom(false);
+      });
+  }, [zoom, useHardwareZoom, streamReady]);
+
+  // Kamera-Lifecycle an Dialog koppeln
+  useEffect(() => {
+    if (open) {
+      setCaptured([]);
+      setFinishing(false);
+      setFitMode("fit");
+      setZoom(1);
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    return () => stopCamera();
+  }, [open, startCamera, stopCamera]);
+
+  // Cleanup Object-URLs beim Unmount der Captured-Liste
+  useEffect(() => {
+    return () => {
+      captured.forEach((p) => URL.revokeObjectURL(p.preview));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video || !streamRef.current || !streamReady) {
+      toast({ variant: "destructive", title: "Fehler", description: "Kamera nicht aktiv." });
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      toast({ variant: "destructive", title: "Fehler", description: "Foto konnte nicht erstellt werden." });
+      return;
+    }
+
+    // Bei Hardware-Zoom ist das Video-Frame schon physisch gezoomt → direkt
+    // zeichnen. Bei digitalem Zoom: mittiger Source-Crop simuliert den Zoom
+    // in der gespeicherten Datei.
+    if (useHardwareZoom || zoom === 1) {
+      ctx.drawImage(video, 0, 0);
+    } else {
+      const sWidth = video.videoWidth / zoom;
+      const sHeight = video.videoHeight / zoom;
+      const sx = (video.videoWidth - sWidth) / 2;
+      const sy = (video.videoHeight - sHeight) / 2;
+      ctx.drawImage(
+        video,
+        sx, sy, sWidth, sHeight,
+        0, 0, canvas.width, canvas.height,
+      );
+    }
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const timestamp = Date.now();
+        const file = new File([blob], `photo_${timestamp}.jpg`, { type: "image/jpeg" });
+        const preview = URL.createObjectURL(blob);
+        setCaptured((prev) => [...prev, { id: crypto.randomUUID(), file, preview }]);
+      },
+      "image/jpeg",
+      0.9,
+    );
+    // Kurzer Flash als visuelles Feedback
+    setFlash(true);
+    setTimeout(() => setFlash(false), 120);
+  };
+
+  const removeCaptured = (id: string) => {
+    setCaptured((prev) => {
+      const target = prev.find((p) => p.id === id);
+      if (target) URL.revokeObjectURL(target.preview);
+      return prev.filter((p) => p.id !== id);
+    });
+  };
+
+  const handleGalleryFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    setCaptured((prev) => [
+      ...prev,
+      ...files.map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+        preview: URL.createObjectURL(file),
+      })),
+    ]);
+  };
+
+  const finish = async () => {
+    if (captured.length === 0) {
+      onOpenChange(false);
+      return;
+    }
+    setFinishing(true);
+    try {
+      await onFertig(captured.map((p) => p.file));
+      captured.forEach((p) => URL.revokeObjectURL(p.preview));
+      onOpenChange(false);
+    } finally {
+      setFinishing(false);
+    }
+  };
+
+  const cancel = () => {
+    captured.forEach((p) => URL.revokeObjectURL(p.preview));
+    onOpenChange(false);
+  };
+
+  // ===== Pinch-Geste =====
+  const distance = (t1: React.Touch, t2: React.Touch) =>
+    Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+
+  const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      pinchStateRef.current = {
+        startDist: distance(e.touches[0], e.touches[1]),
+        startZoom: zoom,
+      };
+    }
+  };
+
+  const onTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 2 || !pinchStateRef.current || !zoomCaps) return;
+    e.preventDefault();
+    const curr = distance(e.touches[0], e.touches[1]);
+    const ratio = curr / pinchStateRef.current.startDist;
+    const next = pinchStateRef.current.startZoom * ratio;
+    const clamped = Math.min(zoomCaps.max, Math.max(zoomCaps.min, next));
+    setZoom(Number(clamped.toFixed(2)));
+  };
+
+  const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length < 2) pinchStateRef.current = null;
+  };
+
+  const setZoomClamped = (value: number) => {
+    if (!zoomCaps) return;
+    setZoom(Math.min(zoomCaps.max, Math.max(zoomCaps.min, Number(value.toFixed(2)))));
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) cancel();
+        else onOpenChange(o);
+      }}
+    >
+      <DialogContent
+        className="max-w-full w-screen h-[100dvh] p-0 m-0 border-0 rounded-none bg-black flex flex-col gap-0 sm:max-w-full"
+        ohneSchliessen
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 py-2 bg-black/90 text-white shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={cancel}
+            disabled={finishing}
+            className="text-white hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-5 w-5 mr-1" />
+            Abbrechen
+          </Button>
+          <span className="text-sm font-medium">
+            {titel}
+            {captured.length > 0 ? ` · ${captured.length}` : ""}
+          </span>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={finish}
+            disabled={finishing || captured.length === 0}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {finishing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                Lädt…
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4 mr-1" />
+                Fertig{captured.length > 0 ? ` (${captured.length})` : ""}
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Live-Vorschau — Pinch-Container mit touch-none, damit Browser-
+            Default-Pinch nicht greift. */}
+        <div
+          className="flex-1 relative overflow-hidden bg-black touch-none"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchEnd}
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={cn(
+              "absolute inset-0 w-full h-full",
+              fitMode === "fit" ? "object-contain" : "object-cover",
+            )}
+            style={
+              !useHardwareZoom && zoom > 1
+                ? {
+                    transform: `scale(${zoom})`,
+                    transformOrigin: "center center",
+                    transition: "transform 60ms linear",
+                  }
+                : undefined
+            }
+          />
+          {/* Flash beim Auslösen */}
+          {flash && (
+            <div className="absolute inset-0 bg-white opacity-60 pointer-events-none" />
+          )}
+          {/* Hinweis falls Kamera nicht startet */}
+          {!streamReady && (
+            <div className="absolute inset-0 flex items-center justify-center text-white/80 text-sm px-4 text-center">
+              Kamera wird gestartet… Falls nichts passiert, prüfe die Kamera-Berechtigung im Browser.
+            </div>
+          )}
+
+          {/* Fit/Fill-Toggle oben rechts */}
+          {streamReady && (
+            <button
+              type="button"
+              onClick={() => setFitMode((m) => (m === "fit" ? "fill" : "fit"))}
+              className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition-colors"
+              title={fitMode === "fit" ? "Vorschau füllt den Bildschirm" : "Vorschau auf vollständigen Frame"}
+              aria-label="Vorschau-Modus umschalten"
+            >
+              {fitMode === "fit" ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+            </button>
+          )}
+
+          {/* Zoom-Schnellwahl-Pills unten in der Vorschau (iOS-Style).
+              1x ist immer dabei, dazu min/max und (falls dazwischen) 2x. */}
+          {streamReady && zoomCaps && zoomCaps.max > zoomCaps.min && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/50 rounded-full px-2 py-1">
+              {Array.from(new Set([
+                zoomCaps.min,
+                ...(zoomCaps.min <= 1 && zoomCaps.max >= 1 ? [1] : []),
+                ...(zoomCaps.max >= 2 && zoomCaps.min < 2 ? [2] : []),
+                zoomCaps.max,
+              ]))
+                .sort((a, b) => a - b)
+                .map((preset) => {
+                  const isActive = Math.abs(zoom - preset) < 0.05;
+                  // Label: ganze Zahlen ohne Komma, sonst eine Nachkommastelle.
+                  const label = Number.isInteger(preset)
+                    ? `${preset}x`
+                    : `${preset.toFixed(1)}x`;
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setZoomClamped(preset)}
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                        isActive
+                          ? "bg-white text-black"
+                          : "text-white/90 hover:bg-white/15",
+                      )}
+                      aria-label={`Zoom ${label}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+            </div>
+          )}
+
+          {/* Zoom-Slider rechts — Custom-Pointer-Slider statt input[range],
+              weil iOS Safari mit [writing-mode:vertical-lr] auf range-Inputs
+              nicht zuverlaessig vertikal rendert. Pointer-Events funktionieren
+              dafuer auf iOS, Android und Desktop gleich. */}
+          {streamReady && zoomCaps && zoomCaps.max > zoomCaps.min && (() => {
+            const range = zoomCaps.max - zoomCaps.min;
+            const ratio = range > 0 ? (zoom - zoomCaps.min) / range : 0;
+            // 0 = unten (min), 1 = oben (max). Thumb-Top = (1 - ratio) * 100%.
+            const thumbTopPct = (1 - ratio) * 100;
+            const updateFromClientY = (clientY: number) => {
+              const track = sliderTrackRef.current;
+              if (!track) return;
+              const rect = track.getBoundingClientRect();
+              const offsetRatio = 1 - Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+              setZoomClamped(zoomCaps.min + offsetRatio * range);
+            };
+            return (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 bg-black/40 rounded-full px-1.5 py-2 select-none">
+                <button
+                  type="button"
+                  onClick={() => setZoomClamped(zoom + (zoomCaps.step * 5))}
+                  className="text-white w-7 h-7 flex items-center justify-center hover:bg-white/15 rounded-full"
+                  aria-label="Zoom rein"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </button>
+                <div
+                  ref={sliderTrackRef}
+                  role="slider"
+                  aria-label="Zoom"
+                  aria-valuemin={zoomCaps.min}
+                  aria-valuemax={zoomCaps.max}
+                  aria-valuenow={zoom}
+                  tabIndex={0}
+                  className="relative h-32 w-6 touch-none cursor-pointer"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    updateFromClientY(e.clientY);
+                  }}
+                  onPointerMove={(e) => {
+                    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+                    updateFromClientY(e.clientY);
+                  }}
+                  onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                  onPointerCancel={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                >
+                  {/* Track-Linie */}
+                  <div className="absolute left-1/2 -translate-x-1/2 top-1 bottom-1 w-1 bg-white/30 rounded-full" />
+                  {/* Thumb */}
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-white rounded-full shadow-md pointer-events-none"
+                    style={{ top: `calc(${thumbTopPct}% - 8px)` }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setZoomClamped(zoom - (zoomCaps.step * 5))}
+                  className="text-white w-7 h-7 flex items-center justify-center hover:bg-white/15 rounded-full"
+                  aria-label="Zoom raus"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </button>
+                <span className="text-white text-[10px] font-mono">{zoom.toFixed(1)}x</span>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Mini-Galerie der bisher aufgenommenen Fotos */}
+        {captured.length > 0 && (
+          <div className="flex gap-2 px-3 py-2 overflow-x-auto bg-black/90 shrink-0">
+            {captured.map((p) => (
+              <div key={p.id} className="relative shrink-0">
+                <img
+                  src={p.preview}
+                  alt=""
+                  className="h-16 w-16 object-cover rounded border border-white/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeCaptured(p.id)}
+                  className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-0.5 hover:bg-red-700"
+                  title="Entfernen"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Auslöser-Leiste */}
+        <div className="flex items-center justify-between px-6 py-4 bg-black shrink-0">
+          {/* Galerie-Fallback links */}
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            disabled={finishing}
+            className="h-12 w-12 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+            title="Aus Galerie wählen"
+            aria-label="Aus Galerie wählen"
+          >
+            <ImageIcon className="h-6 w-6" />
+          </button>
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleGalleryFiles}
+          />
+
+          {/* Großer Auslöser-Button */}
+          <button
+            type="button"
+            onClick={capturePhoto}
+            disabled={!streamReady || finishing}
+            className="h-20 w-20 rounded-full bg-white border-4 border-white/40 active:scale-95 transition-transform disabled:opacity-50"
+            title="Foto aufnehmen"
+            aria-label="Foto aufnehmen"
+          />
+
+          {/* Platzhalter rechts für visuelle Symmetrie */}
+          <div className="h-12 w-12 flex items-center justify-center text-white/60">
+            <Camera className="h-5 w-5" />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
