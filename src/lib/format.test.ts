@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { zahlLesen } from "./format";
+import { dezimalLesen, zahlLesen } from "./format";
 
 describe("Zahlen aus Eingabefeldern", () => {
   it("Komma und Punkt wie in Österreich", () => {
@@ -11,6 +11,15 @@ describe("Zahlen aus Eingabefeldern", () => {
     expect(zahlLesen("0.250")).toBe(0.25);
     expect(zahlLesen("-1.250")).toBe(-1250);
     expect(zahlLesen(" 7,5 h")).toBe(7.5);
+  });
+
+  it("mehrere Trenner nur als Tausender", () => {
+    expect(zahlLesen("1.234.567")).toBe(1234567);
+    expect(zahlLesen("1,234,567")).toBe(1234567);
+    expect(zahlLesen("1.234.567,89")).toBe(1234567.89);
+    expect(dezimalLesen("1,2,3")).toBeNull();
+    expect(dezimalLesen("1.2.3")).toBeNull();
+    expect(zahlLesen("1,250")).toBe(1.25);
   });
 
   it("leer oder unlesbar ist 0", () => {
