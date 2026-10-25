@@ -22,16 +22,23 @@ Software für Elektriker — am Handy auf der Baustelle bedienbar.
 | | Chef | Monteur |
 |---|---|---|
 | Projekte sehen / anlegen | ✓ | ✓ |
-| Projekt löschen | ✓ | – |
-| Stunden | alle | sieht alle, ändert eigene |
-| Material ausfassen / zurückgeben | ✓ | ✓ |
+| Projekt löschen, Projekt-Stundensatz | ✓ | – |
+| Stunden | alle | sieht alle, bucht und ändert eigene; für Kollegen nur als Partie im Regiebericht |
+| Material ausfassen / zurückgeben / direkt aufs Projekt | ✓ | ✓ |
 | Regieberichte schreiben + unterschreiben lassen | ✓ | ✓ |
-| Angebote, Rechnungen | ✓ | – (Tabelle per RLS gesperrt) |
+| Angebote, Rechnungen, verrechnen | ✓ | – (Tabelle per RLS gesperrt) |
 | Artikelstamm pflegen, Datanorm-Import, Leistungskatalog | ✓ | nur neuen Artikel anlegen (unbekannter Strichcode) |
 | Lager: Wareneingang, Inventur, Lagerorte | ✓ | Bestand sehen |
 | Einstellungen Betrieb, Mitarbeiter freischalten / sperren, vorläufiges Passwort | ✓ | – |
 
 `useSitzung().istChef` im Frontend, `public.ist_chef()` in der Datenbank.
+Was die Oberfläche einem Monteur nicht zeigt, verbietet auch die Datenbank —
+direkte API-Aufrufe kommen nicht weiter (Migration `20261025190000_rechte_monteur.sql`):
+`rechnung_id` setzen oder lösen nur der Chef; `erstellt_von` setzt der Server,
+Stunden auf einen Kollegen umbuchen nur der Chef; Projektnummer fest,
+Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
+(`korrektur`) nur der Chef; wer gebucht hat, bleibt; Pause nie negativ.
+`tests/rls-test.mjs` prüft jede dieser Regeln mit echten Konten.
 
 **Konten** (`lib/konto.ts`, Migration `20261025150000_konten.sql`):
 - Anmelden mit Benutzername: „Jürgen Maier“ → `juergen.maier@<loginDomain>`;
@@ -98,6 +105,10 @@ Verrechnet wird **an der Quelle**: `zeiten.rechnung_id`,
 eine Rechnung setzt die App diese Spalte und schreibt die IDs in
 `beleg_positionen.quelle` = `{"zeiten":[…],"material":[…],"regie":[…]}`.
 
+- Rechnung nach Angebot: Schalter „mit dem Angebot abgegolten“ — was nicht
+  angehakt ist (Stunden, Material; Regieberichte nie, die sind Zusatzarbeit),
+  hängt an einer Textzeile ohne Betrag (`ABGEGOLTEN_TEXT`) und gilt als
+  verrechnet. Sonst stünde es im Projekt für immer als „offen“.
 - Position im Entwurf gelöscht → Trigger gibt die Quellen frei
 - Entwurf gelöscht → FK `on delete set null` gibt frei
 - Rechnung storniert → `beleg_stornieren(id)` gibt frei (und legt die
@@ -149,7 +160,15 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   „Storniert“. Ein Firmenkunde braucht die Stornorechnung, um die Vorsteuer
   zu berichtigen. Je Rechnung höchstens eine (eindeutiger Index).
 - Storno gibt Stunden, Material und Berichte frei; „Korrektur anlegen“ kopiert
-  die stornierte Rechnung in einen neuen Entwurf und hängt die Quellen dort an.
+  die stornierte Rechnung in einen neuen Entwurf (`korrektur_von`, je Rechnung
+  höchstens einer — Index `belege_korrektur_von_einmal`) und hängt die Quellen
+  dort an. Ihr PDF nennt „Ersetzt Rechnung RE-…“.
+- Löschen: Rechnungen nur als Entwurf. Angebote in jedem Status — außer eine
+  Rechnung bezieht sich darauf (`angebot_verrechnet`), sonst verlöre sie den
+  Bezug (Policy `belege_nicht_loeschen`).
+- Liste: Summe je Belegart (Rechnungen offen/bezahlt, Angebote
+  offen/angenommen), ohne Entwürfe, Stornos und abgelehnte Angebote — die
+  Fußzeile sagt, was fehlt. Am PC: Zeilen mit Tab/Enter, im Editor Strg+S.
 - Cent-Rundung (`runden2`) wie Postgres `round()`: halber Cent weg von null —
   sonst wiche die Stornorechnung um einen Cent ab.
 - Ungespeichertes schützt zweierlei: Links, Zurück-Knopf und Neuladen fragen
@@ -159,6 +178,17 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   Abmelden löscht die Sicherungen.
 - Bekannte Grenze: eine einzeln gelöschte Materialzeile eines übernommenen
   Berichts kommt nur über einen neuen Import zurück.
+
+### Betrieb (Einstellungen)
+
+- Stundensatz über 0 €, Aufschlag 0–1000 %, Zahlungsziel und Angebotsfrist in
+  ganzen Tagen — leer oder unlesbar wird abgewiesen, nicht still 0.
+- Bankdaten (`lib/bank.ts`): IBAN mit Prüfziffer und Länge je Land, BIC, UID
+  (Österreich `ATU` + 8 Ziffern); gespeichert einheitlich (IBAN in
+  Vierergruppen). Was schon so gespeichert ist, sperrt nicht — die Demo-IBAN
+  zeigt nur den Hinweis, dass der Bezahl-QR damit nicht funktioniert.
+- Logo: auf 1200 px verkleinert, PNG bleibt PNG (Transparenz); das alte wird
+  erst gelöscht, wenn das neue eingetragen ist.
 
 ### Regiebericht = keine doppelte Erfassung
 
@@ -217,7 +247,9 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
 ## Hauptabläufe
 
 1. **Stunden (Monteur)**: Start → „Stunden“ → Projekt (zuletzt benutzte oben) →
-   Schnellwahl 4/6/8/8,5/9/10 h oder Von–Bis → fertig.
+   Schnellwahl 4/6/8/8,5/9/10 h, „andere“ tippen oder Von–Bis (22 bis 6 Uhr
+   geht über Mitternacht) → fertig. Nicht für morgen — gebucht wird, was
+   gearbeitet ist.
 2. **Material ausfassen**: Projekt → „Material“ → Kamera scannt laufend →
    jeder Treffer landet in der Liste (Menge ±, bei Metern Zahlenfeld) →
    „Buchen“. Unbekannter Code → Artikel suchen und Code zuordnen ODER neuen
@@ -260,4 +292,12 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
     1000 Zeilen und schneidet still ab; für Auswertungen immer seitenweise holen.
     `csvHerunterladen()` — Strichpunkt, Dezimalkomma, BOM (Excel in Österreich)
 - PostgREST-Sammel-Inserts: **jede Zeile mit denselben Feldern** (sonst NULL statt Default)
+- Zahlen aus Eingaben nur über `dezimalLesen`/`zahlLesen` (Komma oder Punkt,
+  Tausenderpunkte; „1,2,3“ ist ein Tippfehler und ergibt `null`)
+- Server-Daten in einem Formular: Neues nur übernehmen, wenn nichts getippt
+  ist. Supabase meldet bei jeder Rückkehr in den Tab `SIGNED_IN`; `useSitzung`
+  lädt dann neu, behält aber unveränderte Objekte (sonst liefe jeder
+  `useEffect(…, [firma])` an)
+- Diktat (`DiktatKnopf`): ohne Netz oder Mikrofon eine klare Meldung und Ende —
+  kein Neustart in Schleife
 - Handy zuerst: Ziel 360 px Breite, Knöpfe ≥ 44 px, Eingaben `h-11`/`h-12`
