@@ -4,9 +4,9 @@ import { Info, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import FormularDialog from "@/components/FormularDialog";
 import { Gruppentitel } from "@/components/Bausteine";
-import { KundeFelder } from "@/components/KundeWahl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
@@ -22,6 +22,34 @@ import { fehlerText } from "./stammDaten";
 
 type Grunddaten = Pick<Kunde, "name" | "strasse" | "plz" | "ort" | "telefon" | "email">;
 type Zusatzdaten = { ansprechpartner: string; uid: string; notiz: string };
+
+/**
+ * Kontaktfelder eines Kunden — im Kundenformular, ob aus der Kundenliste
+ * oder über „Neuer Kunde“ im Projekt bzw. Beleg.
+ * fokus=false beim Bearbeiten: sonst springt am Handy sofort die Tastatur auf.
+ */
+export function KundeFelder({ wert, onChange, fokus = true }: { wert: Grunddaten; onChange: (k: Grunddaten) => void; fokus?: boolean }) {
+  const feld = (k: keyof Grunddaten, label: string, props: React.ComponentProps<typeof Input> = {}) => (
+    <div className="space-y-1.5">
+      <Label htmlFor={`k-${k}`}>{label}</Label>
+      <Input id={`k-${k}`} className="h-11" value={wert[k] ?? ""} onChange={(e) => onChange({ ...wert, [k]: e.target.value })} {...props} />
+    </div>
+  );
+  return (
+    <div className="grid gap-3">
+      {feld("name", "Name / Firma", { placeholder: "z. B. Familie Huber", autoFocus: fokus })}
+      {feld("strasse", "Straße")}
+      <div className="grid grid-cols-[6rem_1fr] gap-2">
+        {feld("plz", "PLZ", { inputMode: "numeric" })}
+        {feld("ort", "Ort")}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {feld("telefon", "Telefon", { inputMode: "tel", type: "tel" })}
+        {feld("email", "E-Mail", { inputMode: "email", type: "email" })}
+      </div>
+    </div>
+  );
+}
 
 const grundAus = (k: Partial<Kunde> | null): Grunddaten => ({
   name: k?.name ?? "", strasse: k?.strasse ?? "", plz: k?.plz ?? "", ort: k?.ort ?? "", telefon: k?.telefon ?? "", email: k?.email ?? "",
@@ -52,10 +80,14 @@ export function KundeDialog({
   const [zusatz, setZusatz] = useState<Zusatzdaten>(zusatzAus(null));
   const [speichert, setSpeichert] = useState(false);
   const [loeschInfo, setLoeschInfo] = useState<{ projekte: number; belege: number } | null>(null);
+  const [basis, setBasis] = useState("");
 
   useBeimOeffnen(open ? kunde?.id ?? "neu" : null, () => {
-    setGrund(grundAus(kunde ?? { name: vorgabeName ?? "" }));
-    setZusatz(zusatzAus(kunde));
+    const g = grundAus(kunde ?? { name: vorgabeName ?? "" });
+    const z = zusatzAus(kunde);
+    setGrund(g);
+    setZusatz(z);
+    setBasis(JSON.stringify([g, z]));
     setLoeschInfo(null);
   });
 
@@ -127,6 +159,7 @@ export function KundeDialog({
       titel={kunde ? "Kunde bearbeiten" : "Neuer Kunde"}
       beschreibung={kunde ? `K${kunde.nummer}` : undefined}
       gesperrt={speichert}
+      ungespeichert={JSON.stringify([grund, zusatz]) !== basis}
       fuss={
         <>
           {kunde && istChef && (

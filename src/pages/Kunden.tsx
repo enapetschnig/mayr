@@ -14,11 +14,11 @@ import { zahl } from "@/lib/format";
 import type { Kunde } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** Alle Wörter müssen vorkommen — Name, Ort, Nummer (mit oder ohne „K“), Ansprechpartner, Straße, Telefon, E-Mail */
+/** Alle Wörter müssen vorkommen — Name, Ort, Nummer (mit oder ohne „K“), Ansprechpartner, Straße, Telefon, E-Mail, UID */
 function passt(k: Kunde, suchtext: string) {
   const woerter = suchtext.toLowerCase().split(/\s+/).filter(Boolean);
   if (!woerter.length) return true;
-  const text = [k.name, k.ort, k.plz, k.strasse, k.ansprechpartner, k.telefon, k.email, `k${k.nummer}`, String(k.nummer)]
+  const text = [k.name, k.ort, k.plz, k.strasse, k.ansprechpartner, k.telefon, k.email, `k${k.nummer}`, String(k.nummer), k.uid]
     .filter(Boolean).join(" ").toLowerCase();
   return woerter.every((w) => text.includes(w));
 }
@@ -94,7 +94,7 @@ export default function KundenSeite() {
     <div className="space-y-3">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Suchen – Name, Ort, Nummer …"
+        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Suchen – Name, Ort, Nummer, UID …"
           className="h-12 pl-9 text-base" inputMode="search" enterKeyHint="search" autoComplete="off" aria-label="Kunden suchen" />
       </div>
       {isLoading ? (
