@@ -1,57 +1,182 @@
+// Prüft die Regeln, die in der Datenbank stecken (RLS und Trigger), mit drei
+// Testkonten: Chef, Monteur und einem, der noch nicht freigeschaltet ist.
+//
+//   node tests/rls-test.mjs anlegen   Testkonten registrieren, dann die
+//                                     ausgegebenen SQL-Zeilen ausführen
+//   node tests/rls-test.mjs           alle Prüfungen
+//
+// Danach tests/rls-aufraeumen.sql ausführen: Testdaten, Testkonten und
+// Nummernkreise (der Test vergibt echte Projekt-, Rechnungs- und Regienummern).
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
-const env = Object.fromEntries(fs.readFileSync(".env","utf8").split("\n").filter(Boolean).map(l=>l.split(/=(.*)/s)));
-const URL=env.VITE_SUPABASE_URL, KEY=env.VITE_SUPABASE_KEY;
-const FIRMEN={mam:"11111111-1111-4111-8111-111111111111",nord:"22222222-2222-4222-8222-222222222222",sued:"33333333-3333-4333-8333-333333333333"};
-const PW="Test-Passwort-2026!";
-const ok=(c,m)=>console.log((c?"✓ ":"✗ FEHLER ")+m);
-async function client(k){
-  const c=createClient(URL,KEY,{auth:{persistSession:false}});
-  const email=`rlstest-${k}@mayr-test.at`;
-  let {error}=await c.auth.signInWithPassword({email,password:PW});
-  if(error){ const r=await c.auth.signUp({email,password:PW,options:{data:{vorname:"Test",nachname:k,firma_id:FIRMEN[k]}}}); if(r.error) throw r.error; }
+
+const env = Object.fromEntries(fs.readFileSync(".env", "utf8").split("\n").filter(Boolean).map((l) => l.split(/=(.*)/s)));
+const PW = "Test-Passwort-2026!";
+const mail = (k) => `rlstest-${k}@mayr-test.at`;
+const neuerClient = () => createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_KEY, { auth: { persistSession: false } });
+
+let fehlgeschlagen = 0;
+const ok = (bedingung, text) => {
+  if (!bedingung) fehlgeschlagen++;
+  console.log((bedingung ? "✓ " : "✗ FEHLER ") + text);
+};
+/** Erwarteter Fehler: zeigt die Meldung der Datenbank, oder warnt, wenn keiner kam */
+const abgelehnt = (error) => (error ? ` — ${error.message}` : " — KEIN FEHLER!");
+
+async function konto(k) {
+  const c = neuerClient();
+  const { error } = await c.auth.signInWithPassword({ email: mail(k), password: PW });
+  if (error) {
+    const r = await c.auth.signUp({ email: mail(k), password: PW, options: { data: { vorname: "Test", nachname: k } } });
+    if (r.error) throw r.error;
+  }
   return c;
 }
-const step=process.argv[2];
-if(step==="anlegen"){ for(const k of Object.keys(FIRMEN)) await client(k); console.log("angelegt"); process.exit(0); }
-const mam=await client("mam"), nord=await client("nord"), sued=await client("sued");
-// MAM: privates + gemeinsames Projekt
-const {data:pPriv,error:e1}=await mam.from("projekte").insert({name:"RLS privat",sichtbarkeit:"privat"}).select().single(); ok(!e1,"MAM legt privates Projekt an "+(e1?.message||""));
-const {data:pGem,error:e2}=await mam.from("projekte").insert({name:"RLS gemeinsam",sichtbarkeit:"gemeinsam"}).select().single(); ok(!e2,"MAM legt gemeinsames Projekt an "+(e2?.message||""));
-const {data:rollen}=await mam.from("projekt_rollen").select().eq("projekt_id",pGem.id); ok(rollen?.length===1&&rollen[0].rolle==="GU","GU automatisch = MAM");
-const {data:nSieht}=await nord.from("projekte").select("id,name"); ok(nSieht.some(p=>p.id===pGem.id)&&!nSieht.some(p=>p.id===pPriv.id),"Nord sieht gemeinsames, nicht privates Projekt");
-const {error:e3}=await nord.from("projekt_rollen").insert({projekt_id:pGem.id,firma_id:FIRMEN.nord,rolle:"SU"}); ok(!e3,"Nord trägt sich als SU ein "+(e3?.message||""));
-const {error:e3b}=await nord.from("projekte").update({sichtbarkeit:"privat"}).eq("id",pGem.id); ok(!!e3b,"Nord kann Freigabe NICHT ändern ("+(e3b?.message||"kein Fehler!")+")");
-const {error:e3c}=await nord.from("zeiten").insert({projekt_id:pPriv.id,stunden:3}); ok(!!e3c,"Nord kann NICHT auf fremdes privates Projekt buchen");
-// Buchungen
-await nord.from("zeiten").insert([{projekt_id:pGem.id,stunden:7,taetigkeit:"privat N",sichtbarkeit:"privat"},{projekt_id:pGem.id,stunden:2,taetigkeit:"gemeinsam N",sichtbarkeit:"gemeinsam"}]);
-await nord.from("material").insert([{projekt_id:pGem.id,bezeichnung:"Kabel privat",menge:10,ek_preis:1.5,sichtbarkeit:"privat"},{projekt_id:pGem.id,bezeichnung:"Dose gemeinsam",menge:5,ek_preis:2,sichtbarkeit:"gemeinsam"}]);
-const {data:mz}=await mam.from("zeiten").select("taetigkeit").eq("projekt_id",pGem.id); ok(mz.length===1&&mz[0].taetigkeit==="gemeinsam N","MAM sieht nur gemeinsame Stunden von Nord");
-const {data:mm}=await mam.from("material").select("bezeichnung").eq("projekt_id",pGem.id); ok(mm.length===1,"MAM sieht nur gemeinsames Material von Nord");
-const {data:sz}=await sued.from("zeiten").select("id").eq("projekt_id",pGem.id); ok(sz.length===1,"Süd sieht nur die gemeinsame Stunde");
-// Rechnung Nord → MAM
-const {data:r,error:e4}=await nord.from("rechnungen").insert({typ:"rechnung",empfaenger_art:"firma",empfaenger_firma_id:FIRMEN.mam,projekt_id:pGem.id,kunde_name:"MAM Mechatronik",reverse_charge:true,netto:100,brutto:100}).select().single(); ok(!e4,"Nord legt Rechnung an MAM an "+(e4?.message||""));
-let {data:mr}=await mam.from("rechnungen").select("id").eq("id",r.id); ok(mr.length===0,"MAM sieht den Entwurf von Nord NICHT");
-await nord.from("rechnung_positionen").insert({rechnung_id:r.id,bezeichnung:"Elektroinstallation",menge:7,einheit:"h",einzelpreis:60});
-const {data:nr,error:e5}=await nord.rpc("beleg_fertigstellen",{p_id:r.id}); ok(!e5&&/^NORD-\d{4}-001$/.test(nr),"Fertigstellen vergibt Nummer: "+(nr||e5?.message));
-({data:mr}=await mam.from("rechnungen").select("id,nummer").eq("id",r.id)); ok(mr.length===1,"MAM sieht fertige Rechnung von Nord als Eingang");
-const {data:mpos}=await mam.from("rechnung_positionen").select("gesamt").eq("rechnung_id",r.id); ok(mpos.length===1&&Number(mpos[0].gesamt)===420,"MAM sieht Positionen (420 €)");
-const {data:sr}=await sued.from("rechnungen").select("id"); ok(sr.length===0,"Süd sieht keine fremde Rechnung");
-const {error:e6}=await nord.from("rechnung_positionen").update({einzelpreis:1}).eq("rechnung_id",r.id); ok(!!e6,"Fertige Rechnung ist festgeschrieben");
-const {data:mu}=await mam.from("rechnungen").update({status:"bezahlt"}).eq("id",r.id).select(); ok(!mu?.length,"MAM kann Nords Rechnung nicht ändern");
-// Dateien Storage
-const pfad=`${pGem.id}/test-${Date.now()}.txt`;
-const {error:e7}=await nord.storage.from("projekt-dateien").upload(pfad,new Blob(["hallo"]),{contentType:"text/plain"}); ok(!e7,"Nord lädt Datei hoch "+(e7?.message||""));
-await nord.from("dateien").insert({projekt_id:pGem.id,pfad,name:"test.txt",art:"dokument"});
-const {data:url,error:e8}=await sued.storage.from("projekt-dateien").createSignedUrl(pfad,60); ok(!e8&&url?.signedUrl,"Süd kann gemeinsame Datei öffnen "+(e8?.message||""));
-const {error:e9}=await sued.storage.from("projekt-dateien").upload(`${pPriv.id}/x.txt`,new Blob(["x"])); ok(!!e9,"Süd kann NICHT in fremdes privates Projekt hochladen");
-// Termine
-await mam.from("termine").insert([{titel:"Privat MAM",datum:"2026-10-20",sichtbarkeit:"privat"},{titel:"Für alle",datum:"2026-10-21",sichtbarkeit:"gemeinsam"}]);
-const {data:st}=await sued.from("termine").select("titel"); ok(st.every(t=>t.titel==="Für alle")&&st.length>=1,"Süd sieht nur gemeinsamen Termin");
-// Aufräumen
-await nord.storage.from("projekt-dateien").remove([pfad]);
-await nord.from("dateien").delete().eq("pfad",pfad);
-for (const c of [mam,nord,sued]) { await c.from("termine").delete().neq("id","00000000-0000-0000-0000-000000000000"); }
-await nord.from("rechnungen").delete().eq("id",r.id); // fertig → bleibt (Schutz), wird per SQL entfernt
-await mam.from("projekte").delete().in("id",[pPriv.id,pGem.id]);
-console.log("fertig");
+
+if (process.argv[2] === "anlegen") {
+  for (const k of ["chef", "monteur", "neu"]) await konto(k);
+  console.log("Angelegt. Jetzt freischalten (SQL als postgres):");
+  console.log(`update public.profiles set aktiv = true, rolle = 'chef' where email = '${mail("chef")}';`);
+  console.log(`update public.profiles set aktiv = true where email = '${mail("monteur")}';`);
+  process.exit(0);
+}
+
+const chef = await konto("chef");
+const monteur = await konto("monteur");
+const neu = await konto("neu");
+const idVon = async (c) => (await c.auth.getUser()).data.user.id;
+const [chefId, monteurId, neuId] = await Promise.all([idVon(chef), idVon(monteur), idVon(neu)]);
+
+{
+  const { data } = await chef.from("profiles").select("id, rolle, aktiv").in("id", [chefId, monteurId, neuId]);
+  const p = Object.fromEntries((data ?? []).map((x) => [x.id, x]));
+  if (p[chefId]?.rolle !== "chef" || !p[chefId]?.aktiv || !p[monteurId]?.aktiv || p[neuId]?.aktiv) {
+    console.log("Testkonten nicht vorbereitet — erst `node tests/rls-test.mjs anlegen` und die SQL-Zeilen ausführen.");
+    process.exit(1);
+  }
+}
+
+console.log("\n— Ohne Anmeldung —");
+{
+  const anonym = neuerClient();
+  const { data } = await anonym.from("projekte").select("id");
+  ok(!data?.length, "sieht keine Projekte");
+  const { data: z } = await anonym.from("zeiten").select("id");
+  ok(!z?.length, "sieht keine Stunden");
+}
+
+console.log("\n— Nicht freigeschaltet —");
+{
+  const { data: pr } = await neu.from("projekte").select("id");
+  ok(pr?.length === 0, "sieht keine Projekte");
+  const { data: fi } = await neu.from("firma").select("id");
+  ok(fi?.length === 0, "sieht den Betrieb nicht");
+  const { data: ku } = await neu.from("kunden").select("id");
+  ok(ku?.length === 0, "sieht keine Kunden");
+  const { data: pz } = await neu.from("projekt_zahlen").select("projekt_id");
+  ok(pz?.length === 0, "sieht keine Projektzahlen (View mit den Rechten des Abfragenden)");
+  const { data: lb } = await neu.from("lagerbestand").select("artikel_id");
+  ok(lb?.length === 0, "sieht keinen Lagerbestand");
+  const { error: e1 } = await neu.from("zeiten").insert({ stunden: 2 });
+  ok(!!e1, "kann keine Stunden buchen" + abgelehnt(e1));
+  const { error: e2 } = await neu.from("profiles").update({ aktiv: true }).eq("id", neuId);
+  ok(!!e2, "kann sich nicht selbst freischalten" + abgelehnt(e2));
+  const { error: e3 } = await neu.storage.from("projekt-dateien").upload(`rlstest/${Date.now()}.txt`, new Blob(["x"]), { contentType: "text/plain" });
+  ok(!!e3, "kann keine Dateien hochladen" + abgelehnt(e3));
+}
+
+console.log("\n— Monteur —");
+const { data: projekt, error: eP } = await monteur.from("projekte").insert({ name: "RLS-Test Baustelle" }).select("id, nummer").single();
+ok(!eP && /^\d{4}-\d{4}$/.test(projekt?.nummer ?? ""), `legt ein Projekt an, Nummer vom Trigger: ${projekt?.nummer ?? eP?.message}`);
+if (!projekt) process.exit(1);
+{
+  const { data: be } = await monteur.from("belege").select("id");
+  ok(be?.length === 0, "sieht keine Angebote und Rechnungen");
+  const { error: e1 } = await monteur.from("belege").insert({ typ: "rechnung", empf_name: "RLS-Test" });
+  ok(!!e1, "kann keine Rechnung anlegen" + abgelehnt(e1));
+  const { error: e2 } = await monteur.from("profiles").update({ rolle: "chef" }).eq("id", monteurId);
+  ok(!!e2, "kann sich nicht zum Chef machen" + abgelehnt(e2));
+  // Mit dem eigenen Wert „ändern“ — wäre die Regel kaputt, ändert sich trotzdem nichts an der Demo
+  const { data: firma } = await monteur.from("firma").select("stundensatz").eq("id", 1).single();
+  const { data: f } = await monteur.from("firma").update({ stundensatz: firma.stundensatz }).eq("id", 1).select();
+  ok(!f?.length, "kann den Betrieb nicht ändern");
+  const { data: artikel } = await monteur.from("artikel").select("id, ek_preis").limit(1).single();
+  const { data: a } = await monteur.from("artikel").update({ ek_preis: artikel.ek_preis }).eq("id", artikel.id).select();
+  ok(!a?.length, "kann keine Artikelpreise ändern");
+  const { data: d } = await monteur.from("projekte").delete().eq("id", projekt.id).select();
+  ok(!d?.length, "kann kein Projekt löschen");
+  const { error: e3 } = await monteur.rpc("beleg_fertigstellen", { p_id: projekt.id });
+  ok(!!e3, "kann keine Belege fertigstellen" + abgelehnt(e3));
+  const { error: e4 } = await monteur.storage.from("firmen-logos").upload(`rlstest-${Date.now()}.png`, new Blob(["x"]), { contentType: "image/png" });
+  ok(!!e4, "kann kein Logo hochladen" + abgelehnt(e4));
+
+  const pfad = `${projekt.id}/rlstest-${Date.now()}.txt`;
+  const { error: e5 } = await monteur.storage.from("projekt-dateien").upload(pfad, new Blob(["hallo"]), { contentType: "text/plain" });
+  ok(!e5, "lädt eine Projektdatei hoch" + (e5 ? abgelehnt(e5) : ""));
+  const { data: url } = await neu.storage.from("projekt-dateien").createSignedUrl(pfad, 60);
+  ok(!url?.signedUrl, "nicht Freigeschaltete können sie nicht öffnen");
+  await monteur.storage.from("projekt-dateien").remove([pfad]);
+}
+
+console.log("\n— Stunden —");
+const { data: zMonteur, error: eZ } = await monteur.from("zeiten").insert({ projekt_id: projekt.id, stunden: 4, taetigkeit: "RLS-Test" }).select("id").single();
+ok(!eZ, "Monteur bucht Stunden" + (eZ ? abgelehnt(eZ) : ""));
+const { data: zChef } = await chef.from("zeiten").insert({ projekt_id: projekt.id, stunden: 2, taetigkeit: "RLS-Test Chef" }).select("id").single();
+{
+  const { data: fremd } = await monteur.from("zeiten").update({ stunden: 9 }).eq("id", zChef.id).select();
+  ok(!fremd?.length, "Monteur kann fremde Stunden nicht ändern");
+  const { data: korr } = await chef.from("zeiten").update({ stunden: 5 }).eq("id", zMonteur.id).select();
+  ok(korr?.length === 1, "Chef kann Stunden des Monteurs korrigieren");
+}
+
+console.log("\n— Rechnung —");
+const { data: re, error: eR } = await chef.from("belege").insert({ typ: "rechnung", projekt_id: projekt.id, empf_name: "RLS-Test Kunde" }).select("id").single();
+ok(!eR, "Chef legt einen Rechnungsentwurf an" + (eR ? abgelehnt(eR) : ""));
+{
+  const { error: ePos } = await chef.from("beleg_positionen").insert({
+    beleg_id: re.id, pos: 1, art: "arbeit", bezeichnung: "Arbeitszeit", menge: 5, einheit: "h", einzelpreis: 72,
+    quelle: { zeiten: [zMonteur.id], material: [], regie: [] },
+  });
+  await chef.from("zeiten").update({ rechnung_id: re.id }).eq("id", zMonteur.id);
+  ok(!ePos, "übernimmt die Stunde als Position" + (ePos ? abgelehnt(ePos) : ""));
+  const { error: e1 } = await monteur.from("zeiten").update({ stunden: 1 }).eq("id", zMonteur.id);
+  ok(!!e1, "verrechnete Stunde ist für den Monteur fest" + abgelehnt(e1));
+
+  const { data: nr, error: eF } = await chef.rpc("beleg_fertigstellen", { p_id: re.id });
+  ok(!eF && /^RE-\d{4}-\d{3}$/.test(nr ?? ""), `Fertigstellen vergibt die Nummer: ${nr ?? eF?.message}`);
+  const { data: b } = await chef.from("belege").select("netto, brutto, status").eq("id", re.id).single();
+  ok(Number(b.netto) === 360 && Number(b.brutto) === 432 && b.status === "offen", `rechnet aus den Positionen: ${b.netto} netto, ${b.brutto} brutto`);
+  const { error: e2 } = await chef.from("beleg_positionen").update({ einzelpreis: 1 }).eq("beleg_id", re.id);
+  ok(!!e2, "Positionen der fertigen Rechnung sind fest" + abgelehnt(e2));
+  const { error: e3 } = await chef.from("belege").update({ netto: 1 }).eq("id", re.id);
+  ok(!!e3, "Beträge der fertigen Rechnung sind fest" + abgelehnt(e3));
+  const { data: weg } = await chef.from("belege").delete().eq("id", re.id).select();
+  ok(!weg?.length, "fertige Rechnung kann nicht gelöscht werden");
+  const { error: e4 } = await chef.from("belege").update({ status: "bezahlt", bezahlt_am: new Date().toISOString().slice(0, 10) }).eq("id", re.id);
+  ok(!e4, "als bezahlt markieren geht" + (e4 ? abgelehnt(e4) : ""));
+  const { error: e5 } = await chef.rpc("beleg_stornieren", { p_id: re.id });
+  const { data: frei } = await chef.from("zeiten").select("rechnung_id").eq("id", zMonteur.id).single();
+  ok(!e5 && frei?.rechnung_id === null, "Storno gibt die Stunde wieder frei" + (e5 ? abgelehnt(e5) : ""));
+}
+
+console.log("\n— Regiebericht —");
+const { data: rb, error: eRb } = await monteur.from("regieberichte").insert({ projekt_id: projekt.id, arbeiten: "RLS-Test Arbeiten" }).select("id, nummer").single();
+ok(!eRb && /^RB-\d{4}-\d{3}$/.test(rb?.nummer ?? ""), `Monteur schreibt einen Regiebericht: ${rb?.nummer ?? eRb?.message}`);
+if (rb) {
+  const { data: zRegie } = await monteur.from("zeiten").insert({ projekt_id: projekt.id, stunden: 3, regiebericht_id: rb.id, taetigkeit: "RLS-Test Regie" }).select("id").single();
+  const { error: eU } = await monteur.from("regieberichte")
+    .update({ status: "unterschrieben", unterschrift_name: "RLS-Test Kunde", unterschrieben_am: new Date().toISOString() }).eq("id", rb.id);
+  ok(!eU, "Kunde unterschreibt" + (eU ? abgelehnt(eU) : ""));
+  const { error: e1 } = await monteur.from("regieberichte").update({ arbeiten: "nachträglich geändert" }).eq("id", rb.id);
+  ok(!!e1, "unterschriebener Bericht ist fest" + abgelehnt(e1));
+  const { error: e2 } = await monteur.from("zeiten").update({ stunden: 1 }).eq("id", zRegie.id);
+  ok(!!e2, "Stunden darin sind fest" + abgelehnt(e2));
+  const { error: e3 } = await monteur.from("zeiten").insert({ projekt_id: projekt.id, stunden: 1, regiebericht_id: rb.id });
+  ok(!!e3, "es kommen keine Stunden mehr dazu" + abgelehnt(e3));
+  const { error: e4 } = await chef.from("regieberichte").delete().eq("id", rb.id);
+  ok(!!e4, "auch der Chef kann ihn nicht löschen" + abgelehnt(e4));
+}
+
+console.log(fehlgeschlagen ? `\n✗ ${fehlgeschlagen} Prüfung(en) fehlgeschlagen` : "\n✓ Alle Prüfungen bestanden");
+console.log("Jetzt tests/rls-aufraeumen.sql ausführen.");
+process.exit(fehlgeschlagen ? 1 : 0);

@@ -31,11 +31,21 @@ Schema samt RLS und Triggern: `supabase/migrations/20261025100000_elektriker_gru
 ## Befehle
 
 ```bash
-npm run dev          # Port 8080
+npm run dev          # Port 8080 (belegt? npx vite --port 8093 --strictPort)
 npm run build
 npm run typecheck
 npm run check        # Absturz-Wächter
 npm test             # vitest (Parser)
+```
+
+Regeln in der Datenbank prüfen (41 Prüfungen: nicht freigeschaltet, Monteur,
+Chef, Festschreiben, Storno, Regiebericht) — legt echte Daten und Nummern an,
+danach **immer** aufräumen:
+
+```bash
+node tests/rls-test.mjs anlegen          # 3 Testkonten, dann die ausgegebenen SQL-Zeilen
+node tests/rls-test.mjs
+sql.sh -f tests/rls-aufraeumen.sql       # Testdaten, Testkonten, Nummernkreise zurück
 ```
 
 Demo zurücksetzen (Reihenfolge einhalten; Dateien im Storage vorher über die
@@ -45,6 +55,7 @@ Storage-API löschen):
 sql.sh -f supabase/demo/01-stamm.sql     # Betrieb, Kunden, Projekte, Leistungen
 sql.sh -f supabase/demo/02-artikel.sql   # aus artikel_sql.py erzeugt
 sql.sh -f supabase/demo/03-verlauf.sql   # Stunden, Material, Regie, Belege
+DEMO_CHEF_PASSWORT=… python3 -I supabase/demo/unterschriften.py   # Unterschriftsbilder der Regieberichte
 ```
 
 `sql.sh` liest das DB-Passwort aus `.supabase-db-passwort.txt` (nie ausgeben).
