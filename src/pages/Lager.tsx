@@ -16,7 +16,7 @@ import {
 } from "@/components/material/materialDaten";
 import { useMitarbeiter } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
-import { csvHerunterladen } from "@/lib/abfrage";
+import { alsText, csvHerunterladen } from "@/lib/abfrage";
 import { euro, isoTag, zahl } from "@/lib/format";
 import { runden2 } from "@/lib/preise";
 import { BUCHUNGS_ART, KATEGORIEN_ARTIKEL, name, type BuchungsArt, type Lagerort } from "@/lib/types";
@@ -84,7 +84,8 @@ export default function Lager() {
     });
     karte.forEach((z) => {
       const min = z.artikel.mindestbestand;
-      z.fehlt = min != null ? runden3(Number(min) - z.gesamt) : 0;
+      // Negativer Bestand (mehr ausgefasst als gebucht) ist ein Buchungsfehler, keine Bestellmenge
+      z.fehlt = min != null ? runden3(Number(min) - Math.max(0, z.gesamt)) : 0;
     });
     return [...karte.values()].sort((a, b) => a.artikel.bezeichnung.localeCompare(b.artikel.bezeichnung, "de"));
   }, [bestand, lagerArtikel, orte]);
@@ -119,10 +120,11 @@ export default function Lager() {
 
   // Artikelnummer und Menge vorne: so nehmen Großhändler-Webshops (Sonepar: CSV-Upload
   // „Artikel und Menge“) die Datei an. Bestellt wird bis zum Mindestbestand, ganze Einheiten.
+  // Die Artikelnummer bleibt roh (der Webshop liest sie so), die EAN ist für Excel als Text geschützt.
   const bestelllisteLaden = () => csvHerunterladen(`bestellliste-${isoTag()}.csv`, [
     ["Artikelnummer", "Menge", "Einheit", "Bezeichnung", "Hersteller", "Hersteller-Nr.", "EAN", "Lieferant", "Bestand", "Mindestbestand"],
     ...nachbestellen.map(({ artikel: a, fehlt, gesamt }) => [
-      a.artikelnummer, Math.ceil(fehlt), a.einheit, a.bezeichnung, a.hersteller, a.hersteller_nr, a.ean, a.lieferant, gesamt, a.mindestbestand,
+      a.artikelnummer, Math.ceil(fehlt), a.einheit, a.bezeichnung, a.hersteller, a.hersteller_nr, alsText(a.ean), a.lieferant, gesamt, a.mindestbestand,
     ]),
   ]);
 
