@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { alleZeilen } from "@/lib/abfrage";
-import { datum, isoTag, tageDazu, zahl } from "@/lib/format";
+import { datum, dezimalLesen, isoTag, tageDazu, zahl } from "@/lib/format";
 import type { Artikel, Lagerort, MaterialBuchung, ProjektMaterial } from "@/lib/types";
 
 /**
@@ -28,6 +28,19 @@ export function neueId(): string {
 
 /** Mengen sind numeric(12,3) — auf drei Stellen runden, sonst bleibt 0,1 + 0,2 krumm. */
 export const runden3 = (n: number) => Math.round((Number(n) || 0) * 1000) / 1000;
+
+/** Größte Menge je Zeile — wie im Regiebericht (regieLogik `materialFehler`); mehr ist ein Tippfehler */
+export const MENGE_MAX = 99999;
+
+/**
+ * Freiwilliger Preis aus einem Eingabefeld: leer = null, „1.250,50“ = 1250,5.
+ * Unlesbar oder negativ = NaN — das wird gemeldet statt still zu „ohne Preis“.
+ */
+export function preisEingabe(text: string): number | null {
+  if (!text.trim()) return null;
+  const n = dezimalLesen(text);
+  return n !== null && n >= 0 ? n : NaN;
+}
 
 /** 25.5 → "25,5" (für Eingabefelder) */
 export const mengeEingabe = (n: number) => String(runden3(n)).replace(".", ",");
@@ -66,6 +79,7 @@ export function fehlerText(e: unknown): string {
   if (/buchung_passt/i.test(m)) return "Für diese Buchung fehlt das Projekt oder der Lagerort.";
   if (/artikel_oder_text/i.test(m)) return "Eine Position ohne Artikel braucht eine Bezeichnung.";
   if (f?.code === "23505") return "Das gibt es schon.";
+  if (f?.code === "22003") return "Eine Zahl ist zu groß — bitte Menge und Preis prüfen.";
   return m || "Unbekannter Fehler.";
 }
 

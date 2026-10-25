@@ -21,13 +21,14 @@ import { CodeUnbekanntDialog } from "@/components/material/CodeUnbekanntDialog";
 import { FreiePositionDialog, type FreiePosition } from "@/components/material/FreiePositionDialog";
 import { MengeFeld } from "@/components/material/MengeFeld";
 import {
-  ARTIKEL_KURZ, artikelInfo, artikelKurzLaden, fehlerText, mengeEingabe, mengeText, neueId, runden3,
+  ARTIKEL_KURZ, MENGE_MAX, artikelInfo, artikelKurzLaden, fehlerText, mengeEingabe, mengeText, neueId, runden3,
   standardLagerort, useBestandAmLagerort, useProjektMaterial, zeitpunktText, zuArtikelKurz, type ArtikelKurz,
+  type ProjektMaterialZeile,
 } from "@/components/material/materialDaten";
 import { alleZeilen } from "@/lib/abfrage";
 import { useLagerorte, useNeuLaden, useProjekte } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
-import { zahl, zahlLesen } from "@/lib/format";
+import { dezimalLesen, zahl, zahlLesen } from "@/lib/format";
 import { codeBereinigen } from "@/lib/strichcode";
 import type { BuchungsArt } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -136,10 +137,29 @@ function entwurfLesen(uid: string): Entwurf | null {
   }
 }
 
-/** „25,5“ ja, „“, „-3“, „abc“ nein */
-const mengeGueltig = (text: string) => /^\d+([.,]\d+)?$/.test(text.trim());
+/** Was an einer Menge nicht passt, null = in Ordnung. „25,5“ und „1.250“ ja; „“, „abc“, „1,2,3“ nein. Inventur darf 0 sein. */
+function mengeFehler(text: string, inventur: boolean): string | null {
+  const t = text.trim();
+  if (!t) return inventur ? "Gezählte Menge fehlt" : "Menge fehlt";
+  const n = /^-?[\d.,]+$/.test(t) ? dezimalLesen(t) : null;
+  if (n === null) return "Menge ist keine Zahl";
+  if (inventur ? n < 0 : !(runden3(n) > 0)) return inventur ? "Gezählte Menge kann nicht negativ sein" : "Menge muss größer als 0 sein";
+  if (n > MENGE_MAX) return "Menge ist zu groß";
+  return null;
+}
+
+/** Rückgabe: je Artikel, was auf dem Projekt verbraucht ist (ausgefasst + direkt − zurück, ohne Regieberichte) */
+function verbrauchtKarte(zeilen: ProjektMaterialZeile[] | undefined): Map<string, number> {
+  const m = new Map<string, number>();
+  (zeilen ?? []).forEach((z) => {
+    if (z.artikel_id) m.set(z.artikel_id, runden3((m.get(z.artikel_id) ?? 0) + Number(z.verbraucht ?? 0)));
+  });
+  return m;
+}
 
 type Differenz = { zeile: Zeile; ist: number; gezaehlt: number; diff: number };
+
+const ungezaehltText = (n: number) => (n === 1 ? "1 nicht gezählter Artikel bleibt unverändert." : `${n} nicht gezählte Artikel bleiben unverändert.`);
 
 type BuchungNeu = {
   art: Modus;
@@ -206,7 +226,7 @@ export default function Scan() {
   const [unbekannt, setUnbekannt] = useState<string[]>([]);
   const nachUnbekanntScannen = useRef(false);
   const [wechselZu, setWechselZu] = useState<Modus | null>(null);
-  const [vorschau, setVorschau] = useState<{ diffs: Differenz[]; gleich: number } | null>(null);
+  const [vorschau, setVorschau] = useState<{ diffs: Differenz[]; gleich: number; ungezaehlt: number } | null>(null);
   const [bucht, setBucht] = useState(false);
   const [laedtBestand, setLaedtBestand] = useState(false);
 
@@ -219,14 +239,9 @@ export default function Scan() {
 
   const bestandAbfrage = useBestandAmLagerort(info.lager && lagerortId ? lagerortId : null);
   const bestand = bestandAbfrage.data;
-  const { data: projektMaterial } = useProjektMaterial(modus === "rueckgabe" && projektId ? projektId : null);
-  const verbrauchtJeArtikel = useMemo(() => {
-    const m = new Map<string, number>();
-    (projektMaterial ?? []).forEach((z) => {
-      if (z.artikel_id) m.set(z.artikel_id, (m.get(z.artikel_id) ?? 0) + Number(z.verbraucht ?? 0));
-    });
-    return m;
-  }, [projektMaterial]);
+  const projektMaterialAbfrage = useProjektMaterial(modus === "rueckgabe" && projektId ? projektId : null);
+  const projektMaterial = projektMaterialAbfrage.data;
+  const verbrauchtJeArtikel = useMemo(() => verbrauchtKarte(projektMaterial), [projektMaterial]);
 
   const setScanOffen = (o: boolean) => {
     scanOffenRef.current = o;
@@ -504,7 +519,9 @@ export default function Scan() {
         return;
       }
       listeAendern((alt) => [...alt, ...neu]);
-      toast.success(`${neu.length} Artikel aus dem Bestand übernommen`, { description: "Zählen: scannen oder Menge eintippen." });
+      toast.success(`${neu.length} Artikel aus dem Bestand übernommen`, {
+        description: "Zählen: scannen, Menge eintippen oder „Stimmt“ tippen. Nicht gezählte Zeilen werden nicht gebucht.",
+      });
     } catch (e) {
       toast.error("Bestand nicht geladen", { description: fehlerText(e) });
     } finally {
@@ -530,13 +547,36 @@ export default function Scan() {
       toast.error("Position ohne Artikel", { description: `„${frei.bezeichnung}“ geht nur bei „Direkt“ — bitte entfernen.` });
       return false;
     }
-    const falsch = l.find((z) => !mengeGueltig(z.menge) || (modus !== "korrektur" && !(runden3(zahlLesen(z.menge)) > 0)));
-    if (falsch) {
-      toast.error(modus === "korrektur" ? "Gezählte Menge fehlt" : "Menge fehlt", { description: falsch.bezeichnung });
-      setMarkiert(falsch.schluessel);
+    // Inventur: nicht gezählte Zeilen („Bestand laden“) werden nicht gebucht
+    for (const z of modus === "korrektur" ? l.filter((x) => !x.vorbelegt) : l) {
+      const f = mengeFehler(z.menge, modus === "korrektur");
+      if (!f) continue;
+      toast.error(f, { description: f === "Menge ist zu groß" ? `${z.bezeichnung} — höchstens ${zahl(MENGE_MAX)} ${z.einheit}` : z.bezeichnung });
+      setMarkiert(z.schluessel);
       return false;
     }
     return true;
+  };
+
+  /**
+   * Rückgabe: höchstens, was auf dem Projekt verbraucht ist — sonst wird der
+   * Verbrauch negativ, das Lager wächst und die Rechnung bekäme eine
+   * Minus-Position. Frisch geholt, ein Kollege bucht vielleicht gerade mit.
+   */
+  const rueckgabeOk = async (zeilen: Zeile[]): Promise<boolean> => {
+    const r = await projektMaterialAbfrage.refetch();
+    if (r.error || !r.data) throw r.error ?? new Error("Das Material des Projekts ließ sich nicht laden.");
+    const verbraucht = verbrauchtKarte(r.data);
+    const zuViel = zeilen.find((z) => z.artikel && runden3(zahlLesen(z.menge)) > (verbraucht.get(z.artikel.id) ?? 0));
+    if (!zuViel) return true;
+    const v = verbraucht.get(zuViel.artikel!.id) ?? 0;
+    toast.error("Mehr zurück als ausgefasst", {
+      description: v > 0
+        ? `${zuViel.bezeichnung}: auf diesem Projekt nur ${mengeText(v, zuViel.einheit)} ausgefasst. Bitte die Menge anpassen.`
+        : `${zuViel.bezeichnung} ist auf diesem Projekt nicht ausgefasst. Bitte aus der Liste nehmen.`,
+    });
+    setMarkiert(zuViel.schluessel);
+    return false;
   };
 
   /** EK je Artikel: der Preis-Schnappschuss gilt beim Buchen, nicht beim Scannen. */
@@ -572,6 +612,8 @@ export default function Scan() {
       if ((count ?? 0) > 0) {
         toast.success("Diese Liste ist schon gebucht", { description: "Der letzte Versuch ist doch angekommen." });
       } else {
+        // erst nach der Probe: ist die Rückgabe schon angekommen, wäre der Verbrauch schon kleiner
+        if (art === "rueckgabe" && !(await rueckgabeOk(zeilen))) return;
         const { error } = await supabase.from("material_buchungen").insert(zeilen.map((z) => bauen(z, ekFuer(z))));
         if (error) throw error;
         const n = zeilen.length;
@@ -625,17 +667,27 @@ export default function Scan() {
       return;
     }
     const karte = r.data;
-    const alle = listeRef.current.filter((z) => z.artikel).map((z) => {
+    // Nur was gezählt ist: eine aus dem Bestand übernommene, nie angefasste Zeile
+    // würde sonst den Stand von „Bestand laden“ zurückbuchen
+    const mitArtikel = listeRef.current.filter((z) => z.artikel);
+    const ungezaehlt = mitArtikel.filter((z) => z.vorbelegt).length;
+    const alle = mitArtikel.filter((z) => !z.vorbelegt).map((z) => {
       const ist = runden3(karte.get(z.artikel!.id) ?? 0);
       const gezaehlt = runden3(zahlLesen(z.menge));
       return { zeile: z, ist, gezaehlt, diff: runden3(gezaehlt - ist) };
     });
-    const diffs = alle.filter((d) => d.diff !== 0);
-    if (!diffs.length) {
-      toast.success("Alles stimmt", { description: "Gezählt = Bestand laut App. Es gibt nichts zu buchen." });
+    if (!alle.length) {
+      toast.error("Noch nichts gezählt", { description: "Scannen, die Menge eintippen oder „Stimmt“ tippen — nur gezählte Zeilen werden gebucht." });
       return;
     }
-    setVorschau({ diffs, gleich: alle.length - diffs.length });
+    const diffs = alle.filter((d) => d.diff !== 0);
+    if (!diffs.length) {
+      toast.success("Alles stimmt", {
+        description: `Gezählt = Bestand laut App. Es gibt nichts zu buchen.${ungezaehlt ? ` ${ungezaehltText(ungezaehlt)}` : ""}`,
+      });
+      return;
+    }
+    setVorschau({ diffs, gleich: alle.length - diffs.length, ungezaehlt });
   };
 
   const inventurBuchen = async () => {
@@ -915,6 +967,7 @@ export default function Scan() {
               {vorschau.gleich} {vorschau.gleich === 1 ? "Artikel stimmt" : "Artikel stimmen"} und {vorschau.gleich === 1 ? "wird" : "werden"} nicht gebucht.
             </p>
           )}
+          {!!vorschau?.ungezaehlt && <p className="text-sm text-muted-foreground">{ungezaehltText(vorschau.ungezaehlt)}</p>}
         </div>
       </FormularDialog>
 
@@ -969,17 +1022,27 @@ function ZeileAnzeige({
     const ist = bestand ?? 0;
     const diff = runden3(n - ist);
     hinweis = (
-      <p className="text-xs text-muted-foreground">
-        laut App <span className="zahl">{zahl(ist)}</span>
-        {z.vorbelegt ? " · noch nicht gezählt" : diff === 0 ? " · stimmt" : (
-          <> · <span className={cn("zahl font-semibold", diff < 0 ? "text-destructive" : "text-foreground")}>
-            {diff > 0 ? "+" : "−"}{zahl(Math.abs(diff))}
-          </span></>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          laut App <span className="zahl">{zahl(ist)}</span>
+          {z.vorbelegt ? " · noch nicht gezählt" : diff === 0 ? " · stimmt" : (
+            <> · <span className={cn("zahl font-semibold", diff < 0 ? "text-destructive" : "text-foreground")}>
+              {diff > 0 ? "+" : "−"}{zahl(Math.abs(diff))}
+            </span></>
+          )}
+        </p>
+        {/* Gezählt und gleich: ein Tipp statt die Zahl abzutippen — negativer Bestand kann nicht stimmen */}
+        {z.vorbelegt && bestand !== undefined && ist >= 0 && (
+          <Button variant="outline" className="h-10 shrink-0 px-3" onClick={() => onMenge(mengeEingabe(ist))}
+            aria-label={`${z.bezeichnung}: ${zahl(ist)} ${z.einheit} stimmt`}>
+            <Check className="mr-1.5 h-4 w-4" /> Stimmt
+          </Button>
         )}
-      </p>
+      </div>
     );
   } else if (modus === "rueckgabe" && z.artikel && verbraucht !== undefined && n > verbraucht) {
-    hinweis = <StatusPille eintrag={{ ton: "gelb", text: verbraucht > 0 ? `nur ${zahl(verbraucht)} ausgefasst` : "hier nicht ausgefasst" }} />;
+    // Sperrt beim Buchen — deshalb rot
+    hinweis = <StatusPille eintrag={{ ton: "rot", text: verbraucht > 0 ? `nur ${zahl(verbraucht)} ausgefasst` : "hier nicht ausgefasst" }} />;
   } else if (modus === "ausfassung" && z.artikel && bestand !== undefined && n > bestand) {
     hinweis = (
       <p className="text-xs text-muted-foreground">
