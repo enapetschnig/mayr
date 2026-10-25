@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { datum as datumText } from "@/lib/format";
-import { artikelVk, runden2 } from "@/lib/preise";
+import { buchungVk, runden2 } from "@/lib/preise";
 import type { Artikel, Firma, Position } from "@/lib/types";
 import {
   kopieVon, leerePosition, positionAusDb, preisText, titelPosition, zahlText,
@@ -217,7 +217,10 @@ export type MaterialGruppe = {
 
 /**
  * Buchungen je Artikel zusammenfassen: Rückgaben ziehen ab. VK über
- * lib/preise.ts — fester VK des Artikels, sonst EK der Buchung + Aufschlag.
+ * `buchungVk` wie im Projekt-Material — der aktuelle Preis des Artikels,
+ * bei freiem Text der EK der Buchungen + Aufschlag. Der EK der Gruppe bleibt
+ * der beim Buchen (Nachkalkulation). Mehr zurück als ausgefasst ergibt keine
+ * Minus-Position.
  */
 export function materialGruppen(buchungen: ImportMaterial[], firma: Pick<Firma, "material_aufschlag"> | null | undefined): MaterialGruppe[] {
   type Sammler = { g: MaterialGruppe; ekSumme: number; ekMenge: number; artikel: ImportMaterial["artikel"] };
@@ -247,10 +250,10 @@ export function materialGruppen(buchungen: ImportMaterial[], firma: Pick<Firma, 
     .map(({ g, ekSumme, ekMenge, artikel }) => {
       const ek = ekMenge > 0 ? ekSumme / ekMenge : g.ek ?? (artikel?.ek_preis == null ? null : Number(artikel.ek_preis));
       const menge = Math.round(g.menge * 1000) / 1000;
-      const vk = artikelVk({ vk_preis: artikel?.vk_preis ?? null, ek_preis: ek, listenpreis: artikel?.listenpreis ?? null }, firma);
+      const vk = buchungVk({ ek_preis: ek, artikel }, firma);
       return { ...g, menge, ek: ek == null ? null : Math.round(ek * 10000) / 10000, vk };
     })
-    .filter((g) => g.menge !== 0)
+    .filter((g) => g.menge > 0)
     .sort((a, b) => a.bezeichnung.localeCompare(b.bezeichnung, "de"));
 }
 
