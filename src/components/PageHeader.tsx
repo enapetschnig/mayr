@@ -29,11 +29,11 @@ export function PageHeader({ title, untertitel, showBackButton = true, backPath,
     <header className="sticky top-0 z-30 border-b bg-card" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       <div className="mx-auto flex min-h-14 max-w-6xl items-center gap-1 px-2 py-1.5 sm:px-4 lg:px-6">
         {showBackButton && (
-          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={zurueck} aria-label="Zurück">
+          <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" onClick={zurueck} aria-label="Zurück">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         )}
-        <Link to="/" className="mr-1.5 shrink-0 lg:hidden" aria-label="Zur Startseite">
+        <Link to="/" className="flex h-11 w-11 shrink-0 items-center justify-center lg:hidden" aria-label="Zur Startseite">
           <img src={KUNDE.logo} alt="" className="h-8 w-8 rounded-md" />
         </Link>
         <div className={cn("min-w-0 flex-1", !showBackButton && "pl-1")}>

@@ -26,6 +26,8 @@ import { ZeitenListe, useZeitenListe, type ZeitMitInfo } from "@/components/zeit
 import { ProjektMaterial } from "@/components/material/ProjektMaterial";
 import { ProjektRegie } from "@/components/regie/ProjektRegie";
 import { ProjektBelege } from "@/components/belege/ProjektBelege";
+import { mailLink, telLink } from "@/components/stamm/KundeDetail";
+import { fehlerText } from "@/components/stamm/stammDaten";
 import { useNeuLaden, useProjekt, useProjektZahlen } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datumKurz, euro, isoTag, stunden, uhrzeit } from "@/lib/format";
@@ -110,11 +112,30 @@ export default function ProjektDetail() {
     await neuLaden("projekte");
   };
 
+  /**
+   * Erst das Projekt (die Datenbank lehnt ab, wenn schon verrechnet oder
+   * unterschrieben ist — dann bleibt alles, auch die Fotos), danach seine
+   * Dateien im Speicher: die verschwinden nicht mit den Zeilen.
+   */
   const loeschen = async () => {
+    const { data: ordner, error: eListe } = await supabase.storage.from("projekt-dateien").list(projekt.id, { limit: 1000 });
+    if (eListe) return toast.error("Nicht gelöscht", { description: fehlerText(eListe) });
     const { error } = await supabase.from("projekte").delete().eq("id", projekt.id);
-    if (error) return toast.error("Nicht gelöscht", { description: error.message });
-    toast.success("Projekt gelöscht");
-    await neuLaden("projekte", "projekt_zahlen");
+    if (error) return toast.error("Nicht gelöscht", { description: fehlerText(error) });
+    // Unterordner (Unterschriften) haben keine id und bleiben
+    const pfade = (ordner ?? []).filter((d) => d.id).map((d) => `${projekt.id}/${d.name}`);
+    const { data: weg, error: eDateien } = pfade.length
+      ? await supabase.storage.from("projekt-dateien").remove(pfade)
+      : { data: [], error: null };
+    const uebrig = pfade.length - (weg?.length ?? 0);
+    if (eDateien || uebrig > 0) {
+      toast.warning("Projekt gelöscht — Dateien blieben im Speicher", {
+        description: `${uebrig} von ${pfade.length} Fotos/Dokumenten konnten nicht entfernt werden.`,
+      });
+    } else {
+      toast.success("Projekt gelöscht");
+    }
+    await neuLaden("projekte", "projekt_zahlen", "dateien");
     navigate("/projekte");
   };
 
@@ -156,7 +177,7 @@ export default function ProjektDetail() {
       <section className="rounded-lg border bg-card p-4">
         <div className="flex flex-wrap items-center gap-2">
           <ProjektStatusBadge status={projekt.status} />
-          {projekt.stundensatz != null && istChef && (
+          {Number(projekt.stundensatz) > 0 && istChef && (
             <span className="text-xs text-muted-foreground">eigener Stundensatz {euro(Number(projekt.stundensatz))}</span>
           )}
         </div>
@@ -166,21 +187,25 @@ export default function ProjektDetail() {
             {kunde ? (
               <>
                 <p className="font-semibold">{kunde.name}</p>
-                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-                  {kunde.telefon && <a href={`tel:${kunde.telefon}`} className="inline-flex items-center gap-1.5 text-primary"><Phone className="h-4 w-4" />{kunde.telefon}</a>}
-                  {kunde.email && <a href={`mailto:${kunde.email}`} className="inline-flex min-w-0 items-center gap-1.5 text-primary"><Mail className="h-4 w-4 shrink-0" /><span className="truncate">{kunde.email}</span></a>}
+                <div className="flex flex-wrap gap-x-4">
+                  {telLink(kunde.telefon) && (
+                    <a href={telLink(kunde.telefon)!} className="inline-flex min-h-11 items-center gap-1.5 text-primary"><Phone className="h-4 w-4" />{kunde.telefon}</a>
+                  )}
+                  {mailLink(kunde.email) && (
+                    <a href={mailLink(kunde.email)!} className="inline-flex min-h-11 min-w-0 items-center gap-1.5 text-primary"><Mail className="h-4 w-4 shrink-0" /><span className="truncate">{kunde.email}</span></a>
+                  )}
                 </div>
               </>
             ) : (
-              <button type="button" className="text-primary hover:underline" onClick={() => setDialog("bearbeiten")}>Kunde zuordnen</button>
+              <button type="button" className="min-h-11 text-primary hover:underline" onClick={() => setDialog("bearbeiten")}>Kunde zuordnen</button>
             )}
           </div>
           <div className="min-w-0 text-sm">
             <p className="text-xs font-medium text-muted-foreground">Baustelle</p>
             {adresse ? (
               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adresse)}`} target="_blank" rel="noreferrer"
-                className="inline-flex items-start gap-1.5 text-primary">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0" /><span>{adresse}</span>
+                className="inline-flex min-h-11 items-center gap-1.5 py-1 text-primary">
+                <MapPin className="h-4 w-4 shrink-0" /><span>{adresse}</span>
               </a>
             ) : <p className="text-muted-foreground">Keine Adresse</p>}
           </div>

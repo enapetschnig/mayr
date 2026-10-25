@@ -1,48 +1,26 @@
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import { ChevronRight, Loader2, Plus, Search, UserRound } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { ChevronRight, Plus, Search, UserRound } from "lucide-react";
+import FormularDialog from "@/components/FormularDialog";
+import { KundeDialog } from "@/components/stamm/KundeDialog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useKunden, useNeuLaden } from "@/hooks/useDaten";
+import { useKunden } from "@/hooks/useDaten";
 import type { Kunde } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type NeuerKunde = Pick<Kunde, "name" | "strasse" | "plz" | "ort" | "telefon" | "email">;
-const LEER: NeuerKunde = { name: "", strasse: "", plz: "", ort: "", telefon: "", email: "" };
-
-/**
- * Formularfelder eines Kunden — im Dialog „Neuer Kunde“ und auf der Kundenseite.
- * fokus=false beim Bearbeiten: sonst springt am Handy sofort die Tastatur auf.
- */
-export function KundeFelder({ wert, onChange, fokus = true }: { wert: NeuerKunde; onChange: (k: NeuerKunde) => void; fokus?: boolean }) {
-  const feld = (k: keyof NeuerKunde, label: string, props: React.ComponentProps<typeof Input> = {}) => (
-    <div className="space-y-1.5">
-      <Label htmlFor={`k-${k}`}>{label}</Label>
-      <Input id={`k-${k}`} className="h-11" value={wert[k] ?? ""} onChange={(e) => onChange({ ...wert, [k]: e.target.value })} {...props} />
-    </div>
-  );
-  return (
-    <div className="grid gap-3">
-      {feld("name", "Name / Firma", { placeholder: "z. B. Familie Huber", autoFocus: fokus })}
-      {feld("strasse", "Straße")}
-      <div className="grid grid-cols-[6rem_1fr] gap-2">
-        {feld("plz", "PLZ", { inputMode: "numeric" })}
-        {feld("ort", "Ort")}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {feld("telefon", "Telefon", { inputMode: "tel", type: "tel" })}
-        {feld("email", "E-Mail", { inputMode: "email", type: "email" })}
-      </div>
-    </div>
-  );
+/** Alle Wörter müssen vorkommen — Name, Ort, Straße, Nummer, UID */
+export function kundePasst(k: Pick<Kunde, "name" | "ort" | "strasse" | "nummer" | "uid">, suche: string): boolean {
+  const woerter = suche.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!woerter.length) return true;
+  const text = [k.name, k.ort, k.strasse, `k${k.nummer}`, k.uid].filter(Boolean).join(" ").toLowerCase();
+  return woerter.every((w) => text.includes(w));
 }
 
 /**
- * Kunde wählen oder gleich vor Ort neu anlegen. Ein Feld, ein Dialog —
- * kein Umweg über die Kundenliste.
+ * Kunde wählen oder gleich vor Ort neu anlegen — ein Feld, kein Umweg über
+ * die Kundenliste. Beides als Vollbild: am Handy hat die Liste neben der
+ * Tastatur sonst keinen Platz, und „Neuer Kunde“ ist dasselbe Formular wie
+ * in der Kundenliste (mit Prüfung der E-Mail und Hinweis auf Doppelte).
  */
 export function KundeWahl({
   wert,
@@ -54,44 +32,24 @@ export function KundeWahl({
   className?: string;
 }) {
   const { data: kunden = [] } = useKunden();
-  const neuLaden = useNeuLaden();
   const [offen, setOffen] = useState(false);
   const [suche, setSuche] = useState("");
-  const [neu, setNeu] = useState<NeuerKunde | null>(null);
-  const [speichert, setSpeichert] = useState(false);
+  /** Name für „Neuer Kunde“ — null: Formular zu */
+  const [neuName, setNeuName] = useState<string | null>(null);
   const gewaehlt = kunden.find((k) => k.id === wert);
 
-  const treffer = useMemo(() => {
-    const q = suche.trim().toLowerCase();
-    if (!q) return kunden.slice(0, 50);
-    return kunden.filter((k) => `${k.name} ${k.ort ?? ""} ${k.strasse ?? ""} ${k.nummer}`.toLowerCase().includes(q)).slice(0, 50);
-  }, [kunden, suche]);
+  const treffer = useMemo(() => kunden.filter((k) => kundePasst(k, suche)).slice(0, 50), [kunden, suche]);
 
-  const anlegen = async () => {
-    if (!neu?.name.trim()) return toast.error("Bitte einen Namen eingeben");
-    setSpeichert(true);
-    const { data, error } = await supabase.from("kunden").insert({
-      name: neu.name.trim(),
-      strasse: neu.strasse?.trim() || null,
-      plz: neu.plz?.trim() || null,
-      ort: neu.ort?.trim() || null,
-      telefon: neu.telefon?.trim() || null,
-      email: neu.email?.trim() || null,
-    }).select().single();
-    setSpeichert(false);
-    if (error) return toast.error(error.message);
-    await neuLaden("kunden");
-    onChange(data);
-    setNeu(null);
+  const waehlen = (k: Kunde | null) => {
+    onChange(k);
     setOffen(false);
-    toast.success("Kunde angelegt");
   };
 
   return (
     <>
       <button
         type="button"
-        onClick={() => { setSuche(""); setNeu(null); setOffen(true); }}
+        onClick={() => { setSuche(""); setOffen(true); }}
         className={cn("flex h-12 w-full items-center gap-3 rounded-md border bg-background px-3 text-left transition-colors hover:bg-muted/50", className)}
       >
         <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -101,49 +59,40 @@ export function KundeWahl({
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
       </button>
 
-      <Dialog open={offen} onOpenChange={setOffen}>
-        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
-          <DialogTitle>{neu ? "Neuer Kunde" : "Kunde wählen"}</DialogTitle>
-          <DialogDescription className="sr-only">Kunde suchen oder neu anlegen</DialogDescription>
-          {neu ? (
-            <div className="space-y-4">
-              <KundeFelder wert={neu} onChange={setNeu} />
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setNeu(null)} disabled={speichert}>Zurück</Button>
-                <Button onClick={anlegen} disabled={speichert} className="gap-2">
-                  {speichert && <Loader2 className="h-4 w-4 animate-spin" />}Anlegen
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <Button variant="secondary" className="w-full h-12 gap-2 justify-start" onClick={() => setNeu({ ...LEER, name: suche })}>
-                <Plus className="h-4 w-4" /> Neuer Kunde{suche.trim() && <span className="truncate">: „{suche.trim()}“</span>}
-              </Button>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name oder Ort suchen" className="h-11 pl-9" autoFocus />
-              </div>
-              <div className="divide-y rounded-xl border">
-                {treffer.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Kein Kunde gefunden</p>}
-                {treffer.map((k) => (
-                  <button key={k.id} type="button" onClick={() => { onChange(k); setOffen(false); }}
-                    className={cn("flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/60", k.id === wert && "bg-primary/5")}>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{k.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{[k.strasse, [k.plz, k.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "—"}</p>
-                    </div>
-                    <span className="text-xs text-muted-foreground font-mono">K{k.nummer}</span>
-                  </button>
-                ))}
-              </div>
-              {wert && (
-                <Button variant="ghost" size="sm" className="w-full" onClick={() => { onChange(null); setOffen(false); }}>Keinen Kunden zuordnen</Button>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <FormularDialog
+        open={offen}
+        onOpenChange={setOffen}
+        titel="Kunde wählen"
+        fuss={wert ? <Button variant="outline" className="h-11" onClick={() => waehlen(null)}>Keinen Kunden zuordnen</Button> : undefined}
+      >
+        <div className="max-w-xl space-y-3">
+          <Button variant="secondary" className="h-12 w-full justify-start gap-2"
+            onClick={() => { setOffen(false); setNeuName(suche.trim()); }}>
+            <Plus className="h-4 w-4" /> Neuer Kunde{suche.trim() && <span className="truncate">: „{suche.trim()}“</span>}
+          </Button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, Ort oder UID suchen" className="h-12 pl-9"
+              inputMode="search" enterKeyHint="search" autoComplete="off" aria-label="Kunden suchen" autoFocus />
+          </div>
+          <div className="divide-y rounded-lg border bg-card">
+            {treffer.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Kein Kunde gefunden</p>}
+            {treffer.map((k) => (
+              <button key={k.id} type="button" onClick={() => waehlen(k)}
+                className={cn("flex min-h-14 w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/60", k.id === wert && "bg-primary-soft")}>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{k.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{[k.strasse, [k.plz, k.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "—"}</p>
+                </div>
+                <span className="font-mono text-xs text-muted-foreground">K{k.nummer}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </FormularDialog>
+
+      <KundeDialog open={neuName !== null} onOpenChange={(o) => { if (!o) setNeuName(null); }} kunde={null}
+        vorgabeName={neuName ?? ""} onGespeichert={(k) => onChange(k)} />
     </>
   );
 }

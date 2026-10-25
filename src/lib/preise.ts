@@ -17,9 +17,10 @@ export const runden2 = (n: number) => {
   return (Math.sign(x) * Math.round(Number((Math.abs(x) * 100).toPrecision(12)))) / 100 || 0;
 };
 
-/** Stundensatz: am Projekt hinterlegt, sonst der des Betriebs. */
+/** Stundensatz: am Projekt hinterlegt (nur über 0 € zählt), sonst der des Betriebs. */
 export function stundensatzFuer(projekt: Pick<Projekt, "stundensatz"> | null | undefined, firma: Pick<Firma, "stundensatz"> | null | undefined): number {
-  return Number(projekt?.stundensatz ?? firma?.stundensatz ?? 0);
+  const eigener = Number(projekt?.stundensatz);
+  return eigener > 0 ? eigener : Number(firma?.stundensatz ?? 0);
 }
 
 /** Verkaufspreis je Einheit: fester VK, sonst EK + Aufschlag, sonst Listenpreis. */

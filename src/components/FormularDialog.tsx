@@ -1,10 +1,14 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useId, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,7 +28,72 @@ import { cn } from "@/lib/utils";
  *
  *  3. Der Fuß hat Abstand nach unten (safe-area), damit der Knopf nicht unter
  *     der Gestensteuerung des iPhones klebt.
+ *
+ *  4. Die Zurück-Taste (Android, Wischgeste, Browser) schließt das Formular,
+ *     statt die Seite darunter zu verlassen — mit ungespeicherten Eingaben
+ *     erst nach Rückfrage.
  */
+
+/** Offene Formulare mit eigenem Verlaufseintrag (Schlüssel `formular` im history.state) */
+const offeneFormulare = new Set<string>();
+let verlaufWaechter = false;
+/** Eintrag eines eben geschlossenen Formulars — ein gleich danach geöffnetes übernimmt ihn */
+let freierEintrag: string | null = null;
+/** Nach dem Neuladen vergibt React dieselben IDs — alte Einträge sollen nicht passen */
+const LADUNG = Math.random().toString(36).slice(2, 8);
+
+/**
+ * Beim Öffnen kommt ein Verlaufseintrag mit derselben Adresse dazu; Zurück
+ * nimmt ihn weg, und das Formular entscheidet (`beimZurueck`), ob es
+ * schließt oder mit `bleiben()` offen bleibt. Schließt es anders (Speichern,
+ * Abbrechen), verschwindet der Eintrag mit — außer, im selben Zug öffnet
+ * ein anderes Formular (Kunde wählen → Neuer Kunde): das übernimmt ihn,
+ * denn history.back() kommt erst später an. Ging es nach dem Schließen auf
+ * eine andere Seite, bleibt er liegen — beim Zurückblättern übersprungen.
+ */
+function useZurueckSchliesst(open: boolean, beimZurueck: (bleiben: () => void) => void) {
+  const id = LADUNG + useId();
+  const rueckruf = useRef(beimZurueck);
+  rueckruf.current = beimZurueck;
+
+  useEffect(() => {
+    if (!open) return;
+    if (!verlaufWaechter) {
+      verlaufWaechter = true;
+      window.addEventListener("popstate", () => {
+        const f = window.history.state?.formular;
+        if (f && !offeneFormulare.has(f)) window.history.back();
+      });
+    }
+    const adresse = window.location.pathname + window.location.search;
+    const eigenerEintrag = () => window.history.state?.formular === id;
+    const eintragen = () => window.history.pushState({ ...window.history.state, formular: id }, "");
+    if (freierEintrag && window.history.state?.formular === freierEintrag) {
+      window.history.replaceState({ ...window.history.state, formular: id }, "");
+    } else {
+      eintragen();
+    }
+    freierEintrag = null;
+    offeneFormulare.add(id);
+    const zurueck = () => {
+      // Ein inneres Formular wurde geschlossen, oder es ging mehrere Seiten zurück
+      if (eigenerEintrag() || window.location.pathname + window.location.search !== adresse) return;
+      rueckruf.current(eintragen);
+    };
+    window.addEventListener("popstate", zurueck);
+    return () => {
+      window.removeEventListener("popstate", zurueck);
+      offeneFormulare.delete(id);
+      if (!eigenerEintrag()) return;
+      freierEintrag = id;
+      window.setTimeout(() => {
+        if (freierEintrag !== id) return;
+        freierEintrag = null;
+        if (eigenerEintrag()) window.history.back();
+      }, 0);
+    };
+  }, [open, id]);
+}
 
 export interface FormularDialogProps {
   open: boolean;
@@ -49,6 +118,8 @@ export interface FormularDialogProps {
    * sich einpassen müssen statt zu wachsen (eine Zeichenfläche etwa).
    */
   fuellend?: boolean;
+  /** Es gibt Eingaben, die beim Schließen verloren gingen — Zurück fragt dann nach. */
+  ungespeichert?: boolean;
 }
 
 const INHALTSBREITEN = {
@@ -68,7 +139,18 @@ export function FormularDialog({
   breite = "normal",
   gesperrt = false,
   fuellend = false,
+  ungespeichert = false,
 }: FormularDialogProps) {
+  const [verwerfenFrage, setVerwerfenFrage] = useState(false);
+  useZurueckSchliesst(open, (bleiben) => {
+    if (gesperrt || ungespeichert) {
+      bleiben();
+      if (!gesperrt) setVerwerfenFrage(true);
+      return;
+    }
+    onOpenChange(false);
+  });
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!gesperrt) onOpenChange(o); }}>
       <DialogContent
@@ -125,6 +207,21 @@ export function FormularDialog({
             </div>
           </div>
         )}
+
+        <AlertDialog open={verwerfenFrage} onOpenChange={setVerwerfenFrage}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eingaben verwerfen?</AlertDialogTitle>
+              <AlertDialogDescription>„{titel}“ ist noch nicht gespeichert.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="h-11">Weiter bearbeiten</AlertDialogCancel>
+              <Button variant="destructive" className="h-11" onClick={() => { setVerwerfenFrage(false); onOpenChange(false); }}>
+                Verwerfen
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
