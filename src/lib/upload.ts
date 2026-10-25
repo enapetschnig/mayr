@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
  * langen Seite völlig — das spart Speicher und vor allem Wartezeit beim
  * Hochladen im Funkloch.
  */
-export async function bildVerkleinern(datei: File, maxKante = 2400): Promise<File> {
+export async function bildVerkleinern(datei: File, maxKante = 2400, { pngBehalten = false } = {}): Promise<File> {
   if (!datei.type.startsWith("image/") || datei.type === "image/gif") return datei;
   try {
     const bitmap = await createImageBitmap(datei);
@@ -15,9 +15,12 @@ export async function bildVerkleinern(datei: File, maxKante = 2400): Promise<Fil
     c.width = Math.round(bitmap.width * faktor);
     c.height = Math.round(bitmap.height * faktor);
     c.getContext("2d")!.drawImage(bitmap, 0, 0, c.width, c.height);
-    const blob = await new Promise<Blob | null>((f) => c.toBlob(f, "image/jpeg", 0.85));
+    // Logos: PNG bleibt PNG — JPEG kennt keine Transparenz, der Hintergrund würde schwarz
+    const png = pngBehalten && datei.type === "image/png";
+    const typ = png ? "image/png" : "image/jpeg";
+    const blob = await new Promise<Blob | null>((f) => c.toBlob(f, typ, 0.85));
     if (!blob) return datei;
-    return new File([blob], datei.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+    return new File([blob], datei.name.replace(/\.\w+$/, "") + (png ? ".png" : ".jpg"), { type: typ });
   } catch {
     return datei; // z. B. HEIC in einem Browser, der es nicht lesen kann
   }

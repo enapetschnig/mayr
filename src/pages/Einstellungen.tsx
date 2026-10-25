@@ -18,8 +18,10 @@ import { InstallAnleitung } from "@/components/Installieren";
 import { useNeuLaden } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { useQuery } from "@tanstack/react-query";
-import { logoAdresse } from "@/lib/upload";
-import { zahlLesen } from "@/lib/format";
+import { bildVerkleinern, logoAdresse } from "@/lib/upload";
+import { dezimalLesen } from "@/lib/format";
+import { bicPruefen, ibanLesbar, ibanPruefen, uidPruefen } from "@/lib/bank";
+import { fehlerText } from "@/components/stamm/stammDaten";
 import { authFehler, vorlaeufigesPasswort } from "@/lib/konto";
 import { name, type Firma, type Profil, type Rolle } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -68,15 +70,27 @@ export default function Einstellungen() {
   );
 }
 
-function Feld({ label, children, hinweis, className }: { label: string; children: ReactNode; hinweis?: string; className?: string }) {
+function Feld({ label, children, hinweis, warnung, className }: {
+  label: string; children: ReactNode; hinweis?: string; warnung?: string | null; className?: string;
+}) {
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label className="text-xs">{label}</Label>
       {children}
-      {hinweis && <p className="text-xs text-muted-foreground">{hinweis}</p>}
+      {warnung ? <p className="text-xs font-medium text-status-gelb-fg">{warnung}</p> : hinweis && <p className="text-xs text-muted-foreground">{hinweis}</p>}
     </div>
   );
 }
+
+/** Ganze Zahl aus dem Feld — „14,5“ oder leer ist keine */
+const ganzzahl = (v: unknown) => {
+  const n = dezimalLesen(String(v ?? ""));
+  return n !== null && Number.isInteger(n) ? n : null;
+};
+
+const ohneLeer = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, "").toUpperCase();
+
+const gleich = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Briefkopf, Bank, Kalkulation und Texte — alles, was auf Angeboten und Rechnungen steht. */
 function Betrieb() {
@@ -84,8 +98,15 @@ function Betrieb() {
   const [f, setF] = useState<Firma | null>(firma);
   const [speichert, setSpeichert] = useState(false);
   const datei = useRef<HTMLInputElement>(null);
+  const basis = useRef(firma);
 
-  useEffect(() => { setF(firma); }, [firma]);
+  // Neu geladene Betriebsdaten übernehmen (nach dem Speichern, nach dem Logo) —
+  // aber nie über Eingetipptes drüber
+  useEffect(() => {
+    const vorher = basis.current;
+    basis.current = firma;
+    setF((alt) => (alt && vorher && !gleich(alt, vorher) ? alt : firma));
+  }, [firma]);
   if (!f) return null;
 
   const text = (k: keyof Firma) => ({
@@ -93,44 +114,86 @@ function Betrieb() {
     onChange: (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value }),
   });
 
+  // Eine Bank- oder UID-Angabe, die schon so gespeichert ist, sperrt das
+  // Speichern nicht (z. B. die Demo-IBAN) — nur neu Eingetipptes muss stimmen
+  const geaendert = (k: "iban" | "bic" | "uid") => ohneLeer(f[k]) !== ohneLeer(firma?.[k]);
+  const ibanFalsch = !!f.iban?.trim() && !ibanPruefen(f.iban);
+
   const speichern = async () => {
     if (!f.name.trim()) return toast.error("Der Firmenname fehlt");
-    setSpeichert(true);
+    // Leer oder unlesbar hieß bisher 0 — ein Stundensatz von 0 € macht jede Arbeitszeit gratis
+    const stundensatz = dezimalLesen(String(f.stundensatz));
+    if (stundensatz === null || stundensatz <= 0 || stundensatz >= 10000) return toast.error("Stundensatz bitte prüfen — er muss über 0 € liegen.");
+    const aufschlag = String(f.material_aufschlag).trim() === "" ? 0 : dezimalLesen(String(f.material_aufschlag));
+    if (aufschlag === null || aufschlag < 0 || aufschlag > 1000) return toast.error("Materialaufschlag bitte prüfen — 0 bis 1000 %.");
+    const ziel = ganzzahl(f.zahlungsziel_tage);
+    if (ziel === null || ziel < 0 || ziel > 365) return toast.error("Zahlungsziel: ganze Tage von 0 (sofort) bis 365.");
+    const gueltig = ganzzahl(f.angebot_gueltig_tage);
+    if (gueltig === null || gueltig < 1 || gueltig > 365) return toast.error("Angebot gültig: ganze Tage von 1 bis 365.");
+
     const leer = (s: string | null) => (s && s.trim() ? s.trim() : null);
+    let iban = leer(f.iban), bic = leer(f.bic), uid = leer(f.uid);
+    if (iban) {
+      const geprueft = ibanPruefen(iban);
+      if (geprueft) iban = ibanLesbar(geprueft);
+      else if (geaendert("iban")) return toast.error("IBAN stimmt nicht — bitte prüfen (Prüfziffer oder Länge).");
+    }
+    if (bic) {
+      const geprueft = bicPruefen(bic);
+      if (geprueft) bic = geprueft;
+      else if (geaendert("bic")) return toast.error("BIC stimmt nicht — 8 oder 11 Zeichen, z. B. RLNWATWW.");
+    }
+    if (uid) {
+      const geprueft = uidPruefen(uid);
+      if (geprueft) uid = geprueft;
+      else if (geaendert("uid")) return toast.error("UID-Nummer stimmt nicht — in Österreich ATU und 8 Ziffern.");
+    }
+
+    setSpeichert(true);
     const { error } = await supabase.from("firma").update({
       name: f.name.trim(), zusatz: leer(f.zusatz), inhaber: leer(f.inhaber), strasse: leer(f.strasse), plz: leer(f.plz),
       ort: leer(f.ort), land: f.land || "Österreich", telefon: leer(f.telefon), email: leer(f.email), website: leer(f.website),
-      uid: leer(f.uid), firmenbuch: leer(f.firmenbuch), bank_name: leer(f.bank_name), iban: leer(f.iban), bic: leer(f.bic),
-      farbe: f.farbe, stundensatz: zahlLesen(f.stundensatz), material_aufschlag: zahlLesen(f.material_aufschlag),
-      zahlungsziel_tage: Math.round(zahlLesen(f.zahlungsziel_tage)), angebot_gueltig_tage: Math.round(zahlLesen(f.angebot_gueltig_tage)),
+      uid, firmenbuch: leer(f.firmenbuch), bank_name: leer(f.bank_name), iban, bic,
+      farbe: f.farbe, stundensatz, material_aufschlag: aufschlag,
+      zahlungsziel_tage: ziel, angebot_gueltig_tage: gueltig,
       kleinunternehmer: f.kleinunternehmer, angebot_einleitung: leer(f.angebot_einleitung), angebot_schluss: leer(f.angebot_schluss),
       rechnung_einleitung: leer(f.rechnung_einleitung), rechnung_schluss: leer(f.rechnung_schluss), fusszeile: leer(f.fusszeile),
     }).eq("id", 1);
     setSpeichert(false);
-    if (error) return toast.error("Nicht gespeichert", { description: error.message });
+    if (error) return toast.error("Nicht gespeichert", { description: fehlerText(error) });
     toast.success("Betrieb gespeichert");
+    basis.current = null; // das Gespeicherte (z. B. IBAN in Vierergruppen) zurück ins Formular
     await neuLaden();
   };
 
-  const logoHochladen = async (file: File | undefined) => {
-    if (!file) return;
-    const pfad = `betrieb/logo-${Date.now()}.${file.name.split(".").pop()?.toLowerCase() || "png"}`;
+  const logoHochladen = async (roh: File | undefined) => {
+    if (!roh) return;
+    if (roh.type !== "image/png" && roh.type !== "image/jpeg") return toast.error("Bitte ein PNG- oder JPG-Bild wählen.");
+    // Ein Handyfoto als Logo hat 4000 px — eingebettet macht es jedes PDF mehrere MB schwer
+    const file = await bildVerkleinern(roh, 1200, { pngBehalten: true });
+    const pfad = `betrieb/logo-${Date.now()}.${file.type === "image/png" ? "png" : "jpg"}`;
     const { error } = await supabase.storage.from("firmen-logos").upload(pfad, file, { contentType: file.type, upsert: true });
     if (error) return toast.error("Logo nicht hochgeladen", { description: error.message });
-    if (f.logo_pfad) await supabase.storage.from("firmen-logos").remove([f.logo_pfad]);
-    await supabase.from("firma").update({ logo_pfad: pfad }).eq("id", 1);
+    // Erst umstellen, dann das alte löschen — sonst zeigt der Betrieb bei einem Fehler auf nichts
+    const { error: e2 } = await supabase.from("firma").update({ logo_pfad: pfad }).eq("id", 1);
+    if (e2) {
+      await supabase.storage.from("firmen-logos").remove([pfad]);
+      return toast.error("Logo nicht gespeichert", { description: fehlerText(e2) });
+    }
+    if (firma?.logo_pfad) await supabase.storage.from("firmen-logos").remove([firma.logo_pfad]);
     toast.success("Logo gespeichert — erscheint auf jedem PDF");
     await neuLaden();
   };
 
+  // Das Logo ist sofort gespeichert — es gilt der Stand aus der Datenbank, nicht das Formular
   const logoEntfernen = async () => {
-    if (!f.logo_pfad) return;
-    await supabase.storage.from("firmen-logos").remove([f.logo_pfad]);
+    if (!firma?.logo_pfad) return;
+    await supabase.storage.from("firmen-logos").remove([firma.logo_pfad]);
     await supabase.from("firma").update({ logo_pfad: null }).eq("id", 1);
     await neuLaden();
   };
 
-  const logo = logoAdresse(f.logo_pfad);
+  const logo = logoAdresse(firma?.logo_pfad ?? null);
 
   return (
     <div className="space-y-4">
@@ -173,7 +236,10 @@ function Betrieb() {
       <Karte titel="Bank">
         <div className="grid gap-3 sm:grid-cols-3">
           <Feld label="Bank"><Input className="h-11" {...text("bank_name")} /></Feld>
-          <Feld label="IBAN" hinweis="Mit IBAN druckt die Rechnung einen Bezahl-QR-Code."><Input className="h-11 font-mono" {...text("iban")} /></Feld>
+          <Feld label="IBAN" hinweis="Mit IBAN druckt die Rechnung einen Bezahl-QR-Code."
+            warnung={ibanFalsch ? "Prüfziffer oder Länge stimmt nicht — mit dieser IBAN klappt der Bezahl-QR-Code nicht." : null}>
+            <Input className="h-11 font-mono" {...text("iban")} />
+          </Feld>
           <Feld label="BIC"><Input className="h-11 font-mono" {...text("bic")} /></Feld>
         </div>
       </Karte>

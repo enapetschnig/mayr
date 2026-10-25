@@ -22,6 +22,8 @@ interface Sitzung {
 
 const Ctx = createContext<Sitzung | null>(null);
 
+const gleich = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
 export function SitzungProvider({ children }: { children: ReactNode }) {
   const [laden, setLaden] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
@@ -39,8 +41,10 @@ export function SitzungProvider({ children }: { children: ReactNode }) {
       supabase.from("profiles").select("*").eq("id", s.user.id).maybeSingle(),
       supabase.from("firma").select("*").eq("id", 1).maybeSingle(),
     ]);
-    setProfil(p ?? null);
-    setFirma(f ?? null);
+    // Unveränderte Daten behalten ihr Objekt — Supabase meldet sich bei jeder
+    // Rückkehr in den Tab neu an, und ein neues Objekt setzt offene Formulare zurück
+    setProfil((alt) => (gleich(alt, p ?? null) ? alt : p ?? null));
+    setFirma((alt) => (gleich(alt, f ?? null) ? alt : f ?? null));
     setLaden(false);
   }, []);
 
