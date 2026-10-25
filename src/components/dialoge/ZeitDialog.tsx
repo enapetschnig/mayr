@@ -256,7 +256,7 @@ export function ZeitDialog({
                 type="button"
                 onClick={() => modusWechseln(m)}
                 className={cn("rounded px-4 py-2 text-sm font-medium transition-colors",
-                  modus === m ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}
+                  modus === m ? "bg-card text-foreground ring-1 ring-border" : "text-muted-foreground")}
               >
                 {m === "stunden" ? "Stunden" : "Von – Bis"}
               </button>
