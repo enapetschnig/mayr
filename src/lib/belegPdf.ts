@@ -385,6 +385,20 @@ function positionenTabelle(
       if (d.section === "head" && d.column.index >= 4) d.cell.styles.halign = "right";
       if (d.section === "head" && d.column.index === 2) d.cell.styles.halign = "right";
     },
+    // Die Zellhöhe ist mit dem ganzen Text gerechnet (Platz für den Langtext);
+    // gezeichnet wird hier nur die Bezeichnung — sonst steht der Langtext
+    // unsichtbar doppelt im PDF und kommt beim Kopieren doppelt mit.
+    // Gleiche Zeilenbreite wie autoTable selbst (fitContent).
+    willDrawCell: (d: CellHookData) => {
+      if (d.section !== "body" || d.column.index !== 1) return;
+      const i = herkunft[d.row.index] ?? -1;
+      const info = i >= 0 ? zeilen[i].lang : undefined;
+      if (!info) return;
+      const kurz = pdf.splitTextToSize(info.kurz, d.cell.width - d.cell.padding("horizontal") + 1 / pdf.internal.scaleFactor, {
+        fontSize: d.cell.styles.fontSize,
+      });
+      d.cell.text = d.cell.text.slice(0, kurz.length);
+    },
     didDrawCell: (d: CellHookData) => {
       if (d.section !== "body") return;
       const i = herkunft[d.row.index] ?? -1;
