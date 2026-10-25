@@ -13,6 +13,8 @@ export type NavEintrag = {
   titel: string;
   /** Unterzeile auf der Menü-Karte der Startseite */
   text: string;
+  /** Unterzeile für Monteure, wenn sie dort weniger sehen als der Chef */
+  textMonteur?: string;
   pfad: string;
   icon: LucideIcon;
   gruppe: "haupt" | "baustelle" | "buero" | "system";
@@ -35,7 +37,7 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Leistungskatalog", text: "Leistungen mit Material und Montagezeit", pfad: "/leistungen", icon: ListChecks, gruppe: "buero", nurChef: true },
   { titel: "Auswertung", text: "Stunden, Umsatz, Nachkalkulation", pfad: "/auswertung", icon: BarChart3, gruppe: "buero", nurChef: true },
 
-  { titel: "Einstellungen", text: "Betrieb, Mitarbeiter, Konto, App", pfad: "/einstellungen", icon: Settings, gruppe: "system" },
+  { titel: "Einstellungen", text: "Betrieb, Mitarbeiter, Konto, App", textMonteur: "Mein Konto, Passwort, App aufs Handy", pfad: "/einstellungen", icon: Settings, gruppe: "system" },
 ];
 
 export const GRUPPEN_TITEL: Record<NavEintrag["gruppe"], string> = {

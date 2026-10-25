@@ -269,7 +269,7 @@ export default function Index() {
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-lg font-semibold leading-tight">{e.titel}</span>
-                          <span className="block text-sm text-muted-foreground">{e.text}</span>
+                          <span className="block text-sm text-muted-foreground">{(!istChef && e.textMonteur) || e.text}</span>
                         </span>
                       </span>
                       <span className="flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-primary text-sm font-medium text-primary-foreground group-hover:bg-primary-hover">
