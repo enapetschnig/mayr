@@ -22,9 +22,10 @@ import { FormularDialog } from "@/components/FormularDialog";
 import { useIstPc } from "@/components/AppLayout";
 import { useNeuLaden, useProjekt } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
+import { archivieren, archivLaden } from "@/lib/belegArchiv";
 import { belegPdfErstellen } from "@/lib/belegPdf";
 import { datum, euro, isoTag, zahl } from "@/lib/format";
-import { pdfTeilenOderLaden } from "@/lib/pdfBasis";
+import { pdfDateiname, pdfTeilenOderLaden } from "@/lib/pdfBasis";
 import { stundensatzFuer } from "@/lib/preise";
 import { belegStatus, TON_KLASSE, type Artikel, type Beleg, type Firma } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -161,6 +162,7 @@ export function BelegEditor({
       anwenden(d);
     }
     void neuLaden(...NACH_AENDERUNG);
+    return d;
   };
 
   const ausfuehren = async (was: string, fn: () => Promise<void>) => {
@@ -248,8 +250,9 @@ export function BelegEditor({
     setLaeuft("fertig");
     try {
       const nr = await fertigstellen(id);
-      await neuHolen();
+      const d = await neuHolen();
       toast.success(`${typText} ${nr} ist fertig.`);
+      if (d) void archivAnlegen(d).catch(() => toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen."));
       if (warNeu) navigate(`/belege/${id}`, { replace: true });
     } catch (e) {
       toast.error((e as Error).message);
@@ -336,11 +339,39 @@ export function BelegEditor({
   });
 
   // ── PDF ──
+  // Gleich nach dem Öffnen kann das Projekt noch laden — sonst fehlt es im PDF
+  const projektFuerPdf = async () => {
+    const p = kopf.projekt_id ? projekt ?? (await projektAbfrage.refetch()).data ?? null : null;
+    return p ? { nummer: p.nummer, name: p.name, strasse: p.strasse, plz: p.plz, ort: p.ort } : null;
+  };
+
+  /** Fertige Rechnung ablegen — aus dem Stand in der Datenbank (Nummer und Fälligkeit setzt erst das Fertigstellen) */
+  const archivAnlegen = async (d: BelegMitPositionen) => {
+    if (!firma || d.beleg.typ !== "rechnung" || d.beleg.status === "entwurf") return;
+    const { blob } = await belegPdfErstellen({
+      beleg: d.beleg,
+      positionen: d.positionen.map((p) => ({
+        art: p.art, bezeichnung: p.bezeichnung, langtext: p.langtext, menge: Number(p.menge), einheit: p.einheit, einzelpreis: Number(p.einzelpreis),
+      })),
+      firma,
+      projekt: await projektFuerPdf(),
+    });
+    if (!(await archivieren(id, blob))) toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen.");
+  };
+
   const pdf = () => ausfuehren("pdf", async () => {
     if (!firma) throw new Error("Firmendaten fehlen — bitte in den Einstellungen eintragen.");
     if (!entwurf && dirty) throw new Error("Bitte zuerst speichern.");
-    // Gleich nach dem Öffnen kann das Projekt noch laden — sonst fehlt es im PDF
-    const p = kopf.projekt_id ? projekt ?? (await projektAbfrage.refetch()).data ?? null : null;
+    // Fertige Rechnung: das abgelegte Original. Fehlt es (vor dem Archiv
+    // fertiggestellt, Ablegen gescheitert), jetzt erzeugen und ablegen.
+    const original = !istAngebot && !!beleg?.nummer && (status === "offen" || status === "bezahlt");
+    const archiv = original ? await archivLaden(id) : null;
+    if (archiv) {
+      const datei = { blob: new Blob([archiv], { type: "application/pdf" }), dateiname: pdfDateiname(typText, beleg?.nummer, beleg?.empf_name) };
+      if (pc) setVorschau({ url: URL.createObjectURL(datei.blob), ...datei });
+      else await pdfTeilenOderLaden(datei.blob, datei.dateiname);
+      return;
+    }
     const { blob, dateiname } = await belegPdfErstellen({
       beleg: {
         typ: kopf.typ,
@@ -368,8 +399,9 @@ export function BelegEditor({
         art: p.art, bezeichnung: p.bezeichnung, langtext: p.langtext, menge: mengeVon(p), einheit: p.einheit, einzelpreis: preisVon(p),
       })),
       firma,
-      projekt: p ? { nummer: p.nummer, name: p.name, strasse: p.strasse, plz: p.plz, ort: p.ort } : null,
+      projekt: await projektFuerPdf(),
     });
+    if (original) void archivieren(id, blob);
     if (pc) setVorschau({ url: URL.createObjectURL(blob), blob, dateiname });
     else await pdfTeilenOderLaden(blob, dateiname);
   });

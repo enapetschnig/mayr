@@ -38,8 +38,8 @@ npm run check        # Absturz-Wächter
 npm test             # vitest (Parser)
 ```
 
-Regeln in der Datenbank prüfen (55 Prüfungen: nicht freigeschaltet, Monteur,
-Chef, Festschreiben, Storno, Regiebericht, Konten) — legt echte Daten und Nummern an,
+Regeln in der Datenbank prüfen (57 Prüfungen: nicht freigeschaltet, Monteur,
+Chef, Festschreiben, Storno, Regiebericht, Konten, Rechnungsarchiv) — legt echte Daten und Nummern an,
 danach **immer** aufräumen:
 
 ```bash
@@ -51,9 +51,10 @@ scripts/sql.sh -f tests/rls-aufraeumen.sql       # Testdaten, Testkonten, Nummer
 Durchklick-Test am Handy (Playwright, 390 px, gegen den laufenden Dev-Server):
 Max legt ein Projekt an, bucht 4 h, fasst aus dem Bus aus, schreibt einen
 Regiebericht mit Kundenunterschrift; der Chef übernimmt alles in eine
-Rechnung, stellt fertig, lädt das PDF. Jeder Schritt wird in der Datenbank
-nachgeprüft (19 Prüfungen), Bilder und PDF in `tests/bilder/`. Danach
-**immer** aufräumen — das löscht auch die Test-Unterschrift:
+Rechnung, stellt fertig, lädt das PDF (= das abgelegte Original). Jeder
+Schritt wird in der Datenbank nachgeprüft (23 Prüfungen), Bilder und PDF in
+`tests/bilder/`. Danach **immer** aufräumen — das löscht auch die
+Test-Unterschrift und das abgelegte PDF:
 
 ```bash
 APP_URL=http://127.0.0.1:8093 MONTEUR_PW=… CHEF_PW=… node tests/durchlauf.mjs   # CHROME=… für einen eigenen Chromium
@@ -68,8 +69,10 @@ DEMO_CHEF_PASSWORT=… scripts/demo-zuruecksetzen.sh
 ```
 
 Einzeln: `scripts/demo-dateien-loeschen.mjs`, dann `supabase/demo/01-stamm.sql`,
-`02-artikel.sql` (aus `artikel_sql.py` erzeugt), `03-verlauf.sql` je mit
-`scripts/sql.sh -f`, zuletzt `supabase/demo/unterschriften.py`. Unterschriften
+danach `demo-dateien-loeschen.mjs --archiv` (abgelegte Rechnungs-PDFs — erst
+löschbar, wenn die Rechnung weg ist), `02-artikel.sql` (aus `artikel_sql.py`
+erzeugt), `03-verlauf.sql` je mit `scripts/sql.sh -f`, zuletzt
+`supabase/demo/unterschriften.py`. Unterschriften
 im Speicher lassen sich nicht löschen (Policy `unterschriften_bleiben`) — alte
 bleiben nach dem Zurücksetzen als verwaiste Dateien liegen, wenige KB.
 

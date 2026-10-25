@@ -8,7 +8,7 @@
 // buchen → Material aus seinem Bus ausfassen (Code eintippen, wie ohne Kamera)
 // → Regiebericht: die 4 h übernehmen statt doppelt buchen, Material,
 // Kundenunterschrift. Chef: Rechnung aus dem Projekt übernehmen, speichern,
-// fertigstellen, PDF.
+// fertigstellen, PDF (abgelegtes Original).
 // Bilder und PDF landen in tests/bilder/durchlauf-* (nicht im Repo).
 import { chromium } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
@@ -209,6 +209,19 @@ try {
   const { error: zeitAendern } = await db.from("zeiten").update({ stunden: 5 }).eq("id", q.z[0].id);
   ok(!!zeitAendern, "verrechnete Stunde ist festgeschrieben");
 
+  // Beim Fertigstellen legt die App das PDF ab (im Hintergrund, kurz warten)
+  let archiv = null;
+  for (let i = 0; i < 30 && !archiv; i++) {
+    const { data } = await db.storage.from("beleg-archiv").download(`${belegId}.pdf`);
+    if (data) archiv = Buffer.from(await data.arrayBuffer());
+    else await new Promise((r) => setTimeout(r, 500));
+  }
+  ok(!!archiv, "PDF beim Fertigstellen abgelegt (beleg-archiv)");
+  const { error: ueber } = await db.storage.from("beleg-archiv").upload(`${belegId}.pdf`, new Blob(["x"]), { contentType: "application/pdf", upsert: true });
+  ok(!!ueber, "abgelegtes PDF lässt sich nicht überschreiben");
+  const { data: weg } = await db.storage.from("beleg-archiv").remove([`${belegId}.pdf`]);
+  ok(!weg?.length, "und nicht löschen, solange es die Rechnung gibt");
+
   // PDF: am Handy ohne Teilen-Funktion wird es heruntergeladen
   const [download] = await Promise.all([
     chef.waitForEvent("download", { timeout: 15000 }),
@@ -219,6 +232,7 @@ try {
   const pdfText = execFileSync("pdftotext", ["-layout", pdfPfad, "-"], { encoding: "utf8" });
   ok(pdfText.includes(re?.nummer) && pdfText.includes(KUNDE) && pdfText.includes(pr.nummer),
     `PDF ${download.suggestedFilename()}: Nummer, Kunde und Projekt ${pr.nummer} drin`);
+  ok(!!archiv && archiv.equals(fs.readFileSync(pdfPfad)), "der PDF-Knopf liefert genau das abgelegte Original");
 } catch (e) {
   fehlgeschlagen++;
   console.log(`✗ FEHLER Abbruch: ${e.message.split("\n")[0]}`);

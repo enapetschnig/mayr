@@ -14,6 +14,9 @@ node "$D/scripts/demo-dateien-loeschen.mjs"
 for f in 01-stamm 02-artikel 03-verlauf; do
   "$D/scripts/sql.sh" -f "$D/supabase/demo/$f.sql" > /dev/null
   echo "✓ $f"
+  # Nach 01 gibt es keine Rechnungen mehr — erst jetzt lassen sich ihre
+  # abgelegten PDFs löschen (die Demo-Rechnungen haben feste IDs)
+  if [ "$f" = 01-stamm ]; then node "$D/scripts/demo-dateien-loeschen.mjs" --archiv; fi
 done
 python3 -I "$D/supabase/demo/unterschriften.py"
 echo "Demo zurückgesetzt."

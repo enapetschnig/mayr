@@ -7,7 +7,11 @@
 // löschen (Policy unterschriften_bleiben). Nach dem Zurücksetzen gehört keine
 // davon mehr zu einem Bericht — ein paar KB, sie stören nicht.
 //
-//   DEMO_CHEF_PASSWORT=… node scripts/demo-dateien-loeschen.mjs
+// Abgelegte Rechnungs-PDFs (beleg-archiv) lassen sich erst löschen, wenn die
+// Rechnung weg ist — deshalb eigener Aufruf mit --archiv NACH dem Löschen der
+// Belege (das Zurücksetzen macht das nach 01-stamm.sql).
+//
+//   DEMO_CHEF_PASSWORT=… node scripts/demo-dateien-loeschen.mjs [--archiv]
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
@@ -46,7 +50,8 @@ async function allePfade(bucket, ordner = "") {
 }
 
 let fehler = 0;
-for (const bucket of ["projekt-dateien", "firmen-logos"]) {
+const BUCKETS = process.argv.includes("--archiv") ? ["beleg-archiv"] : ["projekt-dateien", "firmen-logos"];
+for (const bucket of BUCKETS) {
   const alle = await allePfade(bucket);
   const pfade = alle.filter((p) => !p.includes("/unterschriften/"));
   let weg = 0;

@@ -126,6 +126,13 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   bei Reverse Charge, Anschrift unvollständig, Positionen ohne Betrag.
 - PDF (`lib/belegPdf.ts`): offene Rechnungen mit Bankverbindung und
   Bezahl-QR (EPC); am Handy teilen, sonst herunterladen.
+- **Rechnungsarchiv** (`lib/belegArchiv.ts`, Speicher `beleg-archiv`): beim
+  Fertigstellen legt die App das PDF ab (`<beleg-id>.pdf`, aus dem Stand in
+  der Datenbank) und zeigt danach immer dieses Original — spätere Änderungen
+  am Betrieb (Bank, Logo, Anschrift) oder am Projekt ändern alte Rechnungen
+  nicht. Überschreiben geht nicht, löschen erst, wenn die Rechnung weg ist.
+  Fehlt das Original (ältere Rechnung, Ablegen gescheitert), legt der
+  PDF-Knopf es nach. Stornierte erscheinen neu erzeugt mit Stempel.
 - Angebote sind Kostenvoranschläge. Bei Verbrauchern gilt einer als
   verbindlich, wenn nicht ausdrücklich anders erklärt (§ 5 Abs. 2 KSchG) —
   deshalb steht im PDF immer, was gilt (`kvHinweis`). Schalter im Kopf

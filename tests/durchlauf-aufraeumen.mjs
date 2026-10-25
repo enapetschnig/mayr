@@ -7,6 +7,8 @@
 //    unterschriften_bleiben aus Migration 20261025122000) — die Policy ist dafür
 //    ein paar Sekunden aus und wird in jedem Fall wieder angelegt.
 // 2. tests/durchlauf-aufraeumen.sql: Datenbank und Nummernkreise.
+// 3. Das abgelegte PDF der Testrechnung (beleg-archiv) — löschbar erst, wenn
+//    die Rechnung weg ist.
 import { execFileSync } from "child_process";
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
@@ -38,6 +40,8 @@ async function allePfade(ordner) {
 const { data: projekte, error } = await db.from("projekte").select("id, nummer, name").like("name", "TEST Durchlauf%");
 if (error) throw error;
 const pfade = (await Promise.all(projekte.map((p) => allePfade(p.id)))).flat();
+const { data: belege, error: eB } = await db.from("belege").select("id").in("projekt_id", projekte.map((p) => p.id));
+if (eB) throw eB;
 
 if (pfade.length) {
   sql("drop policy if exists unterschriften_bleiben on storage.objects");
@@ -52,3 +56,8 @@ if (pfade.length) {
 }
 sql("-f", "tests/durchlauf-aufraeumen.sql");
 console.log(`✓ ${projekte.length} Testprojekt(e) samt Buchungen weg: ${projekte.map((p) => `${p.nummer} ${p.name}`).join(", ") || "–"}`);
+if (belege.length) {
+  const { data: weg, error: eA } = await db.storage.from("beleg-archiv").remove(belege.map((b) => `${b.id}.pdf`));
+  if (eA) throw eA;
+  console.log(`✓ ${weg.length} abgelegte(s) PDF(s) gelöscht`);
+}

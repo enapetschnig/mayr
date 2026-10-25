@@ -115,6 +115,8 @@ if (!projekt) process.exit(1);
   ok(!!e3, "kann keine Belege fertigstellen" + abgelehnt(e3));
   const { error: e4 } = await monteur.storage.from("firmen-logos").upload(`rlstest-${Date.now()}.png`, new Blob(["x"]), { contentType: "image/png" });
   ok(!!e4, "kann kein Logo hochladen" + abgelehnt(e4));
+  const { error: eArchiv } = await monteur.storage.from("beleg-archiv").upload(`${projekt.id}.pdf`, new Blob(["x"]), { contentType: "application/pdf" });
+  ok(!!eArchiv, "kann nichts ins Rechnungsarchiv legen" + abgelehnt(eArchiv));
 
   const pfad = `${projekt.id}/rlstest-${Date.now()}.txt`;
   const { error: e5 } = await monteur.storage.from("projekt-dateien").upload(pfad, new Blob(["hallo"]), { contentType: "text/plain" });
@@ -138,6 +140,10 @@ const { data: zChef } = await chef.from("zeiten").insert({ projekt_id: projekt.i
 console.log("\n— Rechnung —");
 const { data: re, error: eR } = await chef.from("belege").insert({ typ: "rechnung", projekt_id: projekt.id, empf_name: "RLS-Test Kunde" }).select("id").single();
 ok(!eR, "Chef legt einen Rechnungsentwurf an" + (eR ? abgelehnt(eR) : ""));
+{
+  const { error: eArchiv } = await chef.storage.from("beleg-archiv").upload(`${re.id}.pdf`, new Blob(["x"]), { contentType: "application/pdf" });
+  ok(!!eArchiv, "Entwürfe kommen nicht ins Rechnungsarchiv" + abgelehnt(eArchiv));
+}
 {
   const { error: ePos } = await chef.from("beleg_positionen").insert({
     beleg_id: re.id, pos: 1, art: "arbeit", bezeichnung: "Arbeitszeit", menge: 5, einheit: "h", einzelpreis: 72,
