@@ -8,207 +8,150 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { SichtbarkeitWahl } from "@/components/Bausteine";
-import { RollenWahl, type RollenMap } from "@/components/RollenWahl";
-import { useNeuLaden, type ProjektMitRollen } from "@/hooks/useDaten";
+import { KundeWahl } from "@/components/KundeWahl";
+import { useNeuLaden, type ProjektMitKunde } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
-import type { Sichtbarkeit } from "@/lib/types";
-import { ChevronDown } from "lucide-react";
+import { zahlLesen } from "@/lib/format";
+import { PROJEKT_STATUS, TON_KLASSE, type Kunde, type ProjektStatus } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
-const LEER = {
-  name: "", kunde_name: "", kunde_strasse: "", kunde_plz: "", kunde_ort: "", kunde_telefon: "",
-  kunde_email: "", kunde_uid: "", adresse: "", plz: "", ort: "", beschreibung: "", start_datum: "", end_datum: "",
-};
-type Felder = typeof LEER;
-
-/** Rollen in der Datenbank ersetzen (erst weg, dann neu — wegen "nur ein GU"). */
-export async function rollenSpeichern(projektId: string, rollen: RollenMap) {
-  const { error: e1 } = await supabase.from("projekt_rollen").delete().eq("projekt_id", projektId);
-  if (e1) throw e1;
-  const zeilen = Object.entries(rollen)
-    .filter(([, r]) => r === "GU" || r === "SU")
-    .map(([firma_id, rolle]) => ({ projekt_id: projektId, firma_id, rolle: rolle as string }));
-  if (zeilen.length) {
-    const { error: e2 } = await supabase.from("projekt_rollen").insert(zeilen);
-    if (e2) throw e2;
-  }
-}
-
+/**
+ * Projekt anlegen oder bearbeiten. Pflicht ist nur der Name — die Nummer
+ * (2026-0001 …) vergibt die Datenbank. Wird ein Kunde gewählt, übernimmt
+ * die Baustellenadresse seine Anschrift, solange dort noch nichts steht.
+ */
 export function ProjektDialog({
-  open, onOpenChange, projekt,
+  open, onOpenChange, projekt, oeffnen = true,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  projekt?: ProjektMitRollen | null;
+  projekt?: ProjektMitKunde | null;
+  /** Nach dem Anlegen gleich ins neue Projekt springen */
+  oeffnen?: boolean;
 }) {
   const navigate = useNavigate();
   const neuLaden = useNeuLaden();
-  const { firma, firmen } = useSitzung();
-  const [f, setF] = useState<Felder>(LEER);
-  const [sicht, setSicht] = useState<Sichtbarkeit>("privat");
-  const [rollen, setRollen] = useState<RollenMap>({});
-  const [mehrOffen, setMehrOffen] = useState(false);
+  const { istChef } = useSitzung();
+  const [name, setName] = useState("");
+  const [kundeId, setKundeId] = useState<string | null>(null);
+  const [status, setStatus] = useState<ProjektStatus>("aktiv");
+  const [strasse, setStrasse] = useState("");
+  const [plz, setPlz] = useState("");
+  const [ort, setOrt] = useState("");
+  const [beschreibung, setBeschreibung] = useState("");
+  const [stundensatz, setStundensatz] = useState("");
   const [speichert, setSpeichert] = useState(false);
-
-  const istEigen = !projekt || projekt.firma_id === firma?.id;
 
   useEffect(() => {
     if (!open) return;
-    if (projekt) {
-      const neu = { ...LEER };
-      (Object.keys(LEER) as (keyof Felder)[]).forEach((k) => { neu[k] = (projekt[k] as string) ?? ""; });
-      setF(neu);
-      setSicht(projekt.sichtbarkeit as Sichtbarkeit);
-      const r: RollenMap = {};
-      projekt.projekt_rollen.forEach((x) => { r[x.firma_id] = x.rolle as "GU" | "SU"; });
-      setRollen(r);
-      setMehrOffen(true);
-    } else {
-      setF(LEER);
-      setSicht("privat");
-      // Vorschlag: ich bin GU, die anderen SU
-      const r: RollenMap = {};
-      firmen.forEach((x) => { r[x.id] = x.id === firma?.id ? "GU" : "SU"; });
-      setRollen(r);
-      setMehrOffen(false);
-    }
-  }, [open, projekt, firma, firmen]);
+    setName(projekt?.name ?? "");
+    setKundeId(projekt?.kunde_id ?? null);
+    setStatus((projekt?.status as ProjektStatus) ?? "aktiv");
+    setStrasse(projekt?.strasse ?? "");
+    setPlz(projekt?.plz ?? "");
+    setOrt(projekt?.ort ?? "");
+    setBeschreibung(projekt?.beschreibung ?? "");
+    setStundensatz(projekt?.stundensatz != null ? String(projekt.stundensatz).replace(".", ",") : "");
+  }, [open, projekt]);
 
-  const setze = (k: keyof Felder) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setF((v) => ({ ...v, [k]: e.target.value }));
+  const kundeGewaehlt = (k: Kunde | null) => {
+    setKundeId(k?.id ?? null);
+    if (k && !strasse && !ort) {
+      setStrasse(k.strasse ?? "");
+      setPlz(k.plz ?? "");
+      setOrt(k.ort ?? "");
+    }
+    if (k && !name.trim()) setName(k.name);
+  };
 
   const speichern = async () => {
-    if (!f.name.trim()) return toast.error("Bitte einen Projektnamen eingeben.");
+    if (!name.trim()) return toast.error("Bitte einen Projektnamen eingeben");
     setSpeichert(true);
     const daten = {
-      ...Object.fromEntries(Object.entries(f).map(([k, v]) => [k, (v as string).trim() || null])),
-      name: f.name.trim(),
-      ...(istEigen ? { sichtbarkeit: sicht } : {}),
+      name: name.trim(),
+      kunde_id: kundeId,
+      status,
+      strasse: strasse.trim() || null,
+      plz: plz.trim() || null,
+      ort: ort.trim() || null,
+      beschreibung: beschreibung.trim() || null,
+      stundensatz: istChef && stundensatz.trim() ? zahlLesen(stundensatz) : projekt?.stundensatz ?? null,
     };
-    try {
-      let id = projekt?.id;
-      if (projekt) {
-        const { error } = await supabase.from("projekte").update(daten).eq("id", projekt.id);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase.from("projekte").insert(daten as never).select("id").single();
-        if (error) throw error;
-        id = data.id;
-      }
-      if (id && sicht === "gemeinsam") await rollenSpeichern(id, rollen);
-      await neuLaden("projekte");
-      toast.success(projekt ? "Projekt gespeichert" : sicht === "gemeinsam" ? "Projekt angelegt und mit allen geteilt" : "Projekt angelegt");
-      onOpenChange(false);
-      if (!projekt && id) navigate(`/projekte/${id}`);
-    } catch (e) {
-      toast.error("Nicht gespeichert", { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
-    } finally {
-      setSpeichert(false);
-    }
+    const { data, error } = projekt
+      ? await supabase.from("projekte").update(daten).eq("id", projekt.id).select("id, nummer").single()
+      : await supabase.from("projekte").insert(daten).select("id, nummer").single();
+    setSpeichert(false);
+    if (error) return toast.error("Nicht gespeichert", { description: error.message });
+    await neuLaden("projekte");
+    toast.success(projekt ? "Projekt gespeichert" : `Projekt ${data.nummer} angelegt`);
+    onOpenChange(false);
+    if (!projekt && oeffnen) navigate(`/projekte/${data.id}`);
   };
 
   return (
     <FormularDialog
       open={open}
       onOpenChange={onOpenChange}
-      titel={projekt ? "Projekt bearbeiten" : "Neues Projekt"}
+      titel={projekt ? `Projekt ${projekt.nummer} bearbeiten` : "Neues Projekt"}
+      beschreibung={projekt ? undefined : "Die Projektnummer vergibt die App automatisch."}
       gesperrt={speichert}
       fuss={
         <>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={speichert}>Abbrechen</Button>
-          <Button onClick={speichern} disabled={speichert} className="min-w-40">
-            {speichert && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {projekt ? "Speichern" : "Projekt anlegen"}
+          <Button onClick={speichern} disabled={speichert} className="min-w-40 gap-2">
+            {speichert && <Loader2 className="h-4 w-4 animate-spin" />}{projekt ? "Speichern" : "Projekt anlegen"}
           </Button>
         </>
       }
     >
-      <div className="max-w-2xl space-y-5">
+      <div className="max-w-xl space-y-5">
+        <div className="space-y-2">
+          <Label>Kunde</Label>
+          <KundeWahl wert={kundeId} onChange={kundeGewaehlt} />
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="p-name">Projektname</Label>
-          <Input id="p-name" className="h-11 text-base" autoFocus={!projekt} value={f.name} onChange={setze("name")}
-            placeholder="z. B. EFH Huber, Kremsmünster" />
+          <Input id="p-name" className="h-12" value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Neubau EFH Huber" />
         </div>
 
         <div className="space-y-2">
-          <Label>Für wen ist das Projekt?</Label>
-          <SichtbarkeitWahl
-            wert={sicht}
-            onChange={setSicht}
-            gesperrt={!istEigen}
-            textPrivat="Nur für mich"
-            textGemeinsam="Mit allen teilen"
-            hinweisPrivat="Nur meine Firma sieht es"
-            hinweisGemeinsam="Alle drei Firmen arbeiten mit"
-          />
-          {!istEigen && <p className="text-xs text-muted-foreground">Die Freigabe kann nur die Firma ändern, die das Projekt angelegt hat.</p>}
+          <Label>Status</Label>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {(Object.keys(PROJEKT_STATUS) as ProjektStatus[]).map((s) => (
+              <button key={s} type="button" onClick={() => setStatus(s)}
+                className={cn("flex h-11 items-center justify-center rounded-md border text-sm font-medium transition-colors",
+                  status === s ? cn(TON_KLASSE[PROJEKT_STATUS[s].ton], "border-current") : "bg-card hover:bg-muted")}>
+                {PROJEKT_STATUS[s].text}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {sicht === "gemeinsam" && (
+        <div className="space-y-2">
+          <Label htmlFor="p-strasse">Baustelle</Label>
+          <Input id="p-strasse" className="h-12" value={strasse} onChange={(e) => setStrasse(e.target.value)} placeholder="Straße und Hausnummer" />
+          <div className="grid grid-cols-[6rem_1fr] gap-2">
+            <Input className="h-12" inputMode="numeric" value={plz} onChange={(e) => setPlz(e.target.value)} placeholder="PLZ" aria-label="PLZ" />
+            <Input className="h-12" value={ort} onChange={(e) => setOrt(e.target.value)} placeholder="Ort" aria-label="Ort" />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="p-beschr">Beschreibung <span className="font-normal text-muted-foreground">(optional)</span></Label>
+          <Textarea id="p-beschr" rows={3} value={beschreibung} onChange={(e) => setBeschreibung(e.target.value)}
+            placeholder="Was ist zu tun?" />
+        </div>
+
+        {istChef && (
           <div className="space-y-2">
-            <Label>Wer ist General-, wer Subunternehmer?</Label>
-            <RollenWahl rollen={rollen} onChange={setRollen} />
+            <Label htmlFor="p-satz">Eigener Stundensatz <span className="font-normal text-muted-foreground">(leer = aus den Einstellungen)</span></Label>
+            <div className="flex items-center gap-2">
+              <Input id="p-satz" className="h-12 max-w-32" inputMode="decimal" value={stundensatz} onChange={(e) => setStundensatz(e.target.value)} placeholder="z. B. 68" />
+              <span className="text-sm text-muted-foreground">€ / Stunde netto</span>
+            </div>
           </div>
         )}
-
-        <Collapsible open={mehrOffen} onOpenChange={setMehrOffen}>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="px-0 gap-1 text-primary">
-              <ChevronDown className={`h-4 w-4 transition-transform ${mehrOffen ? "rotate-180" : ""}`} />
-              Kunde, Adresse & Zeitraum {mehrOffen ? "" : "(optional)"}
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-5 pt-2">
-            <fieldset className="space-y-3">
-              <legend className="text-sm font-semibold mb-2">Auftraggeber</legend>
-              <Input className="h-11" placeholder="Name / Firma" value={f.kunde_name} onChange={setze("kunde_name")} aria-label="Kundenname" />
-              <Input className="h-11" placeholder="Straße" value={f.kunde_strasse} onChange={setze("kunde_strasse")} aria-label="Kunde Straße" />
-              <div className="grid grid-cols-[6rem_1fr] gap-2">
-                <Input className="h-11" placeholder="PLZ" value={f.kunde_plz} onChange={setze("kunde_plz")} aria-label="Kunde PLZ" />
-                <Input className="h-11" placeholder="Ort" value={f.kunde_ort} onChange={setze("kunde_ort")} aria-label="Kunde Ort" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Input className="h-11" placeholder="Telefon" type="tel" value={f.kunde_telefon} onChange={setze("kunde_telefon")} aria-label="Kunde Telefon" />
-                <Input className="h-11" placeholder="E-Mail" type="email" value={f.kunde_email} onChange={setze("kunde_email")} aria-label="Kunde E-Mail" />
-                <Input className="h-11" placeholder="UID (bei Firmen)" value={f.kunde_uid} onChange={setze("kunde_uid")} aria-label="Kunde UID" />
-              </div>
-            </fieldset>
-
-            <fieldset className="space-y-3">
-              <legend className="text-sm font-semibold mb-2 flex items-center gap-3">
-                Baustelle
-                {(f.kunde_strasse || f.kunde_ort) && (
-                  <button type="button" className="text-xs font-normal text-primary hover:underline"
-                    onClick={() => setF((v) => ({ ...v, adresse: v.kunde_strasse, plz: v.kunde_plz, ort: v.kunde_ort }))}>
-                    = Adresse des Kunden
-                  </button>
-                )}
-              </legend>
-              <Input className="h-11" placeholder="Straße" value={f.adresse} onChange={setze("adresse")} aria-label="Baustelle Straße" />
-              <div className="grid grid-cols-[6rem_1fr] gap-2">
-                <Input className="h-11" placeholder="PLZ" value={f.plz} onChange={setze("plz")} aria-label="Baustelle PLZ" />
-                <Input className="h-11" placeholder="Ort" value={f.ort} onChange={setze("ort")} aria-label="Baustelle Ort" />
-              </div>
-            </fieldset>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="p-start" className="text-xs">Beginn</Label>
-                <Input id="p-start" type="date" className="h-11" value={f.start_datum} onChange={setze("start_datum")} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="p-ende" className="text-xs">Ende</Label>
-                <Input id="p-ende" type="date" className="h-11" value={f.end_datum} onChange={setze("end_datum")} />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="p-beschr">Beschreibung</Label>
-              <Textarea id="p-beschr" rows={3} value={f.beschreibung} onChange={setze("beschreibung")} />
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
       </div>
     </FormularDialog>
   );

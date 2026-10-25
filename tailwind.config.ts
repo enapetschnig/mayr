@@ -22,7 +22,15 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          hover: "hsl(var(--primary-hover))",
+          soft: "hsl(var(--primary-soft))",
         },
+        status: Object.fromEntries(
+          ["grau", "blau", "gelb", "gruen", "rot", "cyan", "lila", "rosa"].flatMap((t) => [
+            [t, `hsl(var(--status-${t}))`],
+            [`${t}-fg`, `hsl(var(--status-${t}-fg))`],
+          ]),
+        ),
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
@@ -38,6 +46,10 @@ export default {
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -57,6 +69,9 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+      },
+      boxShadow: {
+        schwebend: "var(--shadow-medium)",
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -3,57 +3,45 @@ import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail,
 } from "@/components/ui/sidebar";
-import { BarChart3, CalendarDays, Clock, FolderKanban, Home, LogOut, Package, Receipt, Settings } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { FirmaBadge } from "@/components/Bausteine";
+import { Avatar } from "@/components/Bausteine";
 import { useSitzung } from "@/hooks/useSitzung";
+import { GRUPPEN_TITEL, istAktiv, sichtbareNavigation, type NavEintrag } from "@/lib/navigation";
+import { name } from "@/lib/types";
 import { KUNDE } from "@/kunde.config";
-
-const GRUPPEN = [
-  {
-    label: "Hauptmenü",
-    items: [
-      { title: "Start", path: "/", icon: Home },
-      { title: "Projekte", path: "/projekte", icon: FolderKanban },
-      { title: "Kalender", path: "/kalender", icon: CalendarDays },
-    ],
-  },
-  {
-    label: "Erfassen & Abrechnen",
-    items: [
-      { title: "Zeiterfassung", path: "/zeiten", icon: Clock },
-      { title: "Material", path: "/material", icon: Package },
-      { title: "Rechnungen & Angebote", path: "/rechnungen", icon: Receipt },
-      { title: "Stundenauswertung", path: "/auswertung", icon: BarChart3 },
-    ],
-  },
-  { label: "System", items: [{ title: "Einstellungen", path: "/einstellungen", icon: Settings }] },
-];
-
-const aktiv = (p: string, jetzt: string) => (p === "/" ? jetzt === "/" : jetzt === p || jetzt.startsWith(p + "/"));
 
 export function AppSidebar() {
   const { pathname } = useLocation();
-  const { profil, firma } = useSitzung();
+  const { profil, firma, istChef } = useSitzung();
+
+  const gruppen = (Object.keys(GRUPPEN_TITEL) as NavEintrag["gruppe"][])
+    .map((g) => ({ g, eintraege: sichtbareNavigation(istChef).filter((n) => n.gruppe === g) }))
+    .filter((x) => x.eintraege.length > 0);
 
   return (
     <Sidebar collapsible="icon" className="border-r">
-      <SidebarHeader className="p-3 border-b">
-        <Link to="/" className="flex items-center justify-center px-1">
-          <img src={KUNDE.logo} alt={KUNDE.firma} className="h-12 w-auto object-contain" />
+      <SidebarHeader className="border-b p-3">
+        <Link to="/" className="flex items-center gap-2.5 px-1">
+          <img src={KUNDE.logo} alt="" className="h-9 w-9 shrink-0 rounded-xl object-contain" />
+          <span className="min-w-0 group-data-[collapsible=icon]:hidden">
+            <span className="block truncate text-sm font-bold leading-tight">{firma?.name || KUNDE.kurzname}</span>
+            <span className="block truncate text-xs text-muted-foreground">{KUNDE.slogan}</span>
+          </span>
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        {GRUPPEN.map((g) => (
-          <SidebarGroup key={g.label}>
-            <SidebarGroupLabel>{g.label}</SidebarGroupLabel>
+        {gruppen.map(({ g, eintraege }) => (
+          <SidebarGroup key={g}>
+            <SidebarGroupLabel>{GRUPPEN_TITEL[g]}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {g.items.map((i) => (
-                  <SidebarMenuItem key={i.path}>
-                    <SidebarMenuButton asChild isActive={aktiv(i.path, pathname)} tooltip={i.title}>
-                      <Link to={i.path}><i.icon className="h-4 w-4" /><span>{i.title}</span></Link>
+                {eintraege.map((i) => (
+                  <SidebarMenuItem key={i.pfad}>
+                    <SidebarMenuButton asChild isActive={istAktiv(i.pfad, pathname)} tooltip={i.titel}
+                      className="data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground">
+                      <Link to={i.pfad}><i.icon className="h-4 w-4" /><span>{i.titel}</span></Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -62,11 +50,12 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
-      <SidebarFooter className="p-3 border-t">
-        <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:justify-center">
-          <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="text-sm font-medium truncate">{`${profil?.vorname ?? ""} ${profil?.nachname ?? ""}`.trim() || "Benutzer"}</p>
-            <FirmaBadge firma={firma} />
+      <SidebarFooter className="border-t p-3">
+        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+          <Avatar profil={profil} className="group-data-[collapsible=icon]:hidden" />
+          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+            <p className="truncate text-sm font-medium">{name(profil)}</p>
+            <p className="text-xs text-muted-foreground">{istChef ? "Chef" : "Monteur"}</p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" title="Abmelden"
             onClick={() => supabase.auth.signOut({ scope: "local" })}>

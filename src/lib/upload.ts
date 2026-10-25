@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Sichtbarkeit } from "@/lib/types";
 
 /**
  * Handyfotos haben 5–10 MB. Für die Baustellendoku reichen 2400 px an der
@@ -39,7 +38,6 @@ export function sichererDateiname(name: string): string {
 export async function dateienHochladen(
   projektId: string,
   dateien: File[],
-  sichtbarkeit: Sichtbarkeit,
   beschreibung?: string,
   /** "dokument": landet im Ordner Dokumente, auch wenn es ein Bild ist (z. B. abfotografierter Lieferschein) */
   art?: "foto" | "dokument",
@@ -61,7 +59,6 @@ export async function dateienHochladen(
       mime: datei.type,
       groesse: datei.size,
       art: art ?? (datei.type.startsWith("image/") ? "foto" : "dokument"),
-      sichtbarkeit,
       beschreibung: beschreibung || null,
     });
     if (e2) {

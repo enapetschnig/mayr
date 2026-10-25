@@ -2,115 +2,134 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Corporate Fonts: Montserrat (Überschriften) + system Sans-Serif mit Segoe UI bevorzugt (Fließtext) */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap');
+/*
+  Design „Werkbank“ — wie Lengauer (Konzept ~/Developer/_baukasten/design/
+  lengauer-plancraft-konzept.md): hellgrauer Arbeitstisch, weiße Karten mit
+  Rahmen statt Schatten, kleine Radien, fast schwarze Seitenleiste am PC.
+  Elektro-Blau ist die EINZIGE Aktionsfarbe (Knopf, Link, aktiver Menüpunkt,
+  Fokus); alle anderen Farben kommen nur als Pastell-Status vor
+  (lib/types.ts → STATUS_TON, Bausteine → StatusPille).
 
-/* Design-System.
-   Die Hauptfarbe wird beim Start aus kunde.config.ts überschrieben
-   (siehe farbenAnwenden() in main.tsx). Der Wert unten ist nur der
-   Ausgangswert, damit der erste Frame nicht ungestylt blitzt.
-   Alle Farben MÜSSEN HSL sein.
+  Die Markenfarbe setzt farbenAnwenden() aus kunde.config.ts beim Start.
+  Alle Farben HSL ohne hsl() — nur so mischt Tailwind sie mit Deckkraft.
 */
+
+/* Inter, selbst eingebettet (@fontsource-variable/inter, kein Google-CDN) */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
 @layer base {
   :root {
-    /* Clean, hellerer Hintergrund */
-    --background: 0 0% 100%;
-    --foreground: 163 35% 11%;
-
+    /* Flächen */
+    --background: 60 4% 95%;          /* Arbeitstisch */
+    --foreground: 0 0% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 163 35% 11%;
-
+    --card-foreground: 0 0% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 163 35% 11%;
+    --popover-foreground: 0 0% 10%;
 
-    /* Hauptfarbe — wird aus kunde.config.ts überschrieben */
-    --primary: 163 73% 20%;
+    /* Marke = einzige Aktionsfarbe (Startwert, farbenAnwenden() legt sie darüber) */
+    --primary: 224 76% 48%;
     --primary-foreground: 0 0% 100%;
+    --primary-hover: 224 76% 41%;
+    --primary-soft: 224 90% 96%;
 
-    /* Grau hell #F2F2F2 als secondary */
-    --secondary: 0 0% 95%;
-    --secondary-foreground: 163 73% 20%;
+    /* Neutrale Stufen */
+    --secondary: 0 0% 93%;
+    --secondary-foreground: 0 0% 15%;
+    --muted: 0 0% 96%;                /* berechnete Felder, Tabellenkopf */
+    --muted-foreground: 0 0% 42%;
+    --accent: 0 0% 94%;               /* nur Hover-Fläche (Dropdown, Ghost) — nie bunt */
+    --accent-foreground: 0 0% 10%;
 
-    --muted: 0 0% 95%;
-    --muted-foreground: 0 0% 40%;  /* Grau mittel #666666 */
+    --border: 0 0% 89%;
+    --input: 0 0% 84%;
+    --ring: 224 76% 48%;
 
-    /* Helleres Grün als accent */
-    --accent: 162 52% 30%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 72% 51%;
+    --destructive: 4 64% 45%;         /* nur Text/Rahmen, gefüllt nur in der Rückfrage */
     --destructive-foreground: 0 0% 100%;
-
-    /* Grün für Success */
-    --success: 152 55% 36%;
+    --success: 152 62% 31%;
     --success-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 95%;
-    --ring: 162 52% 30%;
-
-    --radius: 0.5rem;
-
-    /* Corporate design tokens - Kunde */
-    --marke-primaer: 163 73% 20%;
-    --marke-hell: 162 52% 30%;
-    --marke-grau-hell: 0 0% 95%;
-    --marke-grau-mittel: 0 0% 40%;
-
-    /* Shadows */
-    --shadow-soft: 0 2px 8px hsl(163 73% 20% / 0.08);
-    --shadow-medium: 0 4px 16px hsl(163 73% 20% / 0.12);
-
-    /* Transitions */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 163 73% 20%;
-    --sidebar-primary: 163 73% 20%;
+    /* Seitenleiste am PC — fast schwarz */
+    --sidebar-background: 0 0% 9%;
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-primary: 224 76% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 95%;
-    --sidebar-accent-foreground: 163 73% 20%;
-    --sidebar-border: 0 0% 90%;
-    --sidebar-ring: 162 52% 30%;
+    --sidebar-accent: 0 0% 16%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 224 76% 60%;
+
+    /* Status-Pillen: Fläche / Schrift */
+    --status-grau: 0 0% 93%;     --status-grau-fg: 0 0% 27%;
+    --status-blau: 214 93% 93%;  --status-blau-fg: 216 90% 40%;
+    --status-gelb: 46 85% 88%;   --status-gelb-fg: 44 100% 24%;
+    --status-gruen: 146 55% 91%; --status-gruen-fg: 150 63% 25%;
+    --status-rot: 2 87% 94%;     --status-rot-fg: 8 74% 39%;
+    --status-cyan: 195 85% 90%;  --status-cyan-fg: 195 75% 28%;
+    --status-lila: 251 82% 95%;  --status-lila-fg: 251 40% 48%;
+    --status-rosa: 330 80% 94%;  --status-rosa-fg: 322 41% 39%;
+
+    --radius: 0.5rem;                 /* 8 px Karten; md = 6 px Knöpfe/Felder; sm = 4 px */
+
+    /* Schatten nur für schwebende Ebenen — Karten haben Rahmen */
+    --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.04);
+    --shadow-medium: 0 8px 24px hsl(0 0% 0% / 0.12);
   }
 
   .dark {
-    --background: 163 22% 8%;
-    --foreground: 152 12% 95%;
-
-    --card: 163 18% 12%;
-    --card-foreground: 152 12% 95%;
-
-    --popover: 163 18% 12%;
-    --popover-foreground: 152 12% 95%;
-
-    --primary: 160 55% 46%;
+    --background: 0 0% 6%;
+    --foreground: 0 0% 93%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 93%;
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 93%;
+    --primary: 221 83% 60%;
     --primary-foreground: 0 0% 100%;
-
-    --secondary: 163 10% 21%;
-    --secondary-foreground: 152 12% 95%;
-
-    --muted: 163 10% 17%;
-    --muted-foreground: 152 9% 63%;
-
-    --accent: 160 55% 46%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 72% 51%;
+    --primary-hover: 221 83% 54%;
+    --primary-soft: 224 40% 16%;
+    --secondary: 0 0% 17%;
+    --secondary-foreground: 0 0% 93%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 62%;
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 95%;
+    --border: 0 0% 19%;
+    --input: 0 0% 25%;
+    --ring: 221 83% 60%;
+    --destructive: 4 70% 58%;
     --destructive-foreground: 0 0% 100%;
-
-    --border: 163 10% 21%;
-    --input: 163 10% 21%;
-    --ring: 160 55% 46%;
-    --sidebar-background: 163 22% 8%;
-    --sidebar-foreground: 152 12% 95%;
-    --sidebar-primary: 160 55% 46%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 163 10% 15%;
-    --sidebar-accent-foreground: 152 12% 95%;
-    --sidebar-border: 163 10% 15%;
-    --sidebar-ring: 160 55% 46%;
+    --success: 152 50% 42%;
+    --sidebar-background: 0 0% 4%;
+    --sidebar-foreground: 0 0% 78%;
+    --sidebar-accent: 0 0% 13%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 14%;
+    --status-grau: 0 0% 20%;     --status-grau-fg: 0 0% 82%;
+    --status-blau: 216 50% 20%;  --status-blau-fg: 214 90% 78%;
+    --status-gelb: 44 50% 18%;   --status-gelb-fg: 46 85% 70%;
+    --status-gruen: 150 40% 16%; --status-gruen-fg: 146 55% 68%;
+    --status-rot: 8 45% 20%;     --status-rot-fg: 4 85% 78%;
+    --status-cyan: 195 50% 17%;  --status-cyan-fg: 195 80% 72%;
+    --status-lila: 251 30% 22%;  --status-lila-fg: 251 80% 82%;
+    --status-rosa: 322 30% 20%;  --status-rosa-fg: 330 75% 80%;
+    --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.3);
+    --shadow-medium: 0 8px 24px hsl(0 0% 0% / 0.5);
   }
 }
 
@@ -119,23 +138,35 @@
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground;
-    /* Body: Segoe UI (Windows/Mac System) mit Fallbacks */
-    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  html {
+    -webkit-tap-highlight-color: transparent;
   }
 
-  /* Überschriften: Montserrat ExtraBold */
-  h1, h2, h3, h4, h5, h6 {
-    font-family: "Montserrat", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
-    font-weight: 800;
-    letter-spacing: -0.01em;
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Eingabefelder am Handy 16 px — sonst zoomt iOS beim Antippen hinein */
+  input, textarea, select {
+    font-size: 16px;
+  }
+  @media (min-width: 1024px) {
+    input, textarea, select { font-size: 0.875rem; }
   }
 }
 
-/* Vollbild-Formulare (FormularDialog) — aus der Tilger-App übernommen.
-   [role="dialog"] erhöht die Spezifität über Tailwinds Hilfsklassen. */
+/* Zahlen untereinander lesbar */
+td, th, tfoot, .zahl, [data-zahl] {
+  font-variant-numeric: tabular-nums;
+}
+
 @layer utilities {
+  /* Vollbild-Formulare (FormularDialog) — aus der Tilger-App übernommen.
+     [role="dialog"] erhöht die Spezifität über Tailwinds Hilfsklassen. */
   [role="dialog"].formular-vollbild {
     position: fixed;
     inset: 0;
@@ -149,5 +180,12 @@
     border-radius: 0;
     border-width: 0;
     padding: 0;
+  }
+
+  /* Grau heißt „berechnet“, weiß mit Rahmen heißt „eingebbar“ */
+  .feld-berechnet {
+    background-color: hsl(var(--muted));
+    border-color: transparent;
+    cursor: default;
   }
 }

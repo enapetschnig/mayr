@@ -7,470 +7,186 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.18"
-  }
   public: {
     Tables: {
-      dateien: {
+      artikel: {
         Row: {
-          art: string
-          beschreibung: string | null
+          aktiv: boolean
+          artikelnummer: string | null
+          bezeichnung: string
           created_at: string
-          firma_id: string
-          groesse: number | null
+          ean: string | null
+          einheit: string
+          ek_preis: number | null
+          hersteller: string | null
+          hersteller_nr: string | null
           id: string
-          mime: string | null
-          name: string
-          pfad: string
-          projekt_id: string
-          sichtbarkeit: string
-          user_id: string
-        }
-        Insert: {
-          art?: string
-          beschreibung?: string | null
-          created_at?: string
-          firma_id?: string
-          groesse?: number | null
-          id?: string
-          mime?: string | null
-          name: string
-          pfad: string
-          projekt_id: string
-          sichtbarkeit?: string
-          user_id?: string
-        }
-        Update: {
-          art?: string
-          beschreibung?: string | null
-          created_at?: string
-          firma_id?: string
-          groesse?: number | null
-          id?: string
-          mime?: string | null
-          name?: string
-          pfad?: string
-          projekt_id?: string
-          sichtbarkeit?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "dateien_firma_id_fkey"
-            columns: ["firma_id"]
-            isOneToOne: false
-            referencedRelation: "firmen"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "dateien_projekt_id_fkey"
-            columns: ["projekt_id"]
-            isOneToOne: false
-            referencedRelation: "projekte"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      firmen: {
-        Row: {
-          angebot_praefix: string
-          bank_name: string | null
-          bic: string | null
-          created_at: string
-          email: string | null
-          farbe: string
-          firmenbuch: string | null
-          fusszeile: string | null
-          iban: string | null
-          id: string
-          inhaber: string | null
-          ist_demo: boolean
-          kleinunternehmer: boolean
-          kontoinhaber: string | null
-          kurzname: string
-          land: string
-          logo_pfad: string | null
-          material_aufschlag: number
-          name: string
-          ort: string | null
-          plz: string | null
-          rechnung_praefix: string
-          strasse: string | null
-          stundensatz: number
-          telefon: string | null
-          uid: string | null
+          kategorie: string | null
+          lagerartikel: boolean
+          langtext: string | null
+          lieferant: string
+          listenpreis: number | null
+          mindestbestand: number | null
+          quelle: string
+          rabattgruppe: string | null
           updated_at: string
-          website: string | null
-          zahlungsziel_tage: number
+          vk_preis: number | null
+          warengruppe: string | null
         }
         Insert: {
-          angebot_praefix?: string
-          bank_name?: string | null
-          bic?: string | null
+          aktiv?: boolean
+          artikelnummer?: string | null
+          bezeichnung: string
           created_at?: string
-          email?: string | null
-          farbe?: string
-          firmenbuch?: string | null
-          fusszeile?: string | null
-          iban?: string | null
+          ean?: string | null
+          einheit?: string
+          ek_preis?: number | null
+          hersteller?: string | null
+          hersteller_nr?: string | null
           id?: string
-          inhaber?: string | null
-          ist_demo?: boolean
-          kleinunternehmer?: boolean
-          kontoinhaber?: string | null
-          kurzname: string
-          land?: string
-          logo_pfad?: string | null
-          material_aufschlag?: number
-          name: string
-          ort?: string | null
-          plz?: string | null
-          rechnung_praefix?: string
-          strasse?: string | null
-          stundensatz?: number
-          telefon?: string | null
-          uid?: string | null
+          kategorie?: string | null
+          lagerartikel?: boolean
+          langtext?: string | null
+          lieferant?: string
+          listenpreis?: number | null
+          mindestbestand?: number | null
+          quelle?: string
+          rabattgruppe?: string | null
           updated_at?: string
-          website?: string | null
-          zahlungsziel_tage?: number
+          vk_preis?: number | null
+          warengruppe?: string | null
         }
         Update: {
-          angebot_praefix?: string
-          bank_name?: string | null
-          bic?: string | null
+          aktiv?: boolean
+          artikelnummer?: string | null
+          bezeichnung?: string
           created_at?: string
-          email?: string | null
-          farbe?: string
-          firmenbuch?: string | null
-          fusszeile?: string | null
-          iban?: string | null
+          ean?: string | null
+          einheit?: string
+          ek_preis?: number | null
+          hersteller?: string | null
+          hersteller_nr?: string | null
           id?: string
-          inhaber?: string | null
-          ist_demo?: boolean
-          kleinunternehmer?: boolean
-          kontoinhaber?: string | null
-          kurzname?: string
-          land?: string
-          logo_pfad?: string | null
-          material_aufschlag?: number
-          name?: string
-          ort?: string | null
-          plz?: string | null
-          rechnung_praefix?: string
-          strasse?: string | null
-          stundensatz?: number
-          telefon?: string | null
-          uid?: string | null
+          kategorie?: string | null
+          lagerartikel?: boolean
+          langtext?: string | null
+          lieferant?: string
+          listenpreis?: number | null
+          mindestbestand?: number | null
+          quelle?: string
+          rabattgruppe?: string | null
           updated_at?: string
-          website?: string | null
-          zahlungsziel_tage?: number
+          vk_preis?: number | null
+          warengruppe?: string | null
         }
         Relationships: []
       }
-      material: {
+      artikel_codes: {
         Row: {
-          bezeichnung: string
+          artikel_id: string
+          code: string
           created_at: string
-          datum: string
-          einheit: string
-          ek_preis: number | null
-          firma_id: string
-          id: string
           menge: number
-          notiz: string | null
-          projekt_id: string
-          rechnung_id: string | null
-          sichtbarkeit: string
-          user_id: string
         }
         Insert: {
-          bezeichnung: string
+          artikel_id: string
+          code: string
           created_at?: string
-          datum?: string
-          einheit?: string
-          ek_preis?: number | null
-          firma_id?: string
-          id?: string
           menge?: number
-          notiz?: string | null
-          projekt_id: string
-          rechnung_id?: string | null
-          sichtbarkeit?: string
-          user_id?: string
         }
         Update: {
-          bezeichnung?: string
+          artikel_id?: string
+          code?: string
           created_at?: string
-          datum?: string
-          einheit?: string
-          ek_preis?: number | null
-          firma_id?: string
-          id?: string
           menge?: number
-          notiz?: string | null
-          projekt_id?: string
-          rechnung_id?: string | null
-          sichtbarkeit?: string
-          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "material_firma_id_fkey"
-            columns: ["firma_id"]
+            foreignKeyName: "artikel_codes_artikel_id_fkey"
+            columns: ["artikel_id"]
             isOneToOne: false
-            referencedRelation: "firmen"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "material_projekt_id_fkey"
-            columns: ["projekt_id"]
-            isOneToOne: false
-            referencedRelation: "projekte"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "material_rechnung_id_fkey"
-            columns: ["rechnung_id"]
-            isOneToOne: false
-            referencedRelation: "rechnungen"
+            referencedRelation: "artikel"
             referencedColumns: ["id"]
           },
         ]
       }
-      nummernkreise: {
-        Row: {
-          firma_id: string
-          jahr: number
-          letzte: number
-          typ: string
-        }
-        Insert: {
-          firma_id: string
-          jahr: number
-          letzte?: number
-          typ: string
-        }
-        Update: {
-          firma_id?: string
-          jahr?: number
-          letzte?: number
-          typ?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "nummernkreise_firma_id_fkey"
-            columns: ["firma_id"]
-            isOneToOne: false
-            referencedRelation: "firmen"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      profiles: {
-        Row: {
-          created_at: string
-          email: string | null
-          firma_id: string | null
-          id: string
-          ist_admin: boolean
-          ist_aktiv: boolean
-          nachname: string
-          vorname: string
-        }
-        Insert: {
-          created_at?: string
-          email?: string | null
-          firma_id?: string | null
-          id: string
-          ist_admin?: boolean
-          ist_aktiv?: boolean
-          nachname?: string
-          vorname?: string
-        }
-        Update: {
-          created_at?: string
-          email?: string | null
-          firma_id?: string | null
-          id?: string
-          ist_admin?: boolean
-          ist_aktiv?: boolean
-          nachname?: string
-          vorname?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_firma_id_fkey"
-            columns: ["firma_id"]
-            isOneToOne: false
-            referencedRelation: "firmen"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      projekt_rollen: {
-        Row: {
-          firma_id: string
-          projekt_id: string
-          rolle: string
-        }
-        Insert: {
-          firma_id: string
-          projekt_id: string
-          rolle: string
-        }
-        Update: {
-          firma_id?: string
-          projekt_id?: string
-          rolle?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "projekt_rollen_firma_id_fkey"
-            columns: ["firma_id"]
-            isOneToOne: false
-            referencedRelation: "firmen"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projekt_rollen_projekt_id_fkey"
-            columns: ["projekt_id"]
-            isOneToOne: false
-            referencedRelation: "projekte"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      projekte: {
-        Row: {
-          adresse: string | null
-          beschreibung: string | null
-          created_at: string
-          end_datum: string | null
-          erstellt_von: string | null
-          firma_id: string
-          id: string
-          kunde_email: string | null
-          kunde_name: string | null
-          kunde_ort: string | null
-          kunde_plz: string | null
-          kunde_strasse: string | null
-          kunde_telefon: string | null
-          kunde_uid: string | null
-          name: string
-          ort: string | null
-          plz: string | null
-          sichtbarkeit: string
-          start_datum: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          adresse?: string | null
-          beschreibung?: string | null
-          created_at?: string
-          end_datum?: string | null
-          erstellt_von?: string | null
-          firma_id?: string
-          id?: string
-          kunde_email?: string | null
-          kunde_name?: string | null
-          kunde_ort?: string | null
-          kunde_plz?: string | null
-          kunde_strasse?: string | null
-          kunde_telefon?: string | null
-          kunde_uid?: string | null
-          name: string
-          ort?: string | null
-          plz?: string | null
-          sichtbarkeit?: string
-          start_datum?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          adresse?: string | null
-          beschreibung?: string | null
-          created_at?: string
-          end_datum?: string | null
-          erstellt_von?: string | null
-          firma_id?: string
-          id?: string
-          kunde_email?: string | null
-          kunde_name?: string | null
-          kunde_ort?: string | null
-          kunde_plz?: string | null
-          kunde_strasse?: string | null
-          kunde_telefon?: string | null
-          kunde_uid?: string | null
-          name?: string
-          ort?: string | null
-          plz?: string | null
-          sichtbarkeit?: string
-          start_datum?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "projekte_firma_id_fkey"
-            columns: ["firma_id"]
-            isOneToOne: false
-            referencedRelation: "firmen"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      rechnung_positionen: {
+      beleg_positionen: {
         Row: {
           art: string
-          beschreibung: string | null
+          artikel_id: string | null
+          beleg_id: string
           bezeichnung: string
           einheit: string
           einzelpreis: number
+          ek_preis: number | null
           gesamt: number | null
           id: string
+          langtext: string | null
+          leistung_id: string | null
           menge: number
+          minuten: number | null
           pos: number
-          rechnung_id: string
+          quelle: Json | null
         }
         Insert: {
           art?: string
-          beschreibung?: string | null
+          artikel_id?: string | null
+          beleg_id: string
           bezeichnung?: string
           einheit?: string
           einzelpreis?: number
+          ek_preis?: number | null
           gesamt?: number | null
           id?: string
+          langtext?: string | null
+          leistung_id?: string | null
           menge?: number
+          minuten?: number | null
           pos?: number
-          rechnung_id: string
+          quelle?: Json | null
         }
         Update: {
           art?: string
-          beschreibung?: string | null
+          artikel_id?: string | null
+          beleg_id?: string
           bezeichnung?: string
           einheit?: string
           einzelpreis?: number
+          ek_preis?: number | null
           gesamt?: number | null
           id?: string
+          langtext?: string | null
+          leistung_id?: string | null
           menge?: number
+          minuten?: number | null
           pos?: number
-          rechnung_id?: string
+          quelle?: Json | null
         }
         Relationships: [
           {
-            foreignKeyName: "rechnung_positionen_rechnung_id_fkey"
-            columns: ["rechnung_id"]
+            foreignKeyName: "beleg_positionen_artikel_id_fkey"
+            columns: ["artikel_id"]
             isOneToOne: false
-            referencedRelation: "rechnungen"
+            referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "beleg_positionen_beleg_id_fkey"
+            columns: ["beleg_id"]
+            isOneToOne: false
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "beleg_positionen_leistung_id_fkey"
+            columns: ["leistung_id"]
+            isOneToOne: false
+            referencedRelation: "leistungen"
             referencedColumns: ["id"]
           },
         ]
       }
-      rechnungen: {
+      belege: {
         Row: {
           angebot_id: string | null
           betreff: string | null
@@ -478,28 +194,27 @@ export type Database = {
           brutto: number
           created_at: string
           datum: string
-          empfaenger_art: string
-          empfaenger_firma_id: string | null
+          einleitung: string | null
+          empf_email: string | null
+          empf_name: string | null
+          empf_ort: string | null
+          empf_plz: string | null
+          empf_strasse: string | null
+          empf_uid: string | null
+          empf_zusatz: string | null
           erstellt_von: string | null
           faellig_am: string | null
           fertig_am: string | null
-          firma_id: string
           gueltig_bis: string | null
           id: string
-          kunde_email: string | null
-          kunde_name: string | null
-          kunde_ort: string | null
-          kunde_plz: string | null
-          kunde_strasse: string | null
-          kunde_uid: string | null
-          kunde_zusatz: string | null
+          kunde_id: string | null
           leistung_bis: string | null
           leistung_von: string | null
           netto: number
-          notizen: string | null
           nummer: string | null
           projekt_id: string | null
           reverse_charge: boolean
+          schlusstext: string | null
           status: string
           typ: string
           updated_at: string
@@ -513,30 +228,29 @@ export type Database = {
           brutto?: number
           created_at?: string
           datum?: string
-          empfaenger_art?: string
-          empfaenger_firma_id?: string | null
+          einleitung?: string | null
+          empf_email?: string | null
+          empf_name?: string | null
+          empf_ort?: string | null
+          empf_plz?: string | null
+          empf_strasse?: string | null
+          empf_uid?: string | null
+          empf_zusatz?: string | null
           erstellt_von?: string | null
           faellig_am?: string | null
           fertig_am?: string | null
-          firma_id?: string
           gueltig_bis?: string | null
           id?: string
-          kunde_email?: string | null
-          kunde_name?: string | null
-          kunde_ort?: string | null
-          kunde_plz?: string | null
-          kunde_strasse?: string | null
-          kunde_uid?: string | null
-          kunde_zusatz?: string | null
+          kunde_id?: string | null
           leistung_bis?: string | null
           leistung_von?: string | null
           netto?: number
-          notizen?: string | null
           nummer?: string | null
           projekt_id?: string | null
           reverse_charge?: boolean
+          schlusstext?: string | null
           status?: string
-          typ?: string
+          typ: string
           updated_at?: string
           ust?: number
           ust_satz?: number
@@ -548,28 +262,27 @@ export type Database = {
           brutto?: number
           created_at?: string
           datum?: string
-          empfaenger_art?: string
-          empfaenger_firma_id?: string | null
+          einleitung?: string | null
+          empf_email?: string | null
+          empf_name?: string | null
+          empf_ort?: string | null
+          empf_plz?: string | null
+          empf_strasse?: string | null
+          empf_uid?: string | null
+          empf_zusatz?: string | null
           erstellt_von?: string | null
           faellig_am?: string | null
           fertig_am?: string | null
-          firma_id?: string
           gueltig_bis?: string | null
           id?: string
-          kunde_email?: string | null
-          kunde_name?: string | null
-          kunde_ort?: string | null
-          kunde_plz?: string | null
-          kunde_strasse?: string | null
-          kunde_uid?: string | null
-          kunde_zusatz?: string | null
+          kunde_id?: string | null
           leistung_bis?: string | null
           leistung_von?: string | null
           netto?: number
-          notizen?: string | null
           nummer?: string | null
           projekt_id?: string | null
           reverse_charge?: boolean
+          schlusstext?: string | null
           status?: string
           typ?: string
           updated_at?: string
@@ -578,31 +291,646 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "rechnungen_angebot_id_fkey"
+            foreignKeyName: "belege_angebot_id_fkey"
             columns: ["angebot_id"]
             isOneToOne: false
-            referencedRelation: "rechnungen"
+            referencedRelation: "belege"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "rechnungen_empfaenger_firma_id_fkey"
-            columns: ["empfaenger_firma_id"]
+            foreignKeyName: "belege_kunde_id_fkey"
+            columns: ["kunde_id"]
             isOneToOne: false
-            referencedRelation: "firmen"
+            referencedRelation: "kunden"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "rechnungen_firma_id_fkey"
-            columns: ["firma_id"]
+            foreignKeyName: "belege_projekt_id_fkey"
+            columns: ["projekt_id"]
             isOneToOne: false
-            referencedRelation: "firmen"
-            referencedColumns: ["id"]
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
           },
           {
-            foreignKeyName: "rechnungen_projekt_id_fkey"
+            foreignKeyName: "belege_projekt_id_fkey"
             columns: ["projekt_id"]
             isOneToOne: false
             referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dateien: {
+        Row: {
+          art: string
+          beschreibung: string | null
+          created_at: string
+          groesse: number | null
+          id: string
+          mime: string | null
+          name: string
+          pfad: string
+          projekt_id: string
+          user_id: string | null
+        }
+        Insert: {
+          art?: string
+          beschreibung?: string | null
+          created_at?: string
+          groesse?: number | null
+          id?: string
+          mime?: string | null
+          name: string
+          pfad: string
+          projekt_id: string
+          user_id?: string | null
+        }
+        Update: {
+          art?: string
+          beschreibung?: string | null
+          created_at?: string
+          groesse?: number | null
+          id?: string
+          mime?: string | null
+          name?: string
+          pfad?: string
+          projekt_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dateien_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
+          },
+          {
+            foreignKeyName: "dateien_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dateien_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      firma: {
+        Row: {
+          angebot_einleitung: string | null
+          angebot_gueltig_tage: number
+          angebot_schluss: string | null
+          bank_name: string | null
+          bic: string | null
+          email: string | null
+          farbe: string
+          firmenbuch: string | null
+          fusszeile: string | null
+          iban: string | null
+          id: number
+          inhaber: string | null
+          kleinunternehmer: boolean
+          land: string
+          logo_pfad: string | null
+          material_aufschlag: number
+          name: string
+          ort: string | null
+          plz: string | null
+          rechnung_einleitung: string | null
+          rechnung_schluss: string | null
+          strasse: string | null
+          stundensatz: number
+          telefon: string | null
+          uid: string | null
+          updated_at: string
+          website: string | null
+          zahlungsziel_tage: number
+          zusatz: string | null
+        }
+        Insert: {
+          angebot_einleitung?: string | null
+          angebot_gueltig_tage?: number
+          angebot_schluss?: string | null
+          bank_name?: string | null
+          bic?: string | null
+          email?: string | null
+          farbe?: string
+          firmenbuch?: string | null
+          fusszeile?: string | null
+          iban?: string | null
+          id?: number
+          inhaber?: string | null
+          kleinunternehmer?: boolean
+          land?: string
+          logo_pfad?: string | null
+          material_aufschlag?: number
+          name: string
+          ort?: string | null
+          plz?: string | null
+          rechnung_einleitung?: string | null
+          rechnung_schluss?: string | null
+          strasse?: string | null
+          stundensatz?: number
+          telefon?: string | null
+          uid?: string | null
+          updated_at?: string
+          website?: string | null
+          zahlungsziel_tage?: number
+          zusatz?: string | null
+        }
+        Update: {
+          angebot_einleitung?: string | null
+          angebot_gueltig_tage?: number
+          angebot_schluss?: string | null
+          bank_name?: string | null
+          bic?: string | null
+          email?: string | null
+          farbe?: string
+          firmenbuch?: string | null
+          fusszeile?: string | null
+          iban?: string | null
+          id?: number
+          inhaber?: string | null
+          kleinunternehmer?: boolean
+          land?: string
+          logo_pfad?: string | null
+          material_aufschlag?: number
+          name?: string
+          ort?: string | null
+          plz?: string | null
+          rechnung_einleitung?: string | null
+          rechnung_schluss?: string | null
+          strasse?: string | null
+          stundensatz?: number
+          telefon?: string | null
+          uid?: string | null
+          updated_at?: string
+          website?: string | null
+          zahlungsziel_tage?: number
+          zusatz?: string | null
+        }
+        Relationships: []
+      }
+      kunden: {
+        Row: {
+          ansprechpartner: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notiz: string | null
+          nummer: number
+          ort: string | null
+          plz: string | null
+          strasse: string | null
+          telefon: string | null
+          uid: string | null
+          updated_at: string
+        }
+        Insert: {
+          ansprechpartner?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notiz?: string | null
+          nummer?: number
+          ort?: string | null
+          plz?: string | null
+          strasse?: string | null
+          telefon?: string | null
+          uid?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ansprechpartner?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notiz?: string | null
+          nummer?: number
+          ort?: string | null
+          plz?: string | null
+          strasse?: string | null
+          telefon?: string | null
+          uid?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lagerorte: {
+        Row: {
+          aktiv: boolean
+          art: string
+          created_at: string
+          id: string
+          name: string
+          reihenfolge: number
+          user_id: string | null
+        }
+        Insert: {
+          aktiv?: boolean
+          art?: string
+          created_at?: string
+          id?: string
+          name: string
+          reihenfolge?: number
+          user_id?: string | null
+        }
+        Update: {
+          aktiv?: boolean
+          art?: string
+          created_at?: string
+          id?: string
+          name?: string
+          reihenfolge?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lagerorte_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leistung_material: {
+        Row: {
+          artikel_id: string
+          leistung_id: string
+          menge: number
+        }
+        Insert: {
+          artikel_id: string
+          leistung_id: string
+          menge?: number
+        }
+        Update: {
+          artikel_id?: string
+          leistung_id?: string
+          menge?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leistung_material_artikel_id_fkey"
+            columns: ["artikel_id"]
+            isOneToOne: false
+            referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leistung_material_leistung_id_fkey"
+            columns: ["leistung_id"]
+            isOneToOne: false
+            referencedRelation: "leistungen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leistungen: {
+        Row: {
+          aktiv: boolean
+          created_at: string
+          einheit: string
+          id: string
+          kategorie: string
+          kurztext: string
+          langtext: string | null
+          minuten: number
+          nummer: string | null
+          preis: number | null
+          reihenfolge: number
+          suchwoerter: string | null
+          updated_at: string
+        }
+        Insert: {
+          aktiv?: boolean
+          created_at?: string
+          einheit?: string
+          id?: string
+          kategorie?: string
+          kurztext: string
+          langtext?: string | null
+          minuten?: number
+          nummer?: string | null
+          preis?: number | null
+          reihenfolge?: number
+          suchwoerter?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aktiv?: boolean
+          created_at?: string
+          einheit?: string
+          id?: string
+          kategorie?: string
+          kurztext?: string
+          langtext?: string | null
+          minuten?: number
+          nummer?: string | null
+          preis?: number | null
+          reihenfolge?: number
+          suchwoerter?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      material_buchungen: {
+        Row: {
+          art: string
+          artikel_id: string | null
+          bezeichnung: string | null
+          created_at: string
+          einheit: string | null
+          ek_preis: number | null
+          id: string
+          lagerort_id: string | null
+          menge: number
+          notiz: string | null
+          projekt_id: string | null
+          rechnung_id: string | null
+          regiebericht_id: string | null
+          user_id: string | null
+          vorgang: string | null
+        }
+        Insert: {
+          art: string
+          artikel_id?: string | null
+          bezeichnung?: string | null
+          created_at?: string
+          einheit?: string | null
+          ek_preis?: number | null
+          id?: string
+          lagerort_id?: string | null
+          menge: number
+          notiz?: string | null
+          projekt_id?: string | null
+          rechnung_id?: string | null
+          regiebericht_id?: string | null
+          user_id?: string | null
+          vorgang?: string | null
+        }
+        Update: {
+          art?: string
+          artikel_id?: string | null
+          bezeichnung?: string | null
+          created_at?: string
+          einheit?: string | null
+          ek_preis?: number | null
+          id?: string
+          lagerort_id?: string | null
+          menge?: number
+          notiz?: string | null
+          projekt_id?: string | null
+          rechnung_id?: string | null
+          regiebericht_id?: string | null
+          user_id?: string | null
+          vorgang?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_buchungen_artikel_id_fkey"
+            columns: ["artikel_id"]
+            isOneToOne: false
+            referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_lagerort_id_fkey"
+            columns: ["lagerort_id"]
+            isOneToOne: false
+            referencedRelation: "lagerorte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_rechnung_id_fkey"
+            columns: ["rechnung_id"]
+            isOneToOne: false
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_regiebericht_id_fkey"
+            columns: ["regiebericht_id"]
+            isOneToOne: false
+            referencedRelation: "regieberichte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nummernkreise: {
+        Row: {
+          jahr: number
+          letzte: number
+          typ: string
+        }
+        Insert: {
+          jahr: number
+          letzte?: number
+          typ: string
+        }
+        Update: {
+          jahr?: number
+          letzte?: number
+          typ?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          aktiv: boolean
+          created_at: string
+          email: string | null
+          farbe: string | null
+          id: string
+          nachname: string
+          rolle: string
+          telefon: string | null
+          vorname: string
+        }
+        Insert: {
+          aktiv?: boolean
+          created_at?: string
+          email?: string | null
+          farbe?: string | null
+          id: string
+          nachname?: string
+          rolle?: string
+          telefon?: string | null
+          vorname?: string
+        }
+        Update: {
+          aktiv?: boolean
+          created_at?: string
+          email?: string | null
+          farbe?: string | null
+          id?: string
+          nachname?: string
+          rolle?: string
+          telefon?: string | null
+          vorname?: string
+        }
+        Relationships: []
+      }
+      projekte: {
+        Row: {
+          beschreibung: string | null
+          created_at: string
+          erstellt_von: string | null
+          id: string
+          kunde_id: string | null
+          name: string
+          nummer: string
+          ort: string | null
+          plz: string | null
+          status: string
+          strasse: string | null
+          stundensatz: number | null
+          updated_at: string
+        }
+        Insert: {
+          beschreibung?: string | null
+          created_at?: string
+          erstellt_von?: string | null
+          id?: string
+          kunde_id?: string | null
+          name: string
+          nummer?: string
+          ort?: string | null
+          plz?: string | null
+          status?: string
+          strasse?: string | null
+          stundensatz?: number | null
+          updated_at?: string
+        }
+        Update: {
+          beschreibung?: string | null
+          created_at?: string
+          erstellt_von?: string | null
+          id?: string
+          kunde_id?: string | null
+          name?: string
+          nummer?: string
+          ort?: string | null
+          plz?: string | null
+          status?: string
+          strasse?: string | null
+          stundensatz?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projekte_kunde_id_fkey"
+            columns: ["kunde_id"]
+            isOneToOne: false
+            referencedRelation: "kunden"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regieberichte: {
+        Row: {
+          arbeiten: string
+          created_at: string
+          datum: string
+          erstellt_von: string | null
+          id: string
+          nummer: string | null
+          projekt_id: string
+          rechnung_id: string | null
+          status: string
+          unterschrieben_am: string | null
+          unterschrift_name: string | null
+          unterschrift_pfad: string | null
+          updated_at: string
+        }
+        Insert: {
+          arbeiten?: string
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          id?: string
+          nummer?: string | null
+          projekt_id: string
+          rechnung_id?: string | null
+          status?: string
+          unterschrieben_am?: string | null
+          unterschrift_name?: string | null
+          unterschrift_pfad?: string | null
+          updated_at?: string
+        }
+        Update: {
+          arbeiten?: string
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          id?: string
+          nummer?: string | null
+          projekt_id?: string
+          rechnung_id?: string | null
+          status?: string
+          unterschrieben_am?: string | null
+          unterschrift_name?: string | null
+          unterschrift_pfad?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regieberichte_erstellt_von_fkey"
+            columns: ["erstellt_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regieberichte_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
+          },
+          {
+            foreignKeyName: "regieberichte_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regieberichte_rechnung_id_fkey"
+            columns: ["rechnung_id"]
+            isOneToOne: false
+            referencedRelation: "belege"
             referencedColumns: ["id"]
           },
         ]
@@ -614,15 +942,13 @@ export type Database = {
           bis_datum: string | null
           created_at: string
           datum: string
-          firma_id: string
-          firmen: string[]
           ganztags: boolean
           id: string
+          mitarbeiter: string[]
           ort: string | null
           projekt_id: string | null
-          sichtbarkeit: string
           titel: string
-          user_id: string
+          user_id: string | null
           von: string | null
         }
         Insert: {
@@ -631,15 +957,13 @@ export type Database = {
           bis_datum?: string | null
           created_at?: string
           datum: string
-          firma_id?: string
-          firmen?: string[]
           ganztags?: boolean
           id?: string
+          mitarbeiter?: string[]
           ort?: string | null
           projekt_id?: string | null
-          sichtbarkeit?: string
           titel: string
-          user_id?: string
+          user_id?: string | null
           von?: string | null
         }
         Update: {
@@ -648,30 +972,35 @@ export type Database = {
           bis_datum?: string | null
           created_at?: string
           datum?: string
-          firma_id?: string
-          firmen?: string[]
           ganztags?: boolean
           id?: string
+          mitarbeiter?: string[]
           ort?: string | null
           projekt_id?: string | null
-          sichtbarkeit?: string
           titel?: string
-          user_id?: string
+          user_id?: string | null
           von?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "termine_firma_id_fkey"
-            columns: ["firma_id"]
+            foreignKeyName: "termine_projekt_id_fkey"
+            columns: ["projekt_id"]
             isOneToOne: false
-            referencedRelation: "firmen"
-            referencedColumns: ["id"]
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
           },
           {
             foreignKeyName: "termine_projekt_id_fkey"
             columns: ["projekt_id"]
             isOneToOne: false
             referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "termine_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -681,12 +1010,12 @@ export type Database = {
           bis: string | null
           created_at: string
           datum: string
-          firma_id: string
+          erstellt_von: string | null
           id: string
           pause_minuten: number
-          projekt_id: string
+          projekt_id: string | null
           rechnung_id: string | null
-          sichtbarkeit: string
+          regiebericht_id: string | null
           stunden: number
           taetigkeit: string | null
           user_id: string
@@ -696,12 +1025,12 @@ export type Database = {
           bis?: string | null
           created_at?: string
           datum?: string
-          firma_id?: string
+          erstellt_von?: string | null
           id?: string
           pause_minuten?: number
-          projekt_id: string
+          projekt_id?: string | null
           rechnung_id?: string | null
-          sichtbarkeit?: string
+          regiebericht_id?: string | null
           stunden: number
           taetigkeit?: string | null
           user_id?: string
@@ -711,12 +1040,12 @@ export type Database = {
           bis?: string | null
           created_at?: string
           datum?: string
-          firma_id?: string
+          erstellt_von?: string | null
           id?: string
           pause_minuten?: number
-          projekt_id?: string
+          projekt_id?: string | null
           rechnung_id?: string | null
-          sichtbarkeit?: string
+          regiebericht_id?: string | null
           stunden?: number
           taetigkeit?: string | null
           user_id?: string
@@ -724,11 +1053,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "zeiten_firma_id_fkey"
-            columns: ["firma_id"]
+            foreignKeyName: "zeiten_projekt_id_fkey"
+            columns: ["projekt_id"]
             isOneToOne: false
-            referencedRelation: "firmen"
-            referencedColumns: ["id"]
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
           },
           {
             foreignKeyName: "zeiten_projekt_id_fkey"
@@ -741,30 +1070,164 @@ export type Database = {
             foreignKeyName: "zeiten_rechnung_id_fkey"
             columns: ["rechnung_id"]
             isOneToOne: false
-            referencedRelation: "rechnungen"
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zeiten_regiebericht_id_fkey"
+            columns: ["regiebericht_id"]
+            isOneToOne: false
+            referencedRelation: "regieberichte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zeiten_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      lagerbestand: {
+        Row: {
+          artikel_id: string | null
+          bestand: number | null
+          lagerort_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_buchungen_artikel_id_fkey"
+            columns: ["artikel_id"]
+            isOneToOne: false
+            referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_lagerort_id_fkey"
+            columns: ["lagerort_id"]
+            isOneToOne: false
+            referencedRelation: "lagerorte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projekt_material: {
+        Row: {
+          artikel_id: string | null
+          ausgefasst: number | null
+          bezeichnung: string | null
+          direkt: number | null
+          einheit: string | null
+          offen: number | null
+          projekt_id: string | null
+          verbraucht: number | null
+          zuletzt: string | null
+          zurueck: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_buchungen_artikel_id_fkey"
+            columns: ["artikel_id"]
+            isOneToOne: false
+            referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projekt_zahlen: {
+        Row: {
+          material_offen_ek: number | null
+          projekt_id: string | null
+          regie_entwurf: number | null
+          regie_offen: number | null
+          stunden: number | null
+          stunden_offen: number | null
+        }
+        Insert: {
+          material_offen_ek?: never
+          projekt_id?: string | null
+          regie_entwurf?: never
+          regie_offen?: never
+          stunden?: never
+          stunden_offen?: never
+        }
+        Update: {
+          material_offen_ek?: never
+          projekt_id?: string | null
+          regie_entwurf?: never
+          regie_offen?: never
+          stunden?: never
+          stunden_offen?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      beleg_fertigstellen: { Args: { p_id: string }; Returns: string }
-      datei_sichtbar: { Args: { p_pfad: string }; Returns: boolean }
-      firmen_auswahl: {
-        Args: never
+      artikel_suchen: {
+        Args: { p_anzahl?: number; p_q: string }
         Returns: {
+          aktiv: boolean
+          artikelnummer: string | null
+          bezeichnung: string
+          created_at: string
+          ean: string | null
+          einheit: string
+          ek_preis: number | null
+          hersteller: string | null
+          hersteller_nr: string | null
           id: string
-          name: string
+          kategorie: string | null
+          lagerartikel: boolean
+          langtext: string | null
+          lieferant: string
+          listenpreis: number | null
+          mindestbestand: number | null
+          quelle: string
+          rabattgruppe: string | null
+          updated_at: string
+          vk_preis: number | null
+          warengruppe: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "artikel"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      artikel_zu_code: {
+        Args: { p_code: string }
+        Returns: {
+          artikel_id: string
+          menge: number
         }[]
       }
-      ist_admin: { Args: never; Returns: boolean }
+      beleg_fertigstellen: { Args: { p_id: string }; Returns: string }
+      beleg_stornieren: { Args: { p_id: string }; Returns: undefined }
       ist_aktiv: { Args: never; Returns: boolean }
-      meine_firma: { Args: never; Returns: string }
-      projekt_gemeinsam: { Args: { p: string }; Returns: boolean }
-      projekt_sichtbar: { Args: { p: string }; Returns: boolean }
+      ist_chef: { Args: never; Returns: boolean }
+      naechste_nummer: {
+        Args: { p_datum: string; p_typ: string }
+        Returns: string
+      }
+      regie_unterschrieben: { Args: { p_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
@@ -897,3 +1360,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

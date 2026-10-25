@@ -4,22 +4,18 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Firma, Profil } from "@/lib/types";
 
 /**
- * Wer ist angemeldet, zu welcher Firma gehört er, welche Firmen gibt es.
+ * Wer ist angemeldet, welche Rolle hat er, wie heißt der Betrieb.
  *
- * Einmal geladen, überall verfügbar — jede Seite braucht das (Firmenfarbe,
- * "meine" vs. "fremde" Buchung, Briefkopf). Ohne zentrale Stelle fragte
- * jede Seite selbst nach, und nach dem Umstellen der Firma in den
- * Einstellungen zeigten halbe Seiten noch die alte an.
+ * Einmal geladen, überall verfügbar — fast jede Seite fragt „Chef oder
+ * Monteur?“ und braucht Stundensatz, Aufschlag oder den Briefkopf.
  */
 
 interface Sitzung {
   laden: boolean;
   session: Session | null;
   profil: Profil | null;
-  /** Die eigene Firma — null, solange keine zugeordnet ist. */
   firma: Firma | null;
-  firmen: Firma[];
-  firmaVon: (id: string | null | undefined) => Firma | undefined;
+  istChef: boolean;
   neuLaden: () => Promise<void>;
 }
 
@@ -29,21 +25,21 @@ export function SitzungProvider({ children }: { children: ReactNode }) {
   const [laden, setLaden] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [profil, setProfil] = useState<Profil | null>(null);
-  const [firmen, setFirmen] = useState<Firma[]>([]);
+  const [firma, setFirma] = useState<Firma | null>(null);
 
   const datenLaden = useCallback(async (s: Session | null) => {
     if (!s) {
       setProfil(null);
-      setFirmen([]);
+      setFirma(null);
       setLaden(false);
       return;
     }
     const [{ data: p }, { data: f }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", s.user.id).maybeSingle(),
-      supabase.from("firmen").select("*").order("ist_demo").order("name"),
+      supabase.from("firma").select("*").eq("id", 1).maybeSingle(),
     ]);
     setProfil(p ?? null);
-    setFirmen(f ?? []);
+    setFirma(f ?? null);
     setLaden(false);
   }, []);
 
@@ -61,15 +57,12 @@ export function SitzungProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [datenLaden]);
 
-  const firmaVon = useCallback((id: string | null | undefined) => firmen.find((f) => f.id === id), [firmen]);
-
   const wert: Sitzung = {
     laden,
     session,
     profil,
-    firma: profil?.firma_id ? firmen.find((f) => f.id === profil.firma_id) ?? null : null,
-    firmen,
-    firmaVon,
+    firma,
+    istChef: !!profil?.aktiv && profil.rolle === "chef",
     neuLaden: () => datenLaden(session),
   };
 
@@ -80,11 +73,4 @@ export function useSitzung(): Sitzung {
   const s = useContext(Ctx);
   if (!s) throw new Error("useSitzung außerhalb von SitzungProvider");
   return s;
-}
-
-/** Für Stellen, die eine Firma zwingend brauchen (hinter ProtectedRoute). */
-export function useMeineFirma(): Firma {
-  const { firma } = useSitzung();
-  if (!firma) throw new Error("Keine Firma zugeordnet");
-  return firma;
 }

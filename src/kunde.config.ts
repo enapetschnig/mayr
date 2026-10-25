@@ -1,16 +1,14 @@
 /**
  * ============================================================================
- *  KUNDEN-KONFIGURATION
+ *  KUNDEN-KONFIGURATION — Elektriker-Demo
  * ============================================================================
  *
- * Diese App ist KEIN Fork von hw-core, sondern eine eigene, schlanke App im
- * selben Look: drei Elektrofirmen, die sich Projekte teilen. Die Firmendaten
- * für Rechnungen stehen deshalb NICHT hier, sondern je Firma in der Tabelle
- * `firmen` (in der App unter Einstellungen → Meine Firma pflegbar).
+ * Eigene, schlanke App im Look der Handwerker-Apps (kein hw-core-Fork).
+ * Die Firmendaten für Angebote und Rechnungen stehen NICHT hier, sondern in
+ * der Tabelle `firma` (in der App unter Einstellungen → Betrieb pflegbar).
  *
- * Hier steht nur, was die App als Ganzes ausmacht: Name, Farbe, Logo.
- * Das Format ist dasselbe wie in hw-core, damit die Werkzeuge
- * (branding.py, kunde-cloud.sh) unverändert funktionieren.
+ * Hier steht nur, was die App als Ganzes ausmacht: Name, Farben, Logo,
+ * Anmelde-Domain. Format wie in hw-core, damit branding.py funktioniert.
  */
 
 export interface KundeConfig {
@@ -20,6 +18,7 @@ export interface KundeConfig {
   slogan: string;
   anschrift: { strasse: string; plz: string; ort: string; land: string };
   kontakt: { telefon: string; email: string; website: string; uid: string };
+  /** Benutzername ohne @ → <name>@<loginDomain> */
   loginDomain: string;
   logo: string;
   farben: { primary: string; primaryHex: string };
@@ -28,14 +27,14 @@ export interface KundeConfig {
 export const KUNDE: KundeConfig = {
   slug: "mayr",
 
-  firma: "MAM Mechatronik",
-  kurzname: "MAM Mechatronik",
-  slogan: "Elektro-Partner",
+  firma: "Elektro Muster GmbH",
+  kurzname: "Elektro Muster",
+  slogan: "Elektriker-App",
 
   anschrift: {
-    strasse: "Guntendorf 18",
-    plz: "4550",
-    ort: "Kremsmünster",
+    strasse: "",
+    plz: "",
+    ort: "",
     land: "Österreich",
   },
 
@@ -46,19 +45,20 @@ export const KUNDE: KundeConfig = {
     uid: "",
   },
 
-  loginDomain: "app.mayr.at",
+  loginDomain: "elektro.handwerkapp.at",
 
   logo: "/logo.png",
 
+  // Elektro-Blau — die einzige Aktionsfarbe (Design „Werkbank“)
   farben: {
-    primary: "163 73% 20%",
-    primaryHex: "#0E5A44",
+    primary: "224 76% 48%",
+    primaryHex: "#1D4ED8",
   },
 };
 
 /**
- * Setzt die komplette Farbwelt zur Laufzeit aus der einen Hauptfarbe
- * (gleiche Logik wie in hw-core).
+ * Setzt die Markenfarbe zur Laufzeit aus kunde.config.ts. Text und Flächen
+ * bleiben neutral grau — nur die Aktionsfarbe kommt von hier.
  */
 export function farbenAnwenden(): void {
   const wurzel = document.documentElement;
@@ -74,22 +74,16 @@ export function farbenAnwenden(): void {
   const l = Number(teile[3]);
 
   const haupt = `${h} ${s}% ${l}%`;
-  const hell = `${h} ${Math.round(s * 0.72)}% ${Math.min(l + 10, 92)}%`;
-  const schrift = `${h} ${Math.min(s, 35)}% 11%`;
+  const dunkler = `${h} ${s}% ${Math.max(l - 7, 10)}%`;
+  const hell = `${h} ${Math.round(s * 0.9)}% ${Math.min(l + 12, 92)}%`;
+  const zart = `${h} 90% 96%`;
 
+  // Nur im hellen Modus überschreiben — der dunkle bringt eigene, hellere Werte mit
+  if (document.documentElement.classList.contains("dark")) return;
   setze("--primary", haupt);
-  setze("--ring", hell);
-  setze("--accent", hell);
-  setze("--foreground", schrift);
-  setze("--card-foreground", schrift);
-  setze("--popover-foreground", schrift);
-  setze("--secondary-foreground", haupt);
-  setze("--marke-primaer", haupt);
-  setze("--marke-hell", hell);
-  setze("--shadow-soft", `0 2px 8px hsl(${haupt} / 0.08)`);
-  setze("--shadow-medium", `0 4px 16px hsl(${haupt} / 0.12)`);
-  setze("--sidebar-foreground", haupt);
+  setze("--primary-hover", dunkler);
+  setze("--primary-soft", zart);
+  setze("--ring", haupt);
   setze("--sidebar-primary", haupt);
-  setze("--sidebar-accent-foreground", haupt);
   setze("--sidebar-ring", hell);
 }
