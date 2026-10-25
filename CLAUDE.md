@@ -38,7 +38,7 @@ npm run check        # Absturz-Wächter
 npm test             # vitest (Parser)
 ```
 
-Regeln in der Datenbank prüfen (43 Prüfungen: nicht freigeschaltet, Monteur,
+Regeln in der Datenbank prüfen (45 Prüfungen: nicht freigeschaltet, Monteur,
 Chef, Festschreiben, Storno, Regiebericht) — legt echte Daten und Nummern an,
 danach **immer** aufräumen:
 
@@ -46,6 +46,18 @@ danach **immer** aufräumen:
 node tests/rls-test.mjs anlegen                  # 3 Testkonten, dann die ausgegebenen SQL-Zeilen
 node tests/rls-test.mjs
 scripts/sql.sh -f tests/rls-aufraeumen.sql       # Testdaten, Testkonten, Nummernkreise zurück
+```
+
+Durchklick-Test am Handy (Playwright, 390 px, gegen den laufenden Dev-Server):
+Max legt ein Projekt an, bucht 4 h, fasst aus dem Bus aus, schreibt einen
+Regiebericht mit Kundenunterschrift; der Chef übernimmt alles in eine
+Rechnung, stellt fertig, lädt das PDF. Jeder Schritt wird in der Datenbank
+nachgeprüft (19 Prüfungen), Bilder und PDF in `tests/bilder/`. Danach
+**immer** aufräumen — das löscht auch die Test-Unterschrift:
+
+```bash
+APP_URL=http://127.0.0.1:8093 MONTEUR_PW=… CHEF_PW=… node tests/durchlauf.mjs   # CHROME=… für einen eigenen Chromium
+DEMO_CHEF_PASSWORT=… node tests/durchlauf-aufraeumen.mjs
 ```
 
 Demo zurücksetzen — Dateien im Speicher, Stamm, Artikel, Verlauf und
