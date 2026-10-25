@@ -74,7 +74,7 @@ export function zeileFehler(z: ZeitZeile): string | null {
   if (zeileLeer(z)) return null;
   if (z.modus === "vonbis") {
     if (!z.von || !z.bis) return "Von und Bis eintragen";
-    if (z.bis.slice(0, 5) <= z.von.slice(0, 5)) return "Bis muss nach Von liegen";
+    if (z.bis.slice(0, 5) === z.von.slice(0, 5)) return "Von und Bis sind gleich";
     if (zahlLesen(z.pause) < 0) return "Die Pause kann nicht negativ sein";
     if (zeileStunden(z) <= 0) return "Die Pause ist länger als die Arbeitszeit";
   }

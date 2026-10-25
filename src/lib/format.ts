@@ -43,19 +43,50 @@ export const stunden = (n: number | null | undefined) => `${zahl(n)} h`;
 /** "07:30:00" → "07:30" */
 export const uhrzeit = (t: string | null | undefined) => (t ? t.slice(0, 5) : "");
 
-/** Stunden aus Von/Bis und Pause. Über Mitternacht wird nicht gerechnet. */
+/** Bis vor Von heißt: über Mitternacht (Störungsdienst, Nachtschicht) */
+export const ueberMitternacht = (von: string, bis: string) => !!von && !!bis && bis.slice(0, 5) < von.slice(0, 5);
+
+/** Stunden aus Von/Bis und Pause — auch über Mitternacht. Eine negative Pause zählt nicht. */
 export function stundenAusVonBis(von: string, bis: string, pauseMin: number): number {
   if (!von || !bis) return 0;
   const [vh, vm] = von.split(":").map(Number);
   const [bh, bm] = bis.split(":").map(Number);
-  const min = bh * 60 + bm - (vh * 60 + vm) - (pauseMin || 0);
+  let brutto = bh * 60 + bm - (vh * 60 + vm);
+  if (brutto < 0) brutto += 24 * 60;
+  const min = brutto - Math.max(0, pauseMin || 0);
   return min > 0 ? Math.round((min / 60) * 100) / 100 : 0;
 }
 
-/** Eingabe mit Komma oder Punkt → Zahl */
+/**
+ * Zahl aus einer Zelle oder einem Eingabefeld: »12,50«, »1.250,50«,
+ * »1,250.50«, »12.5«, »12,50 €«. »1.250« = 1250 (Tausenderpunkt, wie man es
+ * in Österreich schreibt), »0.250« und »1.25« = Dezimalpunkt.
+ * null = leer oder keine Zahl.
+ */
+export function dezimalLesen(eingabe: string | number | null | undefined): number | null {
+  if (eingabe === null || eingabe === undefined) return null;
+  if (typeof eingabe === "number") return Number.isFinite(eingabe) ? eingabe : null;
+  let s = String(eingabe).replace(/[^\d,.-]/g, "");
+  if (!s || !/\d/.test(s)) return null;
+  const komma = s.includes(",");
+  const punkt = s.includes(".");
+  if (komma && punkt) {
+    s = s.lastIndexOf(",") > s.lastIndexOf(".") ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+  } else if (komma) {
+    const teile = s.split(",");
+    s = teile.length > 2 ? teile.join("") : s.replace(",", ".");
+  } else if (punkt) {
+    const teile = s.split(".");
+    const tausender = teile.length === 2 && /^\d{3}$/.test(teile[1]) && /^-?[1-9]\d{0,2}$/.test(teile[0]);
+    if (teile.length > 2 || tausender) s = s.replace(/\./g, "");
+  }
+  const m = s.match(/^-?\d*\.?\d*/);
+  if (!m || m[0] === "" || m[0] === "-" || m[0] === ".") return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Zahl aus einem Eingabefeld wie `dezimalLesen` — leer oder unlesbar = 0 */
 export function zahlLesen(s: string | number | null | undefined): number {
-  if (typeof s === "number") return s;
-  if (!s) return 0;
-  const n = Number(String(s).replace(/\s/g, "").replace(",", "."));
-  return isFinite(n) ? n : 0;
+  return dezimalLesen(s) ?? 0;
 }

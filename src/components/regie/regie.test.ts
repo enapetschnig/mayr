@@ -33,9 +33,16 @@ describe("Stunden der Partie", () => {
   it("meldet unmögliche Zeiten", () => {
     expect(zeileFehler(zeile({ stunden: "0" }))).toBe("Stunden eintragen");
     expect(zeileFehler(zeile({ stunden: "25" }))).toBe("Höchstens 24 Stunden");
-    expect(zeileFehler(zeile({ modus: "vonbis", von: "15:00", bis: "08:00" }))).toBe("Bis muss nach Von liegen");
+    expect(zeileFehler(zeile({ modus: "vonbis", von: "15:00", bis: "15:00" }))).toBe("Von und Bis sind gleich");
+    expect(zeileFehler(zeile({ modus: "vonbis", von: "08:00", bis: "12:00", pause: "-30" }))).toBe("Die Pause kann nicht negativ sein");
     expect(zeileFehler(zeile({ modus: "vonbis", von: "08:00", bis: "08:20", pause: "30" }))).toBe("Die Pause ist länger als die Arbeitszeit");
     expect(zeileFehler(zeile({ stunden: "4" }))).toBeNull();
+  });
+
+  it("Störungsdienst über Mitternacht", () => {
+    const nacht = zeile({ modus: "vonbis", von: "22:00", bis: "06:00", pause: "30" });
+    expect(zeileFehler(nacht)).toBeNull();
+    expect(zeileStunden(nacht)).toBe(7.5);
   });
 
   it("speichert Von/Bis nur im Von–Bis-Modus", () => {

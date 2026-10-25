@@ -9,13 +9,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { darfZeitAendern } from "@/components/regie/regieLogik";
 import { ProjektWahl } from "@/components/ProjektWahl";
 import { DiktatKnopf } from "@/components/DiktatKnopf";
 import { useMitarbeiter, useNeuLaden, useProjekte } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
-import { isoTag, stunden as stundenText, stundenAusVonBis, zahlLesen } from "@/lib/format";
+import { datum as datumText, isoTag, stunden as stundenText, stundenAusVonBis, ueberMitternacht, zahlLesen } from "@/lib/format";
 import { name, type Zeit } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { fehlerText } from "@/components/stamm/stammDaten";
 
 /**
  * Stunden buchen — so knapp wie möglich.
@@ -62,6 +67,10 @@ export function ZeitDialog({
   const [datum, setDatum] = useState(isoTag());
   const [modus, setModus] = useState<Modus>("stunden");
   const [std, setStd] = useState("");
+  // „andere“ getippt: sonst leert sich das Feld, sobald die Teileingabe eine
+  // Schnellwahl ist („4“ von „4,5“) — und die nächste Taste fängt neu an
+  const [stdGetippt, setStdGetippt] = useState(false);
+  const [loeschenFrage, setLoeschenFrage] = useState(false);
   const [von, setVon] = useState("07:00");
   const [bis, setBis] = useState("16:00");
   const [pause, setPause] = useState("30");
@@ -78,6 +87,7 @@ export function ZeitDialog({
       setDatum(eintrag.datum);
       setModus(eintrag.von && eintrag.bis ? "vonbis" : "stunden");
       setStd(String(eintrag.stunden).replace(".", ","));
+      setStdGetippt(false);
       setVon(eintrag.von?.slice(0, 5) || "07:00");
       setBis(eintrag.bis?.slice(0, 5) || "16:00");
       setPause(String(eintrag.pause_minuten ?? 0));
@@ -88,6 +98,7 @@ export function ZeitDialog({
       setDatum(vorDatum || isoTag());
       setModus(gemerkt);
       setStd("");
+      setStdGetippt(false);
       setTaetigkeit("");
     }
   }, [open, eintrag, vorProjekt, vorDatum, profil?.id]);
@@ -98,8 +109,11 @@ export function ZeitDialog({
   }, [open, eintrag, vorProjekt, projektId, letzte]);
 
   const gesperrt = !!eintrag?.rechnung_id;
+  // Fremde Stunden: nur ansehen (die Datenbank lehnt Ändern ab — still)
+  const nurAnsehen = !!eintrag && !gesperrt && !darfZeitAendern(eintrag, profil?.id, istChef);
   const ergebnis = modus === "stunden" ? zahlLesen(std) : stundenAusVonBis(von, bis, zahlLesen(pause));
-  const pauseZuLang = modus === "vonbis" && ergebnis === 0 && von < bis;
+  const pauseZuLang = modus === "vonbis" && stundenAusVonBis(von, bis, 0) > 0 && ergebnis === 0;
+  const nacht = modus === "vonbis" && ueberMitternacht(von, bis);
 
   const modusWechseln = (m: Modus) => {
     setModus(m);
@@ -108,24 +122,39 @@ export function ZeitDialog({
 
   const speichern = async () => {
     if (!projektId) return toast.error("Bitte ein Projekt wählen.");
+    if (!datum) return toast.error("Bitte ein Datum eintragen.");
+    if (datum > isoTag()) return toast.error("Das Datum liegt in der Zukunft — Stunden erst buchen, wenn gearbeitet ist.");
+    if (modus === "vonbis" && zahlLesen(pause) < 0) return toast.error("Die Pause kann nicht negativ sein.");
+    if (modus === "vonbis" && von === bis) return toast.error("Von und Bis sind gleich.");
     if (pauseZuLang) return toast.error("Die Pause ist länger als die Arbeitszeit.");
-    if (!(ergebnis > 0 && ergebnis <= 24)) return toast.error("Die Stunden müssen zwischen 0 und 24 liegen.");
+    if (!(ergebnis > 0 && ergebnis <= 24)) return toast.error("Bitte die Stunden eintragen — mehr als 0 und höchstens 24.");
+    const wer = userId || profil!.id;
     setSpeichert(true);
+    // Mehr als 24 h an einem Tag für eine Person geht nicht — meist doppelt gebucht
+    let tagQ = supabase.from("zeiten").select("stunden").eq("user_id", wer).eq("datum", datum);
+    if (eintrag) tagQ = tagQ.neq("id", eintrag.id);
+    const { data: tag } = await tagQ;
+    const schon = (tag ?? []).reduce((s, z) => s + Number(z.stunden), 0);
+    if (schon + ergebnis > 24) {
+      setSpeichert(false);
+      return toast.error(`Am ${datumText(datum)} sind schon ${stundenText(schon)} gebucht — zusammen mehr als 24 h.`);
+    }
     const daten = {
-      user_id: userId || profil!.id,
+      user_id: wer,
       projekt_id: projektId,
       datum,
       stunden: ergebnis,
       von: modus === "vonbis" ? von : null,
       bis: modus === "vonbis" ? bis : null,
-      pause_minuten: modus === "vonbis" ? zahlLesen(pause) : 0,
+      pause_minuten: modus === "vonbis" ? Math.round(zahlLesen(pause)) : 0,
       taetigkeit: taetigkeit.trim() || null,
     };
-    const { error } = eintrag
-      ? await supabase.from("zeiten").update(daten).eq("id", eintrag.id)
-      : await supabase.from("zeiten").insert(daten);
+    const { data: zeilen, error } = eintrag
+      ? await supabase.from("zeiten").update(daten).eq("id", eintrag.id).select("id")
+      : await supabase.from("zeiten").insert(daten).select("id");
     setSpeichert(false);
-    if (error) return toast.error("Nicht gespeichert", { description: error.message });
+    if (error) return toast.error("Nicht gespeichert", { description: fehlerText(error) });
+    if (!zeilen?.length) return toast.error("Nicht gespeichert — ändern kann das nur, wer gebucht hat, oder der Chef.");
     toast.success(`Gebucht · ${stundenText(ergebnis)}`);
     await neuLaden("zeiten", "projekt_zahlen");
     onOpenChange(false);
@@ -133,10 +162,12 @@ export function ZeitDialog({
 
   const loeschen = async () => {
     if (!eintrag) return;
+    setLoeschenFrage(false);
     setSpeichert(true);
-    const { error } = await supabase.from("zeiten").delete().eq("id", eintrag.id);
+    const { data: weg, error } = await supabase.from("zeiten").delete().eq("id", eintrag.id).select("id");
     setSpeichert(false);
-    if (error) return toast.error("Nicht gelöscht", { description: error.message });
+    if (error) return toast.error("Nicht gelöscht", { description: fehlerText(error) });
+    if (!weg?.length) return toast.error("Nicht gelöscht — löschen kann das nur, wer gebucht hat, oder der Chef.");
     toast.success("Eintrag gelöscht");
     await neuLaden("zeiten", "projekt_zahlen");
     onOpenChange(false);
@@ -150,13 +181,13 @@ export function ZeitDialog({
       gesperrt={speichert}
       fuss={
         <>
-          {eintrag && !gesperrt && (
-            <Button variant="ghost" className="text-destructive sm:mr-auto" onClick={loeschen} disabled={speichert}>
+          {eintrag && !gesperrt && !nurAnsehen && (
+            <Button variant="ghost" className="text-destructive sm:mr-auto" onClick={() => setLoeschenFrage(true)} disabled={speichert}>
               <Trash2 className="mr-2 h-4 w-4" /> Löschen
             </Button>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={speichert}>Abbrechen</Button>
-          {!gesperrt && (
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={speichert}>{nurAnsehen ? "Schließen" : "Abbrechen"}</Button>
+          {!gesperrt && !nurAnsehen && (
             <Button onClick={speichern} disabled={speichert} className="min-w-40">
               {speichert && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {ergebnis > 0 ? `${stundenText(ergebnis)} buchen` : "Stunden buchen"}
@@ -169,6 +200,11 @@ export function ZeitDialog({
         {gesperrt && (
           <p className="rounded-md border border-status-lila bg-status-lila p-3 text-sm text-status-lila-fg">
             Diese Stunden sind schon verrechnet und können nicht mehr geändert werden.
+          </p>
+        )}
+        {nurAnsehen && (
+          <p className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">
+            Ändern oder löschen kann diese Stunden nur, wer sie gebucht hat — oder der Chef.
           </p>
         )}
         {eintrag?.regiebericht_id && !gesperrt && (
@@ -234,9 +270,9 @@ export function ZeitDialog({
                   <Button
                     key={h}
                     type="button"
-                    variant={zahlLesen(std) === h ? "default" : "outline"}
+                    variant={!stdGetippt && zahlLesen(std) === h ? "default" : "outline"}
                     className="h-12 text-base"
-                    onClick={() => setStd(String(h).replace(".", ","))}
+                    onClick={() => { setStd(String(h).replace(".", ",")); setStdGetippt(false); }}
                   >
                     {String(h).replace(".", ",")} h
                   </Button>
@@ -245,8 +281,8 @@ export function ZeitDialog({
                   inputMode="decimal"
                   className="h-12 text-center text-base"
                   placeholder="andere"
-                  value={SCHNELLWAHL.includes(zahlLesen(std)) ? "" : std}
-                  onChange={(e) => setStd(e.target.value)}
+                  value={stdGetippt || !SCHNELLWAHL.includes(zahlLesen(std)) ? std : ""}
+                  onChange={(e) => { setStd(e.target.value); setStdGetippt(true); }}
                   aria-label="Andere Stundenzahl"
                 />
               </div>
@@ -266,7 +302,9 @@ export function ZeitDialog({
                 <Input id="z-pause" inputMode="numeric" className="h-12" value={pause} onChange={(e) => setPause(e.target.value)} />
               </div>
               <p className={cn("col-span-3 text-sm", pauseZuLang ? "text-destructive" : "text-muted-foreground")}>
-                {pauseZuLang ? "Die Pause ist länger als die Arbeitszeit." : <>Ergibt <strong className="text-foreground">{stundenText(ergebnis)}</strong></>}
+                {pauseZuLang
+                  ? "Die Pause ist länger als die Arbeitszeit."
+                  : <>Ergibt <strong className="text-foreground">{stundenText(ergebnis)}</strong>{nacht && " — über Mitternacht"}</>}
               </p>
             </div>
           )}
@@ -281,6 +319,21 @@ export function ZeitDialog({
             placeholder="z. B. Verteiler gesetzt, Leitungen eingezogen" />
         </div>
       </div>
+
+      <AlertDialog open={loeschenFrage} onOpenChange={setLoeschenFrage}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stunden löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {eintrag ? `${stundenText(Number(eintrag.stunden))} am ${datumText(eintrag.datum)}` : ""} — das lässt sich nicht rückgängig machen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="h-11">Behalten</AlertDialogCancel>
+            <Button variant="destructive" className="h-11" onClick={loeschen}>Löschen</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </FormularDialog>
   );
 }

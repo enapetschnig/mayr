@@ -9,36 +9,12 @@
  */
 import type { ImportArtikel } from "@/lib/artikelImport";
 import { einheitNorm, kurztextVerbinden, pause } from "@/lib/datanorm";
+import { dezimalLesen } from "@/lib/format";
 
 // ── Zahlen ─────────────────────────────────────────────────────────────
 
-/**
- * Zahl aus einer Zelle oder einem Eingabefeld: »12,50«, »1.250,50«,
- * »1,250.50«, »12.5«, »12,50 €«. »1.250« = 1250 (Tausenderpunkt).
- * null = leer oder keine Zahl.
- */
-export function dezimalLesen(eingabe: string | number | null | undefined): number | null {
-  if (eingabe === null || eingabe === undefined) return null;
-  if (typeof eingabe === "number") return Number.isFinite(eingabe) ? eingabe : null;
-  let s = String(eingabe).replace(/[^\d,.-]/g, "");
-  if (!s || !/\d/.test(s)) return null;
-  const komma = s.includes(",");
-  const punkt = s.includes(".");
-  if (komma && punkt) {
-    s = s.lastIndexOf(",") > s.lastIndexOf(".") ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
-  } else if (komma) {
-    const teile = s.split(",");
-    s = teile.length > 2 ? teile.join("") : s.replace(",", ".");
-  } else if (punkt) {
-    const teile = s.split(".");
-    const tausender = teile.length === 2 && /^\d{3}$/.test(teile[1]) && /^-?[1-9]\d{0,2}$/.test(teile[0]);
-    if (teile.length > 2 || tausender) s = s.replace(/\./g, "");
-  }
-  const m = s.match(/^-?\d*\.?\d*/);
-  if (!m || m[0] === "" || m[0] === "-" || m[0] === ".") return null;
-  const n = Number(m[0]);
-  return Number.isFinite(n) ? n : null;
-}
+// Dieselbe Leselogik wie in den Eingabefeldern (lib/format.ts)
+export { dezimalLesen };
 
 export type ZahlenFormat = "punkt" | "komma" | null;
 

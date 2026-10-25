@@ -232,7 +232,10 @@ function ZeitZeileKarte({
   const fehler = leer ? null : zeileFehler(z);
   const h = zeileStunden(z);
   const istIch = z.userId === ich;
-  const anderer = !SCHNELLWAHL_STUNDEN.includes(zahlLesen(z.stunden));
+  // Wer ins Feld „andere“ tippt, bleibt dort — sonst verschwände die „2“ von
+  // „2,5“ nach dem ersten Tastendruck im Knopf „2 h“
+  const [tippt, setTippt] = useState(false);
+  const anderer = tippt || !SCHNELLWAHL_STUNDEN.includes(zahlLesen(z.stunden));
 
   return (
     <li className={cn("rounded-lg border bg-card p-3", fehler && "border-destructive/60")}>
@@ -269,9 +272,9 @@ function ZeitZeileKarte({
                 <Button
                   key={s}
                   type="button"
-                  variant={zahlLesen(z.stunden) === s ? "default" : "outline"}
+                  variant={!tippt && zahlLesen(z.stunden) === s ? "default" : "outline"}
                   className="h-12 px-0 text-base"
-                  onClick={() => onSetzen({ stunden: String(s) })}
+                  onClick={() => { setTippt(false); onSetzen({ stunden: String(s) }); }}
                 >
                   {s} h
                 </Button>
@@ -282,7 +285,7 @@ function ZeitZeileKarte({
                 className={cn("h-12 px-1 text-center text-base placeholder:text-xs", anderer && z.stunden && "border-primary font-semibold")}
                 placeholder="andere"
                 value={anderer ? z.stunden : ""}
-                onChange={(e) => onSetzen({ stunden: e.target.value })}
+                onChange={(e) => { setTippt(true); onSetzen({ stunden: e.target.value }); }}
                 aria-label={`Stunden ${name(person)}`}
               />
             </div>
