@@ -175,7 +175,8 @@ export default function Index() {
           )}
         </section>
 
-        <div className={cn("grid gap-6", pc && "grid-cols-[1fr_22rem] items-start")}>
+        {/* minmax(0,…): sonst macht eine lange, abgeschnittene Zeile die Spalte breiter als das Handy */}
+        <div className={cn("grid gap-6", pc ? "grid-cols-[minmax(0,1fr)_22rem] items-start" : "grid-cols-1")}>
           {/* Weiter, wo du warst */}
           <Karte titel={pc ? "Laufende Projekte" : "Weiter, wo du warst"} alle={{ to: "/projekte", text: "Alle Projekte" }} ohnePolster>
             {zuletzt.length === 0 ? (
