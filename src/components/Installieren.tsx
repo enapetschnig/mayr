@@ -81,7 +81,7 @@ export function InstallHinweis() {
 
   return (
     <Dialog open={offen} onOpenChange={(o) => !o && schliessen()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[92dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl">
         <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
           <Smartphone className="h-7 w-7 text-primary" />
         </div>
@@ -90,7 +90,7 @@ export function InstallHinweis() {
           Leg die App auf den Startbildschirm — dann startet sie wie jede andere App, ohne Adresszeile und mit einem Tipp.
         </DialogDescription>
         <InstallAnleitung onFertig={schliessen} />
-        <Button variant="ghost" className="w-full" onClick={schliessen}>Später — findest du unter Einstellungen → Handy</Button>
+        <Button variant="ghost" className="h-auto min-h-11 w-full whitespace-normal py-2.5" onClick={schliessen}>Später — findest du unter Einstellungen → Handy</Button>
       </DialogContent>
     </Dialog>
   );

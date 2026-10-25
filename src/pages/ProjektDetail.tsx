@@ -29,7 +29,7 @@ import { ProjektBelege } from "@/components/belege/ProjektBelege";
 import { useNeuLaden, useProjekt, useProjektZahlen } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datumKurz, euro, isoTag, stunden, uhrzeit } from "@/lib/format";
-import { artikelVk, runden2, stundensatzFuer } from "@/lib/preise";
+import { buchungVk, runden2, stundensatzFuer } from "@/lib/preise";
 import { PROJEKT_STATUS, name, type ProjektStatus, type Termin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -317,8 +317,7 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
   const satz = stundensatzFuer({ stundensatz }, firma);
   const materialVk = runden2((material ?? []).reduce((s, m) => {
     const vz = m.art === "rueckgabe" ? -1 : 1;
-    const vk = m.artikel ? artikelVk(m.artikel, firma) : runden2(Number(m.ek_preis ?? 0) * (1 + Number(firma?.material_aufschlag ?? 0) / 100));
-    return s + vz * Number(m.menge) * vk;
+    return s + vz * Number(m.menge) * buchungVk(m, firma);
   }, 0));
   const stundenGesamt = Number(z?.stunden ?? 0);
   const geleistet = runden2(stundenGesamt * satz + materialVk);

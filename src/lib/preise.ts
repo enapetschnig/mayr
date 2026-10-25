@@ -25,7 +25,16 @@ export function artikelVk(
   return 0;
 }
 
-export type LeistungsMaterial = { menge: number; artikel: Pick<Artikel, "vk_preis" | "ek_preis" | "listenpreis"> | null };
+/** Verkaufswert einer Materialbuchung je Einheit: Artikelpreis, bei freiem Text EK + Aufschlag. */
+export function buchungVk(
+  m: { ek_preis: number | null; artikel: Pick<Artikel, "vk_preis" | "ek_preis" | "listenpreis"> | null },
+  firma: Pick<Firma, "material_aufschlag"> | null | undefined,
+): number {
+  if (m.artikel) return artikelVk(m.artikel, firma);
+  return runden2(Number(m.ek_preis ?? 0) * (1 + Number(firma?.material_aufschlag ?? 0) / 100));
+}
+
+export type LeistungsMaterial ={ menge: number; artikel: Pick<Artikel, "vk_preis" | "ek_preis" | "listenpreis"> | null };
 
 /** Was eine Leistung kostet: fester Preis oder Material-VK + Montagezeit × Stundensatz. */
 export function leistungPreis(

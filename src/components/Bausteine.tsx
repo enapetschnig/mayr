@@ -16,7 +16,7 @@ export function Kennzahl({ titel, wert, unter, className, icon: I }: { titel: st
       <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         {I && <I className="h-3.5 w-3.5" />}{titel}
       </div>
-      <p className="zahl mt-1 text-xl font-bold tracking-tight lg:text-2xl">{wert}</p>
+      <p className="mt-1 text-xl font-bold tracking-tight lg:text-2xl">{wert}</p>
       {unter && <p className="mt-0.5 text-xs text-muted-foreground">{unter}</p>}
     </div>
   );
