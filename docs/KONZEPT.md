@@ -110,6 +110,7 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
 ### Preise — nur über `src/lib/preise.ts`
 
 - `artikelVk(artikel, firma)` = fester VK, sonst EK × (1 + Aufschlag), sonst Listenpreis
+- `buchungVk(buchung, firma)` = Verkaufswert einer Materialbuchung (Artikelpreis, bei freiem Text EK + Aufschlag)
 - `leistungPreis(leistung, material, firma, stundensatz)` = fester Preis, sonst Material-VK + Minuten/60 × Stundensatz
 - `stundensatzFuer(projekt, firma)`
 - `belegSummen(positionen, ustSatz, ohneUst)` — Reverse Charge / Kleinunternehmer = ohne USt
@@ -132,6 +133,12 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
 5. **Rechnung aus dem Projekt (Chef)**: Projekt → „Rechnung“ → Assistent zeigt
    alles Offene: unterschriebene Regieberichte, Stunden ohne Regiebericht,
    verbrauchtes Material, angenommenes Angebot → anhaken → Editor → Fertigstellen → PDF.
+6. **Auswertung (Chef)**: Monat/Jahr → Umsatz je Monat, Stunden je Mitarbeiter
+   und Projekt, **Stundenliste als CSV** für die Lohnverrechnung. Nachkalkulation
+   je Projekt: geleistet (Stunden × Satz + Material-VK) gegen Angebot und
+   Verrechnetes, sortiert nach „noch nicht verrechnet“.
+7. **Neuer Mitarbeiter**: registriert sich selbst unter `/auth` → Chef schaltet
+   ihn unter Einstellungen → Mitarbeiter frei (Rolle, Farbe).
 
 ## Code-Konventionen
 
@@ -148,5 +155,8 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
   - `components/FormularDialog.tsx` (Vollbild-Formular mit festem Fuß)
   - `components/Bausteine.tsx` (`Kennzahl`, `Leer`, `StatusBadge`, …)
   - `lib/format.ts` (`euro`, `zahl`, `datum`, `isoTag`, `zahlLesen`, …), `lib/preise.ts`
+  - `lib/abfrage.ts`: `alleZeilen()` — Supabase liefert je Abfrage höchstens
+    1000 Zeilen und schneidet still ab; für Auswertungen immer seitenweise holen.
+    `csvHerunterladen()` — Strichpunkt, Dezimalkomma, BOM (Excel in Österreich)
 - PostgREST-Sammel-Inserts: **jede Zeile mit denselben Feldern** (sonst NULL statt Default)
 - Handy zuerst: Ziel 360 px Breite, Knöpfe ≥ 44 px, Eingaben `h-11`/`h-12`
