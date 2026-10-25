@@ -1,5 +1,3 @@
-import type { PostgrestError } from "@supabase/supabase-js";
-
 const SEITE = 1000;
 
 /**
@@ -8,7 +6,7 @@ const SEITE = 1000;
  * eindeutige Sortierung (z. B. nach id), sonst doppeln oder fehlen Zeilen.
  */
 export async function alleZeilen<T>(
-  abfrage: (von: number, bis: number) => PromiseLike<{ data: T[] | null; error: PostgrestError | null }>,
+  abfrage: (von: number, bis: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
 ): Promise<T[]> {
   const alle: T[] = [];
   for (let von = 0; ; von += SEITE) {

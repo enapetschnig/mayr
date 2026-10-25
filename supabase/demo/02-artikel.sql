@@ -247,7 +247,8 @@ begin
     ('5TG2551-0', 10),
     ('5TA2156', 6),
     ('5TG6201', 6),
-    ('TG600AL', 2)
+    ('TG600AL', 2),
+    ('80242001', 4)
   ) v(nr, menge) join artikel a on a.hersteller_nr = v.nr;
   insert into material_buchungen (art, artikel_id, menge, lagerort_id, ek_preis, vorgang, notiz, user_id, created_at)
   select 'zugang', a.id, v.menge, v_bus2, a.ek_preis, v_vorgang, 'Anfangsbestand', v_chef,
@@ -262,6 +263,7 @@ begin
     ('AM618116', 6),
     ('5UB1518', 10),
     ('5TG2551-0', 10),
-    ('5TG6201', 6)
+    ('5TG6201', 6),
+    ('80242001', 4)
   ) v(nr, menge) join artikel a on a.hersteller_nr = v.nr;
 end $$;

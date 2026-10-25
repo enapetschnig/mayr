@@ -21,9 +21,10 @@ import { CodeUnbekanntDialog } from "@/components/material/CodeUnbekanntDialog";
 import { FreiePositionDialog, type FreiePosition } from "@/components/material/FreiePositionDialog";
 import { MengeFeld } from "@/components/material/MengeFeld";
 import {
-  ARTIKEL_KURZ, alleSeiten, artikelInfo, artikelKurzLaden, fehlerText, mengeEingabe, mengeText, neueId, runden3,
+  ARTIKEL_KURZ, artikelInfo, artikelKurzLaden, fehlerText, mengeEingabe, mengeText, neueId, runden3,
   standardLagerort, useBestandAmLagerort, useProjektMaterial, zeitpunktText, zuArtikelKurz, type ArtikelKurz,
 } from "@/components/material/materialDaten";
+import { alleZeilen } from "@/lib/abfrage";
 import { useLagerorte, useNeuLaden, useProjekte } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { zahl, zahlLesen } from "@/lib/format";
@@ -482,7 +483,7 @@ export default function Scan() {
     setLaedtBestand(true);
     try {
       type Z = { artikel_id: string; bestand: number; artikel: ArtikelKurz | null };
-      const zeilen = await alleSeiten<Z>((von, bis) =>
+      const zeilen = await alleZeilen<Z>((von, bis) =>
         supabase.from("lagerbestand")
           .select(`artikel_id, bestand, artikel(${ARTIKEL_KURZ})`)
           .eq("lagerort_id", lagerortId)

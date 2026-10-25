@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { alleZeilen } from "@/lib/abfrage";
 import { datum, isoTag, tageDazu, zahl } from "@/lib/format";
 import type { Artikel, Lagerort, MaterialBuchung, ProjektMaterial } from "@/lib/types";
 
@@ -113,20 +114,6 @@ export function useAlleLagerorte() {
 
 // ── Bestand ────────────────────────────────────────────────────────────
 
-/** PostgREST liefert höchstens 1000 Zeilen am Stück — hier alle Seiten. */
-export async function alleSeiten<T>(
-  abfrage: (von: number, bis: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
-  seite = 1000,
-): Promise<T[]> {
-  const alle: T[] = [];
-  for (let von = 0; ; von += seite) {
-    const { data, error } = await abfrage(von, von + seite - 1);
-    if (error) throw error;
-    alle.push(...(data ?? []));
-    if (!data || data.length < seite) return alle;
-  }
-}
-
 export type ArtikelLager = Pick<
   Artikel,
   "id" | "bezeichnung" | "einheit" | "kategorie" | "hersteller" | "hersteller_nr" | "artikelnummer" | "ean"
@@ -141,7 +128,7 @@ export function useLagerbestand() {
   return useQuery({
     queryKey: ["lager", "bestand"],
     queryFn: async () => {
-      const zeilen = await alleSeiten<BestandZeile>((von, bis) =>
+      const zeilen = await alleZeilen<BestandZeile>((von, bis) =>
         supabase.from("lagerbestand")
           .select(`artikel_id, lagerort_id, bestand, artikel(${ARTIKEL_LAGER})`)
           .order("artikel_id").order("lagerort_id")
@@ -156,7 +143,7 @@ export function useLagerArtikel() {
   return useQuery({
     queryKey: ["artikel", "lager"],
     queryFn: async () => {
-      const liste = await alleSeiten<ArtikelLager>((von, bis) =>
+      const liste = await alleZeilen<ArtikelLager>((von, bis) =>
         supabase.from("artikel").select(ARTIKEL_LAGER)
           .or("lagerartikel.eq.true,mindestbestand.not.is.null")
           .eq("aktiv", true)
@@ -173,7 +160,7 @@ export function useBestandAmLagerort(lagerortId: string | null | undefined) {
     queryKey: ["lager", "bestand", lagerortId],
     enabled: !!lagerortId,
     queryFn: async () => {
-      const zeilen = await alleSeiten<{ artikel_id: string | null; bestand: number | null }>((von, bis) =>
+      const zeilen = await alleZeilen<{ artikel_id: string | null; bestand: number | null }>((von, bis) =>
         supabase.from("lagerbestand").select("artikel_id, bestand").eq("lagerort_id", lagerortId!)
           .order("artikel_id").range(von, bis) as unknown as PromiseLike<{ data: { artikel_id: string | null; bestand: number | null }[] | null; error: unknown }>);
       const karte = new Map<string, number>();
