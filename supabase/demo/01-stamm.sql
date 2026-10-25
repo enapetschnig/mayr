@@ -140,7 +140,7 @@ begin
     ('03.03', 'FI-Schutzschalter 40A/30mA', 'Fehlerstromschutzschalter 4-polig 40 A / 30 mA liefern, einbauen und prüfen', 'Verteiler', 'Stk', 20, null, 'fi fehlerstromschutzschalter rcd', true, 303),
     ('03.04', 'FI/LS-Schalter einbauen', 'FI/LS-Kombischalter B16 / 30 mA liefern, einbauen und prüfen', 'Verteiler', 'Stk', 15, null, 'fi/ls fi-ls kombi', true, 304),
     ('03.05', 'Überspannungsschutz Typ 2', 'Überspannungsableiter Typ 2 liefern und im Verteiler einbauen', 'Verteiler', 'Stk', 30, 245, 'überspannung überspannungsschutz spd', true, 305),
-    ('04.01', 'Deckenauslass mit Leuchtenmontage', 'Deckenauslass herstellen, beigestellte Leuchte montieren und anschließen', 'Licht', 'Stk', 30, null, 'lampe leuchte deckenauslass auslass deckenlampe', true, 401),
+    ('04.01', 'Deckenauslass mit Leuchtenmontage', 'Deckenauslass herstellen, beigestellte Leuchte montieren und anschließen', 'Licht', 'Stk', 30, null, 'lampe leuchte led ledleuchte deckenauslass auslass deckenlampe', true, 401),
     ('04.02', 'LED-Einbauspot komplett', 'LED-Einbaustrahler liefern, Deckenbohrung herstellen, montieren und anschließen', 'Licht', 'Stk', 20, null, 'spot einbauspot downlight strahler', true, 402),
     ('04.03', 'LED-Panel 60x60 montieren', 'LED-Panel 60x60 cm liefern, in Rasterdecke einsetzen und anschließen', 'Licht', 'Stk', 30, 119, 'panel ledpanel rasterleuchte büroleuchte', true, 403),
     ('05.01', 'Netzwerkdose Cat6 komplett', 'Netzwerkdose Cat6 unter Putz, 2-fach, inkl. Auflegen und Messung', 'Netzwerk & Medien', 'Stk', 30, null, 'netzwerk lan cat6 dose datendose', true, 501),

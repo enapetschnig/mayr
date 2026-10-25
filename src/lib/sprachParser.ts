@@ -722,6 +722,16 @@ export function sprachZerlegen(text: string, katalog: KatalogEintrag[]): SprachP
       if (zweiter.beste) ({ beste, liste } = zweiter);
     }
 
+    // Eine Leistung, die alle Wörter deutlich besser erklärt, schlägt eine
+    // knapp höher bewertete: „zwölf LED Leuchten“ sind zwölf Leuchten — nicht
+    // zwölf LED-Panels und dazu eine Leuchte (Funktionstest)
+    if (beste && q.length >= 2) {
+      const summe = (b: Bewertung) => b.werte.reduce((s, w) => s + w, 0);
+      const ganz = liste.find((b) => b !== beste && b.max >= 0.6 && b.werte.every((w) => w >= 0.5)
+        && summe(b) >= summe(beste!) + 0.2 && b.punkte >= beste!.punkte - 0.05);
+      if (ganz) beste = ganz;
+    }
+
     // Zwei Dinge ohne Menge dazwischen („Steckdose und Schalter“): was die
     // beste Leistung nicht erklärt, aber selbst klar etwas anderes ist, wird
     // ein eigener Posten mit Menge 1.

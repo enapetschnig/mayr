@@ -27,7 +27,7 @@ const KATALOG: KatalogEintrag[] = [
   K("03.03", "FI-Schutzschalter 40A/30mA", "Stk", "fi fehlerstromschutzschalter rcd", 303),
   K("03.04", "FI/LS-Schalter einbauen", "Stk", "fi/ls fi-ls kombi", 304),
   K("03.05", "Überspannungsschutz Typ 2", "Stk", "überspannung überspannungsschutz spd", 305),
-  K("04.01", "Deckenauslass mit Leuchtenmontage", "Stk", "lampe leuchte deckenauslass auslass deckenlampe", 401),
+  K("04.01", "Deckenauslass mit Leuchtenmontage", "Stk", "lampe leuchte led ledleuchte deckenauslass auslass deckenlampe", 401),
   K("04.02", "LED-Einbauspot komplett", "Stk", "spot einbauspot downlight strahler", 402),
   K("04.03", "LED-Panel 60x60 montieren", "Stk", "panel ledpanel rasterleuchte büroleuchte", 403),
   K("05.01", "Netzwerkdose Cat6 komplett", "Stk", "netzwerk lan cat6 dose datendose", 501),
@@ -195,6 +195,15 @@ describe("Sätze zerlegen", () => {
     expect(p[5].einheit).toBe("m");
     expect(p[0].text).toBe("6 Steckdosen");
     expect(p[3].text).toBe("drei Doppelsteckdosen");
+  });
+
+  it("„LED Leuchten“ ist ein Ding, keine zweite Position (Funktionstest)", () => {
+    expect(kurz(zerlegt("Garage 1 Wallbox Keller zwölf LED Leuchten"))).toEqual([
+      ["Garage", 1, "06.04"],
+      ["Keller", 12, "04.01"],
+    ]);
+    expect(leistung("LED-Panel")).toBe("04.03");
+    expect(leistung("LED Spots")).toBe("04.02");
   });
 
   it("so wie die Spracherkennung es liefert — ohne Satzzeichen", () => {

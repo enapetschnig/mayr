@@ -32,6 +32,17 @@ function erkennungBauen(): Erkennung | null {
 export const diktatMoeglich = () =>
   typeof window !== "undefined" && !!((window as unknown as Record<string, unknown>).SpeechRecognition ?? (window as unknown as Record<string, unknown>).webkitSpeechRecognition);
 
+const FEHLER_TEXT: Record<string, string> = {
+  "not-allowed": "Mikrofon nicht erlaubt — in den Browser-Einstellungen freigeben.",
+  "service-not-allowed": "Mikrofon nicht erlaubt — in den Browser-Einstellungen freigeben.",
+  network: "Kein Netz — die Spracherkennung braucht Internet. Bitte tippen oder später noch einmal.",
+  "audio-capture": "Kein Mikrofon gefunden.",
+  "language-not-supported": "Deutsch wird hier nicht erkannt — bitte das Mikrofon der Tastatur verwenden.",
+};
+
+/** So oft darf die Erkennung in 5 Sekunden neu starten, ohne etwas zu hören */
+const NEUSTARTS_MAX = 5;
+
 /**
  * onText bekommt jeden fertig erkannten Satz. zwischen zeigt, was gerade
  * gehört wird (zum Mitlesen), und ist leer, sobald der Satz fertig ist.
@@ -44,6 +55,7 @@ export function useDiktat(onText: (text: string) => void, { dauernd = true }: { 
   const callback = useRef(onText);
   callback.current = onText;
   const soll = useRef(false);
+  const neustarts = useRef<number[]>([]);
 
   const stop = useCallback(() => {
     soll.current = false;
@@ -63,6 +75,7 @@ export function useDiktat(onText: (text: string) => void, { dauernd = true }: { 
     e.continuous = dauernd;
     e.interimResults = true;
     e.onresult = (ev) => {
+      neustarts.current = [];
       let zw = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         const r = ev.results[i];
@@ -72,23 +85,31 @@ export function useDiktat(onText: (text: string) => void, { dauernd = true }: { 
       setZwischen(zw.trim());
     };
     e.onerror = (ev) => {
-      if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
-        setFehler("Mikrofon nicht erlaubt — in den Browser-Einstellungen freigeben.");
-        soll.current = false;
-      } else if (ev.error !== "no-speech" && ev.error !== "aborted") {
-        setFehler("Spracheingabe unterbrochen.");
-      }
+      if (ev.error === "no-speech" || ev.error === "aborted") return;
+      // Ohne Netz, Mikrofon oder Erlaubnis hilft kein Neustart — er schlüge
+      // sofort wieder fehl, endlos (Android piept bei jedem Start)
+      soll.current = false;
+      setFehler(FEHLER_TEXT[ev.error] ?? "Spracheingabe unterbrochen — bitte noch einmal antippen.");
     };
     // Safari beendet nach jeder Pause — solange der Knopf an ist, neu starten.
+    // Aber nicht im Kreis: endet sie immer wieder, ohne etwas zu hören, aufhören.
     e.onend = () => {
       if (soll.current && dauernd) {
-        try { e.start(); return; } catch { /* schon gestartet */ }
+        const jetzt = Date.now();
+        neustarts.current = [...neustarts.current.filter((t) => jetzt - t < 5000), jetzt];
+        if (neustarts.current.length <= NEUSTARTS_MAX) {
+          try { e.start(); return; } catch { /* schon gestartet */ }
+        } else {
+          soll.current = false;
+          setFehler("Spracheingabe bricht immer wieder ab — bitte noch einmal antippen.");
+        }
       }
       setAktiv(false);
       setZwischen("");
     };
     erk.current = e;
     soll.current = true;
+    neustarts.current = [];
     try {
       e.start();
       setAktiv(true);

@@ -189,9 +189,10 @@ export function SpracheDialog({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-[60dvh]">
-                            {p.alternativen.length > 0 && (
+                            {/* Auch ein eindeutiger Treffer braucht seinen Eintrag — sonst bleibt die Auswahl leer */}
+                            {(p.leistungId || p.alternativen.length > 0) && (
                               <SelectGroup>
-                                <SelectLabel>Passt vielleicht</SelectLabel>
+                                <SelectLabel>{p.alternativen.length ? "Passt vielleicht" : "Erkannt"}</SelectLabel>
                                 {[p.leistungId, ...p.alternativen].filter((x): x is string => !!x && nachId.has(x)).map((id) => (
                                   <SelectItem key={`v-${id}`} value={id}>{nachId.get(id)!.kurztext}</SelectItem>
                                 ))}
