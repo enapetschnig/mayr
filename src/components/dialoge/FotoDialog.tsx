@@ -11,8 +11,8 @@ import { useNeuLaden } from "@/hooks/useDaten";
 import { dateienHochladen } from "@/lib/upload";
 
 /**
- * Fotos (und Dokumente) zu einem Projekt — Vorbild ist „+ Foto“ der
- * Schrettl-App: ein Knopf, Projekt wählen, Bilder rein, fertig.
+ * Fotos (und Dokumente) zu einem Projekt — so kurz wie möglich: ein Knopf,
+ * Projekt wählen, Bilder rein, fertig.
  */
 export function FotoDialog({
   open, onOpenChange, projektId: vorProjekt, art = "foto",

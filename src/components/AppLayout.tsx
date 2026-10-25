@@ -19,7 +19,7 @@ export function useIstPc() {
 }
 
 /**
- * Handy und Tablet: wie Schrettl — kein Seitenmenü, keine Leiste unten.
+ * Handy und Tablet: kein Seitenmenü, keine Leiste unten.
  * Die Startseite IST das Menü, jede Unterseite hat Zurück und Logo im Kopf.
  * PC: Seitenmenü links (Büro).
  */

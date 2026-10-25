@@ -55,7 +55,7 @@ export function InstallAnleitung({ onFertig }: { onFertig?: () => void }) {
 }
 
 /**
- * Erscheint einmal pro Gerät nach dem ersten Login — so wie bei Schrettl.
+ * Erscheint einmal pro Gerät nach dem ersten Login.
  * Android/Chrome: ein Tipp auf „Jetzt installieren“. iPhone: die Schritte
  * übers Teilen-Menü (Apple lässt keinen Knopf dafür zu).
  * Läuft die App schon installiert, kommt nichts.

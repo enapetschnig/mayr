@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * Serienaufnahme — aus der App heraus fotografieren, ohne jedes Mal zur
  * Kamera-App und zurück.
  *
- * Übernommen aus schafferhoferbau, weil sich das dort bewährt hat: Der
+ * Bewährt aus einer anderen Handwerker-App: Der
  * Kamerastrom bleibt offen, ein Tipp pro Foto. Wer ein Dach dokumentiert,
  * macht zwanzig Aufnahmen hintereinander — mit dem Umweg über die Kamera-App
  * wären das zwanzig Mal öffnen, auslösen, bestätigen, zurück.

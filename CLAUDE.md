@@ -11,7 +11,7 @@ Elektriker — am Handy auf der Baustelle bedienbar, Angebot vor Ort per Sprache
 | Vercel | Projekt `mayr`, Auto-Deploy von `main` |
 | Betrieb | „Elektro Muster GmbH“ — Demo-Daten, in Einstellungen änderbar |
 
-Die frühere Drei-Firmen-App (MAM Mechatronik & Partner) ist abgelöst; sie
+Die frühere Drei-Firmen-App ist abgelöst; sie
 steht im Git-Verlauf bis Commit `769f917`, die Datensicherung unter
 `~/Developer/_baukasten/sicherungen/mayr/2026-10-25-vor-umbau/`.
 
@@ -20,7 +20,7 @@ Schema samt RLS und Triggern: `supabase/migrations/20261025100000_elektriker_gru
 
 ## Design „Werkbank“
 
-- Handy/Tablet wie Schrettl: **die Startseite ist das Menü** (große Karten),
+- Handy/Tablet: **die Startseite ist das Menü** (große Karten),
   kein Seitenmenü, keine Leiste unten; jede Unterseite hat Zurück + Logo im
   Kopf (`<Seite>` aus `components/PageHeader.tsx`). PC ab 1024 px: Seitenmenü.
 - Neutrale Flächen, weiße Karten mit 1-px-Rand, keine Schatten.

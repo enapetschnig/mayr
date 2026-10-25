@@ -15,7 +15,7 @@ interface PageHeaderProps {
   aktionen?: ReactNode;
 }
 
-/** Seitenkopf wie Schrettl: Zurück, Logo (führt zur Startseite), Titel, Aktionen rechts. */
+/** Seitenkopf: Zurück, Logo (führt zur Startseite), Titel, Aktionen rechts. */
 export function PageHeader({ title, untertitel, showBackButton = true, backPath, aktionen }: PageHeaderProps) {
   const navigate = useNavigate();
 

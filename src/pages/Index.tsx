@@ -42,7 +42,7 @@ const START_GRUPPEN: { titel: string; gruppen: NavEintrag["gruppe"][] }[] = [
 ];
 
 /**
- * Startseite wie bei Schrettl: Am Handy IST sie das Menü. Oben die
+ * Startseite: Am Handy IST sie das Menü. Oben die
  * häufigsten Handgriffe als große Knöpfe, darunter „Weiter, wo du warst“
  * und die großen Menü-Karten. Am PC steht das Menü links, hier dafür die
  * Übersicht (offene Punkte, aktive Projekte).
@@ -251,7 +251,7 @@ export default function Index() {
           )}
         </div>
 
-        {/* Am Handy und Tablet ist die Startseite das Menü — große Karten wie bei Schrettl */}
+        {/* Am Handy und Tablet ist die Startseite das Menü — große Karten */}
         {!pc && START_GRUPPEN.map((g) => {
           const eintraege = menue.filter((n) => g.gruppen.includes(n.gruppe));
           if (!eintraege.length) return null;
