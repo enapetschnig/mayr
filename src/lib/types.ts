@@ -58,6 +58,7 @@ export const BELEG_STATUS: Record<string, StatusEintrag> = {
   ueberfaellig: { ton: "rot", text: "Überfällig" },
   bezahlt: { ton: "gruen", text: "Bezahlt" },
   storniert: { ton: "rosa", text: "Storniert", durchgestrichen: true },
+  storno: { ton: "rosa", text: "Stornorechnung" },
   angenommen: { ton: "gruen", text: "Angenommen" },
   abgelehnt: { ton: "rosa", text: "Abgelehnt" },
   verrechnet: { ton: "lila", text: "Verrechnet" },

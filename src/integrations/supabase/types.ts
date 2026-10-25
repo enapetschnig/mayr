@@ -217,6 +217,7 @@ export type Database = {
           reverse_charge: boolean
           schlusstext: string | null
           status: string
+          storno_von: string | null
           typ: string
           updated_at: string
           ust: number
@@ -252,6 +253,7 @@ export type Database = {
           reverse_charge?: boolean
           schlusstext?: string | null
           status?: string
+          storno_von?: string | null
           typ: string
           updated_at?: string
           ust?: number
@@ -287,6 +289,7 @@ export type Database = {
           reverse_charge?: boolean
           schlusstext?: string | null
           status?: string
+          storno_von?: string | null
           typ?: string
           updated_at?: string
           ust?: number
@@ -1229,7 +1232,7 @@ export type Database = {
         }[]
       }
       beleg_fertigstellen: { Args: { p_id: string }; Returns: string }
-      beleg_stornieren: { Args: { p_id: string }; Returns: undefined }
+      beleg_stornieren: { Args: { p_id: string }; Returns: string }
       ist_aktiv: { Args: never; Returns: boolean }
       ist_chef: { Args: never; Returns: boolean }
       naechste_nummer: {

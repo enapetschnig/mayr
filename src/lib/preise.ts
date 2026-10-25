@@ -6,7 +6,16 @@ import type { Artikel, Firma, Leistung, Projekt } from "@/lib/types";
  * Preise als später in der Rechnung.
  */
 
-export const runden2 = (n: number) => Math.round((Number(n) || 0) * 100 + Number.EPSILON) / 100;
+/**
+ * Auf Cent runden wie Postgres `round(…, 2)` beim Fertigstellen: ab einem
+ * halben Cent weg von null — auch negativ, sonst weicht eine Stornorechnung
+ * um einen Cent von der Rechnung ab. toPrecision schluckt Gleitkomma-Reste
+ * (1,5 × 0,33 = 0,49499999… ist genau 0,495).
+ */
+export const runden2 = (n: number) => {
+  const x = Number(n) || 0;
+  return (Math.sign(x) * Math.round(Number((Math.abs(x) * 100).toPrecision(12)))) / 100 || 0;
+};
 
 /** Stundensatz: am Projekt hinterlegt, sonst der des Betriebs. */
 export function stundensatzFuer(projekt: Pick<Projekt, "stundensatz"> | null | undefined, firma: Pick<Firma, "stundensatz"> | null | undefined): number {

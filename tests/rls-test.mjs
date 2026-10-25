@@ -170,11 +170,31 @@ ok(!eR, "Chef legt einen Rechnungsentwurf an" + (eR ? abgelehnt(eR) : ""));
   ok(!weg?.length, "fertige Rechnung kann nicht gelöscht werden");
   const { error: e4 } = await chef.from("belege").update({ status: "bezahlt", bezahlt_am: new Date().toISOString().slice(0, 10) }).eq("id", re.id);
   ok(!e4, "als bezahlt markieren geht" + (e4 ? abgelehnt(e4) : ""));
-  const { error: e5 } = await chef.rpc("beleg_stornieren", { p_id: re.id });
+  const { error: eMs } = await monteur.rpc("beleg_stornieren", { p_id: re.id });
+  ok(!!eMs, "Monteur kann nicht stornieren" + abgelehnt(eMs));
+  const { data: stornoId, error: e5 } = await chef.rpc("beleg_stornieren", { p_id: re.id });
   const { data: frei } = await chef.from("zeiten").select("rechnung_id").eq("id", zMonteur.id).single();
   ok(!e5 && frei?.rechnung_id === null, "Storno gibt die Stunde wieder frei" + (e5 ? abgelehnt(e5) : ""));
   const { error: e6 } = await chef.from("belege").update({ status: "offen" }).eq("id", re.id);
   ok(!!e6, "stornierte Rechnung bleibt storniert" + abgelehnt(e6));
+
+  // Stornorechnung: eigene Nummer, Verweis, alles negativ, sofort fest
+  const { data: st } = await chef.from("belege").select("status, nummer, storno_von, netto, brutto").eq("id", stornoId ?? re.id).single();
+  ok(st?.status === "storno" && st.storno_von === re.id && /^RE-\d{4}-\d{3}$/.test(st.nummer ?? "") && st.nummer !== nr,
+    `Stornieren legt eine Stornorechnung mit eigener Nummer an: ${st?.nummer} zu ${nr}`);
+  ok(Number(st?.netto) === -360 && Number(st?.brutto) === -432, `sie hebt den Betrag auf: ${st?.netto} netto, ${st?.brutto} brutto`);
+  const { data: stPos } = await chef.from("beleg_positionen").select("menge, gesamt").eq("beleg_id", stornoId ?? re.id);
+  ok(stPos?.length === 1 && Number(stPos[0].menge) === -5 && Number(stPos[0].gesamt) === -360, "ihre Positionen haben negative Mengen");
+  const { error: e7 } = await chef.from("beleg_positionen").update({ einzelpreis: 1 }).eq("beleg_id", stornoId ?? re.id);
+  ok(!!e7, "Positionen der Stornorechnung sind fest" + abgelehnt(e7));
+  const { error: e8 } = await chef.from("belege").update({ status: "bezahlt" }).eq("id", stornoId ?? re.id);
+  ok(!!e8, "Stornorechnung bleibt Stornorechnung" + abgelehnt(e8));
+  const { data: weg2 } = await chef.from("belege").delete().eq("id", stornoId ?? re.id).select();
+  ok(!weg2?.length, "Stornorechnung kann nicht gelöscht werden");
+  const { error: e9 } = await chef.rpc("beleg_stornieren", { p_id: re.id });
+  ok(!!e9, "zweimal stornieren geht nicht" + abgelehnt(e9));
+  const { error: e10 } = await chef.rpc("beleg_stornieren", { p_id: stornoId ?? re.id });
+  ok(!!e10, "eine Stornorechnung lässt sich nicht stornieren" + abgelehnt(e10));
 }
 
 console.log("\n— Regiebericht —");

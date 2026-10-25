@@ -12,6 +12,7 @@ import type { Beleg, Firma } from "@/lib/types";
  * Datenblock, Positionen mit Räumen (Titel fett, Zwischensumme), Langtext
  * klein unter der Bezeichnung, Summen, Reverse-Charge-/Kleinunternehmer-
  * Hinweis, Zahlungsziel mit Bezahl-QR, Fußzeile. Entwürfe tragen „ENTWURF“.
+ * Stornorechnungen: eigene Nummer, Verweis, negative Beträge, keine Zahlung.
  * Angebote sagen immer, ob der Kostenvoranschlag verbindlich ist — bei
  * Verbrauchern gilt er sonst als verbindlich (§ 5 Abs. 2 KSchG).
  */
@@ -35,17 +36,20 @@ export type BelegPdfDaten = {
   positionen: PdfPosition[];
   firma: Firma;
   projekt?: { nummer: string; name: string; strasse?: string | null; plz?: string | null; ort?: string | null } | null;
+  /** Stornorechnung: Nummer der Rechnung, die sie aufhebt */
+  stornoZu?: string | null;
 };
 
 const GRAU: [number, number, number] = [110, 110, 110];
 
-export async function belegPdfErstellen({ beleg, positionen, firma, projekt }: BelegPdfDaten): Promise<{ blob: Blob; dateiname: string }> {
+export async function belegPdfErstellen({ beleg, positionen, firma, projekt, stornoZu }: BelegPdfDaten): Promise<{ blob: Blob; dateiname: string }> {
   const { pdf, autoTable } = await pdfLaden();
   const bw = pdf.internal.pageSize.getWidth();
   const bh = pdf.internal.pageSize.getHeight();
   const breite = bw - 2 * RAND;
   const istAngebot = beleg.typ === "angebot";
-  const typText = istAngebot ? "Angebot" : "Rechnung";
+  const storno = beleg.status === "storno";
+  const typText = istAngebot ? "Angebot" : storno ? "Stornorechnung" : "Rechnung";
   const entwurf = beleg.status === "entwurf" || !beleg.nummer;
   const rc = !!beleg.reverse_charge && !firma.kleinunternehmer;
   const klein = !!firma.kleinunternehmer;
@@ -65,8 +69,9 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt }: B
 
   const daten: [string, string][] = [
     [`${typText} Nr.`, beleg.nummer || "Entwurf"],
-    [istAngebot ? "Datum" : "Rechnungsdatum", fmtDatum(beleg.datum)],
+    [istAngebot || storno ? "Datum" : "Rechnungsdatum", fmtDatum(beleg.datum)],
   ];
+  if (storno && stornoZu) daten.push(["Storno zu", stornoZu]);
   if (istAngebot) {
     if (beleg.gueltig_bis) daten.push(["Gültig bis", fmtDatum(beleg.gueltig_bis)]);
   } else {
@@ -257,7 +262,7 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt }: B
       ? `Dieses Angebot ist gültig bis ${fmtDatum(beleg.gueltig_bis)}.`
       : `Dieses Angebot ist ${firma.angebot_gueltig_tage} Tage ab Angebotsdatum gültig.`;
     absatz(`${gueltig} ${kvHinweis(!!beleg.kv_verbindlich)}`);
-  } else if (beleg.status !== "storniert") {
+  } else if (beleg.status !== "storniert" && !storno) {
     absatz(beleg.faellig_am
       ? `Zahlbar bis ${fmtDatum(beleg.faellig_am)} ohne Abzug.${beleg.nummer ? ` Bitte geben Sie als Zahlungsreferenz ${beleg.nummer} an.` : ""}`
       : `Zahlbar innerhalb von ${firma.zahlungsziel_tage} Tagen ohne Abzug.`);

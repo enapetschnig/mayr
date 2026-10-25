@@ -133,9 +133,11 @@ export async function fertigstellen(id: string): Promise<string> {
 }
 
 /** Rechnung stornieren — Nummer bleibt, Stunden/Material/Regieberichte sind wieder frei */
-export async function stornieren(id: string): Promise<void> {
-  const { error } = await supabase.rpc("beleg_stornieren", { p_id: id });
+/** Rechnung stornieren — gibt die ID der neuen Stornorechnung zurück */
+export async function stornieren(id: string): Promise<string> {
+  const { data, error } = await supabase.rpc("beleg_stornieren", { p_id: id });
   if (error) throw fehler("Stornieren nicht möglich", error);
+  return data;
 }
 
 export async function statusSetzen(id: string, status: string, bezahltAm: string | null = null): Promise<void> {

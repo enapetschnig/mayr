@@ -31,7 +31,7 @@ import { belegStatus, TON_KLASSE, type Artikel, type Beleg, type Firma } from "@
 import { cn } from "@/lib/utils";
 import { ArtikelDialog } from "./ArtikelDialog";
 import { BelegKopf, BelegTexte } from "./BelegKopf";
-import { belegLaden, useBelegKurz, useFolgeRechnungen, useLeistungsKatalog, type BelegMitPositionen } from "./daten";
+import { belegLaden, useBelegKurz, useFolgeRechnungen, useLeistungsKatalog, useStornoZu, type BelegMitPositionen } from "./daten";
 import {
   artikelPosition, fertigHinweise, hinzufuegen, kopfAusBeleg, leerePosition, leistungPosition, leistungWeniger, mengeVon,
   ohneBetrag, ohneUstFuer, positionAusDb, preisVon, quellenIds, summen, titelMitNamen, titelPosition, zahlText,
@@ -115,7 +115,8 @@ export function BelegEditor({
   const status = beleg?.status ?? "entwurf";
   const anzeigeStatus = beleg ? belegStatus(beleg, heute) : "entwurf";
   const istAngebot = kopf.typ === "angebot";
-  const typText = istAngebot ? "Angebot" : "Rechnung";
+  const istStorno = status === "storno";
+  const typText = istAngebot ? "Angebot" : istStorno ? "Stornorechnung" : "Rechnung";
   const entwurf = status === "entwurf";
   const bearbeitbar = entwurf || (istAngebot && status === "offen" && entsperrt);
 
@@ -125,6 +126,9 @@ export function BelegEditor({
   const { data: katalog = [], isLoading: katalogLaedt } = useLeistungsKatalog();
   const { data: folge = [] } = useFolgeRechnungen(id, !neu && istAngebot);
   const { data: angebot } = useBelegKurz(istAngebot ? null : kopf.angebot_id);
+  // Storno: die Stornorechnung zeigt auf die Rechnung, die sie aufhebt
+  const stornoQuelle = useBelegKurz(beleg?.storno_von ?? null);
+  const { data: stornoBeleg } = useStornoZu(id, !neu && status === "storniert");
 
   const ohneUst = ohneUstFuer(kopf, firma);
   const s = useMemo(() => summen(positionen, kopf.ust_satz, ohneUst), [positionen, kopf.ust_satz, ohneUst]);
@@ -323,9 +327,14 @@ export function BelegEditor({
   });
   const stornoAusfuehren = () => ausfuehren("storno", async () => {
     setFrage(null);
-    await stornieren(id);
+    const rechnungNr = beleg?.nummer ?? null;
+    const stornoId = await stornieren(id);
     await neuHolen();
-    toast.success("Rechnung storniert — Stunden, Material und Regieberichte sind wieder frei.");
+    const d = await belegLaden(stornoId).catch(() => null);
+    if (d) void archivAnlegen(d, rechnungNr).catch(() => toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen."));
+    toast.success(`Stornorechnung ${d?.beleg.nummer ?? ""} angelegt — schick sie dem Kunden. Stunden, Material und Regieberichte sind wieder frei.`, {
+      action: { label: "Öffnen", onClick: () => navigate(`/belege/${stornoId}`) },
+    });
   });
 
   // ── Neue Belege aus diesem ──
@@ -382,8 +391,17 @@ export function BelegEditor({
     return p ? { nummer: p.nummer, name: p.name, strasse: p.strasse, plz: p.plz, ort: p.ort } : null;
   };
 
-  /** Fertige Rechnung ablegen — aus dem Stand in der Datenbank (Nummer und Fälligkeit setzt erst das Fertigstellen) */
-  const archivAnlegen = async (d: BelegMitPositionen) => {
+  /** Stornorechnung: Nummer der Rechnung, die sie aufhebt */
+  const stornoZuFuerPdf = async () => {
+    if (!beleg?.storno_von) return null;
+    return (stornoQuelle.data ?? (await stornoQuelle.refetch()).data)?.nummer ?? null;
+  };
+
+  /**
+   * Fertige Rechnung (oder neue Stornorechnung) ablegen — aus dem Stand in der
+   * Datenbank (Nummer und Fälligkeit setzt erst das Fertigstellen)
+   */
+  const archivAnlegen = async (d: BelegMitPositionen, stornoZu: string | null = null) => {
     if (!firma || d.beleg.typ !== "rechnung" || d.beleg.status === "entwurf") return;
     const { blob } = await belegPdfErstellen({
       beleg: d.beleg,
@@ -392,8 +410,9 @@ export function BelegEditor({
       })),
       firma,
       projekt: await projektFuerPdf(),
+      stornoZu,
     });
-    if (!(await archivieren(id, blob))) toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen.");
+    if (!(await archivieren(d.beleg.id, blob))) toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen.");
   };
 
   const pdf = () => ausfuehren("pdf", async () => {
@@ -401,7 +420,7 @@ export function BelegEditor({
     if (!entwurf && dirty) throw new Error("Bitte zuerst speichern.");
     // Fertige Rechnung: das abgelegte Original. Fehlt es (vor dem Archiv
     // fertiggestellt, Ablegen gescheitert), jetzt erzeugen und ablegen.
-    const original = !istAngebot && !!beleg?.nummer && (status === "offen" || status === "bezahlt");
+    const original = !istAngebot && !!beleg?.nummer && (status === "offen" || status === "bezahlt" || status === "storno");
     const archiv = original ? await archivLaden(id) : null;
     if (archiv) {
       const datei = { blob: new Blob([archiv], { type: "application/pdf" }), dateiname: pdfDateiname(typText, beleg?.nummer, beleg?.empf_name) };
@@ -437,6 +456,7 @@ export function BelegEditor({
       })),
       firma,
       projekt: await projektFuerPdf(),
+      stornoZu: await stornoZuFuerPdf(),
     });
     if (original) void archivieren(id, blob);
     if (pc) setVorschau({ url: URL.createObjectURL(blob), blob, dateiname });
@@ -545,7 +565,7 @@ export function BelegEditor({
         {!istAngebot && status === "storniert" && (
           <MenuePunkt icon={RotateCcw} onClick={() => kopieren(true)}>Korrektur anlegen</MenuePunkt>
         )}
-        {!neu && <MenuePunkt icon={Copy} onClick={() => kopieren(false)}>Kopieren (neuer Entwurf)</MenuePunkt>}
+        {!neu && !istStorno && <MenuePunkt icon={Copy} onClick={() => kopieren(false)}>Kopieren (neuer Entwurf)</MenuePunkt>}
         <MenuePunkt icon={Download} onClick={pdf}>{pc ? "PDF ansehen" : "PDF teilen / laden"}</MenuePunkt>
         {!istAngebot && (status === "offen" || status === "bezahlt") && (
           <>
@@ -608,6 +628,7 @@ export function BelegEditor({
     if (status === "offen") return beleg.faellig_am ? `Fällig am ${datum(beleg.faellig_am)}` : "Offen";
     if (status === "bezahlt") return beleg.bezahlt_am ? `Bezahlt am ${datum(beleg.bezahlt_am)}` : "Bezahlt";
     if (status === "storniert") return "Storniert — Stunden, Material und Regieberichte sind wieder frei. Für die neue Rechnung „Korrektur anlegen“.";
+    if (istStorno) return "Hebt die Rechnung in voller Höhe auf — schick sie dem Kunden.";
     return "";
   })();
 
@@ -630,8 +651,14 @@ export function BelegEditor({
         { text: "Bezahlt", icon: Wallet, onClick: () => setBezahltAm(heute) },
       ]
       : status === "storniert"
-        ? [{ text: "Korrektur anlegen", icon: RotateCcw, onClick: () => kopieren(true), primaer: true }, { text: "PDF", icon: FileText, onClick: pdf }]
-        : [{ text: "PDF", icon: FileText, onClick: pdf }];
+        ? [
+          { text: "Korrektur anlegen", icon: RotateCcw, onClick: () => kopieren(true), primaer: true },
+          ...(stornoBeleg ? [{ text: "Stornorechnung", icon: Receipt, onClick: () => navigate(`/belege/${stornoBeleg.id}`) }] : []),
+          { text: "PDF", icon: FileText, onClick: pdf },
+        ]
+        : istStorno
+          ? [{ text: pc ? "PDF" : "PDF teilen", icon: FileText, onClick: pdf, primaer: true }]
+          : [{ text: "PDF", icon: FileText, onClick: pdf }];
   const nebenAnzahl = statusKnoepfe.filter((k) => !k.primaer).length;
 
   const statusKarte = beleg && !entwurf && (
@@ -650,6 +677,18 @@ export function BelegEditor({
               {f.status === "storniert" && " (storniert)"}
             </span>
           ))}
+        </p>
+      )}
+      {stornoBeleg && (
+        <p className="mt-2 text-sm">
+          Aufgehoben durch{" "}
+          <Link to={`/belege/${stornoBeleg.id}`} className="font-medium text-primary hover:underline">Stornorechnung {stornoBeleg.nummer}</Link>
+        </p>
+      )}
+      {istStorno && stornoQuelle.data && (
+        <p className="mt-2 text-sm">
+          Storno zu{" "}
+          <Link to={`/belege/${stornoQuelle.data.id}`} className="font-medium text-primary hover:underline">Rechnung {stornoQuelle.data.nummer}</Link>
         </p>
       )}
       {entsperrt && (
@@ -887,8 +926,10 @@ export function BelegEditor({
           <AlertDialogHeader>
             <AlertDialogTitle>Rechnung {beleg?.nummer} stornieren?</AlertDialogTitle>
             <AlertDialogDescription>
-              Die Rechnung bleibt mit ihrer Nummer erhalten und wird als storniert markiert. Stunden, Material und
-              Regieberichte sind danach wieder frei — für die neue Rechnung „Korrektur anlegen“.
+              Es entsteht eine Stornorechnung mit eigener Nummer, die diese Rechnung in voller Höhe aufhebt — die
+              schickst du dem Kunden{status === "bezahlt" ? "; der bezahlte Betrag steht darauf als Gutschrift" : ""}. Die Rechnung selbst bleibt
+              unverändert erhalten. Stunden, Material und Regieberichte sind danach wieder frei — für die neue
+              Rechnung „Korrektur anlegen“.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">

@@ -96,6 +96,19 @@ export function useBelegKurz(id: string | null) {
   });
 }
 
+/** Die Stornorechnung zu einer stornierten Rechnung */
+export function useStornoZu(rechnungId: string, aktiv: boolean) {
+  return useQuery({
+    queryKey: ["belege", "storno", rechnungId],
+    enabled: aktiv,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("belege").select("id, typ, nummer, status").eq("storno_von", rechnungId).maybeSingle();
+      if (error) throw error;
+      return data as BelegKurz | null;
+    },
+  });
+}
+
 /** Leistungskatalog mit Material — für Preis (lib/preise.ts) und Spracherkennung */
 export function useLeistungsKatalog() {
   return useQuery({

@@ -10,6 +10,7 @@ import {
 } from "./editor";
 import { importPositionen, materialGruppen, type ImportDaten, type ImportMaterial, type ImportZeit } from "./importieren";
 import { kvHinweis } from "@/lib/belegPdf";
+import { belegSummen, runden2 } from "@/lib/preise";
 
 const FIRMA = { stundensatz: 72, material_aufschlag: 35 };
 
@@ -273,5 +274,28 @@ describe("Kostenvoranschlag verbindlich oder nicht", () => {
     expect(kvHinweis(false)).toMatch(/unverbindlicher Kostenvoranschlag \(§ 5 Abs\. 2 KSchG\)/);
     expect(kvHinweis(false)).toMatch(/beträchtliche Überschreitung/);
     expect(kvHinweis(true)).toMatch(/verbindlicher Kostenvoranschlag.*§ 1170a Abs\. 1 ABGB/);
+  });
+});
+
+describe("Runden wie die Datenbank", () => {
+  it("halber Cent weg von null, auch bei Gleitkomma-Resten", () => {
+    expect(runden2(1.5 * 0.33)).toBe(0.5); // Postgres: round(1.5 * 0.33, 2) = 0.50
+    expect(runden2(-1.5 * 0.33)).toBe(-0.5);
+    expect(runden2(2.675)).toBe(2.68);
+    expect(runden2(-0.004)).toBe(0);
+    expect(Object.is(runden2(-0.004), -0)).toBe(false);
+  });
+
+  it("eine Stornorechnung ergibt genau die negativen Summen der Rechnung", () => {
+    const rechnung = [
+      { art: "leistung", menge: 1.5, einzelpreis: 0.33 },
+      { art: "material", menge: 3.333, einzelpreis: 12.35 },
+      { art: "stunden", menge: 2.25, einzelpreis: 72 },
+      { art: "titel", menge: 1, einzelpreis: 0 },
+    ];
+    const storno = rechnung.map((p) => (p.art === "titel" ? p : { ...p, menge: -p.menge }));
+    const r = belegSummen(rechnung, 20, false);
+    const st = belegSummen(storno, 20, false);
+    expect(st).toEqual({ netto: -r.netto, ust: -r.ust, brutto: -r.brutto });
   });
 });

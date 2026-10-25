@@ -30,7 +30,7 @@ export function ProjektBelege({ projekt }: { projekt: ProjektMitKunde }) {
   const regieOffen = Number(z?.regie_offen ?? 0);
   const materialOffen = Number(z?.material_offen_ek ?? 0);
   const etwasOffen = stundenOffen > 0 || regieOffen > 0 || materialOffen > 0;
-  const rechnungen = belege.filter((b) => b.typ === "rechnung" && b.status !== "storniert");
+  const rechnungen = belege.filter((b) => b.typ === "rechnung" && b.status !== "storniert" && b.status !== "storno");
   const verrechnetSumme = rechnungen.filter((b) => b.status !== "entwurf").reduce((s, b) => s + Number(b.netto), 0);
 
   return (

@@ -100,7 +100,8 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
 
 - Position im Entwurf gelöscht → Trigger gibt die Quellen frei
 - Entwurf gelöscht → FK `on delete set null` gibt frei
-- Rechnung storniert → `beleg_stornieren(id)` gibt frei
+- Rechnung storniert → `beleg_stornieren(id)` gibt frei (und legt die
+  Stornorechnung an, siehe unten)
 - Verrechnete Stunden/Buchungen und alles aus einem unterschriebenen
   Regiebericht sind **festgeschrieben** (Trigger `buchung_schutz`): nur
   `rechnung_id` darf sich noch ändern
@@ -108,7 +109,8 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   alles, was auf dem PDF steht, auch Betreff, Texte und Fälligkeit. Danach
   ändern sich nur Status und Zahldatum (bezahlt) und die E-Mail des
   Empfängers; Projekt, Kunde und Angebot nur auf leer (wenn eines davon
-  gelöscht wird). Storniert bleibt storniert. Migration `20261025140000`.
+  gelöscht wird). Storniert bleibt storniert, eine Stornorechnung bleibt eine
+  Stornorechnung. Migrationen `20261025140000`, `20261025180000`.
 
 ### Angebote und Rechnungen (`components/belege/`)
 
@@ -132,13 +134,24 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   am Betrieb (Bank, Logo, Anschrift) oder am Projekt ändern alte Rechnungen
   nicht. Überschreiben geht nicht, löschen erst, wenn die Rechnung weg ist.
   Fehlt das Original (ältere Rechnung, Ablegen gescheitert), legt der
-  PDF-Knopf es nach. Stornierte erscheinen neu erzeugt mit Stempel.
+  PDF-Knopf es nach. Stornierte erscheinen neu erzeugt mit Stempel;
+  Stornorechnungen kommen beim Stornieren ins Archiv wie fertige Rechnungen.
 - Angebote sind Kostenvoranschläge. Bei Verbrauchern gilt einer als
   verbindlich, wenn nicht ausdrücklich anders erklärt (§ 5 Abs. 2 KSchG) —
   deshalb steht im PDF immer, was gilt (`kvHinweis`). Schalter im Kopf
   (`belege.kv_verbindlich`), ohne Wahl unverbindlich.
+- **Storno = eigener Beleg.** `beleg_stornieren` legt eine **Stornorechnung**
+  an (Status `storno`, `storno_von` = die Rechnung): nächste Nummer aus dem
+  Rechnungskreis, alle Positionen mit negativer Menge, Beträge negativ, sofort
+  festgeschrieben, PDF „Stornorechnung … Storno zu RE-…“ ohne Zahlungsteil.
+  Die stornierte Rechnung bleibt unverändert (lückenlose Nummern, Original im
+  Archiv). Beide zählen nicht zum Umsatz; in der Liste stehen sie unter
+  „Storniert“. Ein Firmenkunde braucht die Stornorechnung, um die Vorsteuer
+  zu berichtigen. Je Rechnung höchstens eine (eindeutiger Index).
 - Storno gibt Stunden, Material und Berichte frei; „Korrektur anlegen“ kopiert
   die stornierte Rechnung in einen neuen Entwurf und hängt die Quellen dort an.
+- Cent-Rundung (`runden2`) wie Postgres `round()`: halber Cent weg von null —
+  sonst wiche die Stornorechnung um einen Cent ab.
 - Ungespeichertes schützt zweierlei: Links, Zurück-Knopf und Neuladen fragen
   nach (`useVerlassenSchutz`); was das nicht abfängt — Wischgeste „zurück“
   am Handy, abgestürzter Browser, leerer Akku — sichert der Editor laufend im

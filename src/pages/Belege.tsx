@@ -83,14 +83,15 @@ export default function Belege() {
       if (typ !== "alle" && b.typ !== typ) return false;
       const status = listenStatus(b, heute, verrechnet);
       if (filter === "offen" && !(status === "offen" || status === "ueberfaellig")) return false;
-      if (filter !== "alle" && filter !== "offen" && status !== filter) return false;
+      if (filter === "storniert" && !(status === "storniert" || status === "storno")) return false;
+      if (filter !== "alle" && filter !== "offen" && filter !== "storniert" && status !== filter) return false;
       if (!woerter.length) return true;
       const text = normal([b.nummer, b.empf_name, b.betreff, b.projekte?.nummer, b.projekte?.name].filter(Boolean).join(" "));
       return woerter.every((w) => text.includes(w));
     });
   }, [belege, typ, filter, suche, heute, verrechnet]);
 
-  const summeListe = liste.filter((b) => b.status !== "storniert").reduce((s, b) => s + Number(b.brutto), 0);
+  const summeListe = liste.filter((b) => b.status !== "storniert" && b.status !== "storno").reduce((s, b) => s + Number(b.brutto), 0);
   const gefiltert = typ !== "alle" || filter !== "alle" || !!suche;
 
   const neuKnoepfe = pc ? (
@@ -229,7 +230,7 @@ export default function Belege() {
           <BelegListe belege={liste} heute={heute} pc={pc} verrechneteAngebote={verrechnet} />
           <p className="px-1 text-right text-xs text-muted-foreground">
             {liste.length} {liste.length === 1 ? "Beleg" : "Belege"} · Summe brutto <span className="zahl font-semibold text-foreground">{euro(summeListe)}</span>
-            {liste.some((b) => b.status === "storniert") && " (ohne Storno)"}
+            {liste.some((b) => b.status === "storniert" || b.status === "storno") && " (ohne Storno)"}
           </p>
         </div>
       )}
