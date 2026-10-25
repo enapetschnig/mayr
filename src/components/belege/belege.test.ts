@@ -4,11 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 import {
-  duplizieren, entfernen, fertigHinweise, freierTitelName, hinzufuegen, kopfNeu, leerePosition, leistungPosition, leistungWeniger,
+  duplizieren, entfernen, fertigHinweise, freierTitelName, hinzufuegen, kopfNeu, kopfZuDb, leerePosition, leistungPosition, leistungWeniger,
   mengeInGruppe, positionZuDb, positionsNummern, quelleJson, summen, titelPosition, verschieben, zwischensummen,
   type EditorPosition, type KatalogLeistung,
 } from "./editor";
 import { importPositionen, materialGruppen, type ImportDaten, type ImportMaterial, type ImportZeit } from "./importieren";
+import { kvHinweis } from "@/lib/belegPdf";
 
 const FIRMA = { stundensatz: 72, material_aufschlag: 35 };
 
@@ -258,5 +259,19 @@ describe("Hinweise vor dem Fertigstellen", () => {
       "Kein Leistungszeitraum — auf Rechnungen Pflicht (§ 11 UStG)",
       "Anschrift des Empfängers unvollständig",
     ]);
+  });
+});
+
+describe("Kostenvoranschlag verbindlich oder nicht", () => {
+  it("ohne Wahl unverbindlich; gespeichert wird die Wahl nur bei Angeboten", () => {
+    expect(kopfNeu("angebot", null, "2026-10-25").kv_verbindlich).toBe(false);
+    expect(kopfZuDb({ ...kopfNeu("angebot", null, "2026-10-25"), kv_verbindlich: true }).kv_verbindlich).toBe(true);
+    expect(kopfZuDb({ ...kopfNeu("rechnung", null, "2026-10-25"), kv_verbindlich: true }).kv_verbindlich).toBe(false);
+  });
+
+  it("das PDF sagt ausdrücklich, was gilt", () => {
+    expect(kvHinweis(false)).toMatch(/unverbindlicher Kostenvoranschlag \(§ 5 Abs\. 2 KSchG\)/);
+    expect(kvHinweis(false)).toMatch(/beträchtliche Überschreitung/);
+    expect(kvHinweis(true)).toMatch(/verbindlicher Kostenvoranschlag.*§ 1170a Abs\. 1 ABGB/);
   });
 });

@@ -474,6 +474,8 @@ export type Kopf = {
   schlusstext: string;
   ust_satz: number;
   reverse_charge: boolean;
+  /** nur Angebote: Kostenvoranschlag mit Gewähr (§ 1170a Abs. 1 ABGB) */
+  kv_verbindlich: boolean;
 };
 
 export function kopfNeu(typ: BelegTyp, firma: Firma | null | undefined, heute: string): Kopf {
@@ -499,6 +501,7 @@ export function kopfNeu(typ: BelegTyp, firma: Firma | null | undefined, heute: s
     schlusstext: (typ === "angebot" ? firma?.angebot_schluss : firma?.rechnung_schluss) ?? "",
     ust_satz: 20,
     reverse_charge: false,
+    kv_verbindlich: false,
   };
 }
 
@@ -525,6 +528,7 @@ export function kopfAusBeleg(b: Beleg): Kopf {
     schlusstext: b.schlusstext ?? "",
     ust_satz: Number(b.ust_satz ?? 20),
     reverse_charge: !!b.reverse_charge,
+    kv_verbindlich: !!b.kv_verbindlich,
   };
 }
 
@@ -554,6 +558,7 @@ export function kopfZuDb(k: Kopf) {
     schlusstext: oderNull(k.schlusstext),
     ust_satz: k.ust_satz,
     reverse_charge: k.reverse_charge,
+    kv_verbindlich: k.typ === "angebot" && k.kv_verbindlich,
   };
 }
 

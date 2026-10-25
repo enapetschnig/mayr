@@ -356,6 +356,7 @@ export function BelegEditor({
         schlusstext: kopf.schlusstext.trim() || null,
         ust_satz: kopf.ust_satz,
         reverse_charge: kopf.reverse_charge,
+        kv_verbindlich: kopf.kv_verbindlich,
         empf_name: kopf.empf_name.trim() || null,
         empf_zusatz: kopf.empf_zusatz.trim() || null,
         empf_strasse: kopf.empf_strasse.trim() || null,

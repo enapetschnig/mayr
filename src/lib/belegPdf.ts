@@ -12,6 +12,8 @@ import type { Beleg, Firma } from "@/lib/types";
  * Datenblock, Positionen mit Räumen (Titel fett, Zwischensumme), Langtext
  * klein unter der Bezeichnung, Summen, Reverse-Charge-/Kleinunternehmer-
  * Hinweis, Zahlungsziel mit Bezahl-QR, Fußzeile. Entwürfe tragen „ENTWURF“.
+ * Angebote sagen immer, ob der Kostenvoranschlag verbindlich ist — bei
+ * Verbrauchern gilt er sonst als verbindlich (§ 5 Abs. 2 KSchG).
  */
 
 export type PdfPosition = {
@@ -27,7 +29,7 @@ export type BelegPdfDaten = {
   beleg: Pick<
     Beleg,
     | "typ" | "nummer" | "status" | "datum" | "leistung_von" | "leistung_bis" | "gueltig_bis" | "faellig_am"
-    | "betreff" | "einleitung" | "schlusstext" | "ust_satz" | "reverse_charge"
+    | "betreff" | "einleitung" | "schlusstext" | "ust_satz" | "reverse_charge" | "kv_verbindlich"
     | "empf_name" | "empf_zusatz" | "empf_strasse" | "empf_plz" | "empf_ort" | "empf_uid"
   >;
   positionen: PdfPosition[];
@@ -251,9 +253,10 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt }: B
   };
 
   if (istAngebot) {
-    absatz(beleg.gueltig_bis
+    const gueltig = beleg.gueltig_bis
       ? `Dieses Angebot ist gültig bis ${fmtDatum(beleg.gueltig_bis)}.`
-      : `Dieses Angebot ist ${firma.angebot_gueltig_tage} Tage ab Angebotsdatum gültig.`);
+      : `Dieses Angebot ist ${firma.angebot_gueltig_tage} Tage ab Angebotsdatum gültig.`;
+    absatz(`${gueltig} ${kvHinweis(!!beleg.kv_verbindlich)}`);
   } else if (beleg.status !== "storniert") {
     absatz(beleg.faellig_am
       ? `Zahlbar bis ${fmtDatum(beleg.faellig_am)} ohne Abzug.${beleg.nummer ? ` Bitte geben Sie als Zahlungsreferenz ${beleg.nummer} an.` : ""}`
@@ -319,6 +322,13 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt }: B
   // Titel fürs Dokument — sonst zeigt die PDF-Ansicht des Browsers eine Blob-Nummer
   pdf.setProperties({ title: dateiname.replace(/\.pdf$/, ""), author: firma.name, creator: firma.name });
   return { blob: pdf.output("blob"), dateiname };
+}
+
+/** Satz unter dem Angebot: verbindlich oder nicht — ausdrücklich, sonst gilt § 5 Abs. 2 KSchG */
+export function kvHinweis(verbindlich: boolean): string {
+  return verbindlich
+    ? "Es ist ein verbindlicher Kostenvoranschlag: Für seine Richtigkeit leisten wir Gewähr (§ 1170a Abs. 1 ABGB)."
+    : "Es ist ein unverbindlicher Kostenvoranschlag (§ 5 Abs. 2 KSchG). Zeichnet sich eine beträchtliche Überschreitung ab, informieren wir Sie vorher (§ 1170a Abs. 2 ABGB).";
 }
 
 type Zeile = { zeile: RowInput; titel?: boolean; lang?: { kurz: string; lang: string } };

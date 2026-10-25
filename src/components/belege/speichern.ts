@@ -239,6 +239,7 @@ export async function belegKopieren({
     schlusstext: gleicherTyp ? quelle.schlusstext : (typ === "angebot" ? firma?.angebot_schluss : firma?.rechnung_schluss) ?? null,
     ust_satz: quelle.ust_satz,
     reverse_charge: quelle.reverse_charge,
+    kv_verbindlich: typ === "angebot" && quelle.kv_verbindlich,
     netto: s.netto,
     ust: s.ust,
     brutto: s.brutto,

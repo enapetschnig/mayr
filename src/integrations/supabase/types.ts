@@ -208,6 +208,7 @@ export type Database = {
           gueltig_bis: string | null
           id: string
           kunde_id: string | null
+          kv_verbindlich: boolean
           leistung_bis: string | null
           leistung_von: string | null
           netto: number
@@ -242,6 +243,7 @@ export type Database = {
           gueltig_bis?: string | null
           id?: string
           kunde_id?: string | null
+          kv_verbindlich?: boolean
           leistung_bis?: string | null
           leistung_von?: string | null
           netto?: number
@@ -276,6 +278,7 @@ export type Database = {
           gueltig_bis?: string | null
           id?: string
           kunde_id?: string | null
+          kv_verbindlich?: boolean
           leistung_bis?: string | null
           leistung_von?: string | null
           netto?: number

@@ -126,6 +126,10 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   bei Reverse Charge, Anschrift unvollständig, Positionen ohne Betrag.
 - PDF (`lib/belegPdf.ts`): offene Rechnungen mit Bankverbindung und
   Bezahl-QR (EPC); am Handy teilen, sonst herunterladen.
+- Angebote sind Kostenvoranschläge. Bei Verbrauchern gilt einer als
+  verbindlich, wenn nicht ausdrücklich anders erklärt (§ 5 Abs. 2 KSchG) —
+  deshalb steht im PDF immer, was gilt (`kvHinweis`). Schalter im Kopf
+  (`belege.kv_verbindlich`), ohne Wahl unverbindlich.
 - Storno gibt Stunden, Material und Berichte frei; „Korrektur anlegen“ kopiert
   die stornierte Rechnung in einen neuen Entwurf und hängt die Quellen dort an.
 - Bekannte Grenzen: die Wischgeste „zurück“ am Handy fragt bei ungespeicherten

@@ -70,6 +70,7 @@ export function BelegKopf({
           )}
           {!angebot && kopf.faellig_am && <><dt className="text-muted-foreground">Fällig am</dt><dd className="zahl">{datum(kopf.faellig_am)}</dd></>}
           {angebot && kopf.gueltig_bis && <><dt className="text-muted-foreground">Gültig bis</dt><dd className="zahl">{datum(kopf.gueltig_bis)}</dd></>}
+          {angebot && <><dt className="text-muted-foreground">Kosten&shy;voranschlag</dt><dd>{kopf.kv_verbindlich ? "verbindlich" : "unverbindlich"}</dd></>}
           {projekt && (
             <>
               <dt className="text-muted-foreground">Projekt</dt>
@@ -211,6 +212,20 @@ export function BelegKopf({
             </>
           )}
       </div>
+
+      {angebot && (
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="k-kv" className="cursor-pointer">
+            <span className="block font-medium">Verbindlicher Kostenvoranschlag</span>
+            <span className="block text-xs font-normal text-muted-foreground">
+              {kopf.kv_verbindlich
+                ? "Preise mit Gewähr — keine Nachforderung, auch wenn es mehr wird (§ 1170a Abs. 1 ABGB)."
+                : "Aus = unverbindlich: Wird es beträchtlich mehr, vorher Bescheid geben (§ 1170a Abs. 2 ABGB). Steht so im PDF."}
+            </span>
+          </Label>
+          <Switch id="k-kv" checked={kopf.kv_verbindlich} onCheckedChange={(v) => aendern({ kv_verbindlich: v })} />
+        </div>
+      )}
 
       {klein ? (
         <p className="flex items-start gap-2 text-sm text-muted-foreground">
