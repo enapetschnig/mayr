@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  HAEPPCHEN, dateiText, datanormDateiart, datanormDateienLesen, datanormLesen, datanormLesenMehrere, einheitNorm,
+  HAEPPCHEN, PROBLEME_MAX, dateiText, datanormDateiart, datanormDateienLesen, datanormLesen, datanormLesenMehrere, einheitNorm,
   istDatanorm, kurztextVerbinden, versionAusVorlauf, zeichensatzErkennen, zeichensatzErkennenStueckweise,
   zeilenStueckweise,
 } from "./datanorm";
@@ -42,11 +42,20 @@ describe("Zeichensätze", () => {
     const zeile1 = "A;N;1;" + "x".repeat(HAEPPCHEN - 8) + "ü;Ende";
     const text = `${zeile1}\r\nA;N;2;Zweite\r\n\r\nA;N;3;Dritte`;
     const zeilen: string[] = [];
+    const nummern: number[] = [];
     const anteile: number[] = [];
-    await zeilenStueckweise(new TextEncoder().encode(text), "utf-8", (z) => zeilen.push(z), (a) => anteile.push(a));
+    await zeilenStueckweise(new TextEncoder().encode(text), "utf-8", (z, nr) => { zeilen.push(z); nummern.push(nr); }, (a) => anteile.push(a));
     expect(zeilen).toEqual([zeile1, "A;N;2;Zweite", "A;N;3;Dritte"]);
+    // Leerzeilen zählen mit — so steht es auch im Editor
+    expect(nummern).toEqual([1, 2, 4]);
     expect(anteile.length).toBe(2);
     expect(anteile.at(-1)).toBe(1);
+  });
+  it("„\\r\\n“ genau auf der Häppchengrenze ergibt keine Leerzeile zu viel", async () => {
+    const zeile1 = "A;N;1;" + "x".repeat(HAEPPCHEN - 7); // „\r“ ist das letzte Byte des ersten Häppchens
+    const nummern: number[] = [];
+    await zeilenStueckweise(new TextEncoder().encode(`${zeile1}\r\nA;N;2;Zweite\r\nA;N;3;Dritte\r\n`), "utf-8", (_, nr) => nummern.push(nr));
+    expect(nummern).toEqual([1, 2, 3]);
   });
 });
 
@@ -61,6 +70,15 @@ describe("Erkennen", () => {
     // CSV mit Kopfzeile ist keine Datanorm-Datei, auch wenn sie mit „A“ beginnt
     expect(istDatanorm("Artikelnummer;Bezeichnung;EK\n123;Steckdose;2,50")).toBe(false);
     expect(istDatanorm("")).toBe(false);
+  });
+  it("eine fremde Zeile macht aus Datanorm keine CSV-Liste", () => {
+    const a = (nr: number) => `A;N;${nr};ZZ Abzweigdose ${nr};;st;1;1;250;R1;001;002`;
+    expect(datanormDateiart(["V;050;A;20260209;EUR;Test;;;ZZ Elektro;", a(1), "das ist keine Datanorm-Zeile", a(2)].join("\r\n"))).toBe("artikel");
+    // mit Vorlauf reicht die Hälfte, ohne Vorlauf müssen es vier von fünf sein
+    expect(datanormDateiart(["V;050;A;20260209;EUR;", a(1), "Müll", "Müll", a(2)].join("\n"))).toBe("artikel");
+    expect(datanormDateiart([a(1), a(2), a(3), a(4), "Müll"].join("\n"))).toBe("artikel");
+    expect(datanormDateiart([a(1), a(2), a(3), "Müll", "Müll"].join("\n"))).toBeNull();
+    expect(datanormDateiart(["V;050;A;20260209;EUR;", "Müll", "Müll", "Müll", a(1)].join("\n"))).toBeNull();
   });
   it("Kurztexte: am Feldende getrennte Wörter zusammensetzen", () => {
     expect(kurztextVerbinden("NYM-J 3x1,5 mm2 Mantelleitung grau Ring 1", "00 m")).toBe("NYM-J 3x1,5 mm2 Mantelleitung grau Ring 1 00 m");
@@ -175,6 +193,8 @@ describe("DATANORM 5", () => {
     expect(e.artikel.find((x) => x.artikelnummer === "300")).toMatchObject({ listenpreis: null, netto: 4.12 });
     expect(e.artikel.find((x) => x.artikelnummer === "400")).toMatchObject({ listenpreis: null, netto: null });
     expect(e.ohnePreis).toBe(1);
+    // Preis 0, gelöschter Artikel und E-Satz sind keine Probleme
+    expect(e.problemeGesamt).toBe(0);
   });
 
   it("Preisdatei (Netto, Rabatt), Warengruppen- und Rabattgruppen-Datei in beliebiger Reihenfolge", () => {
@@ -189,6 +209,41 @@ describe("DATANORM 5", () => {
       { code: "490", name: "Schalterprogramme", rabatt: 40 },
     ]);
     expect(e.dateien.map((d) => d.art)).toEqual(["rabatt", "preise", "artikel", "warengruppen"]);
+  });
+
+  it("Problemzeilen mit Zeilennummer: fremd, ohne Bezeichnung, Preis keine Zahl, ohne Artikelnummer", async () => {
+    const text = [
+      "V;050;A;20260209;EUR;Test;;;ZZ Elektro;",
+      "A;N;1;ZZ Abzweigdose;;st;1;1;250;R1;001;002",
+      "das ist keine Datanorm-Zeile",
+      "A;N;2;ZZ Dübel;;st;1;1;10;R1;001;002",
+      "",
+      "A;N;3;;;st;1;1;100;R1;;",
+      "A;N;4;ZZ Schalter;;st;1;1;12,3x;R1;;",
+      "A;N",
+    ].join("\r\n");
+    const erwartet = [
+      [3, "keine Datanorm-Zeile"],
+      [6, "Artikel 3 ohne Bezeichnung — nicht übernommen"],
+      [7, "Preis „12,3x“ ist keine Zahl"],
+      [8, "Artikel ohne Artikelnummer"],
+    ];
+    const e = datanormLesenMehrere([{ name: "ARTIKEL.001", text }]);
+    expect(e.artikel.map((a) => a.artikelnummer)).toEqual(["1", "2", "4"]);
+    expect(e.artikel.find((a) => a.artikelnummer === "4")).toMatchObject({ listenpreis: null, netto: null });
+    expect(e.problemeGesamt).toBe(4);
+    expect(e.probleme.map((p) => [p.zeile, p.grund])).toEqual(erwartet);
+    expect(e.probleme[0]).toEqual({ datei: "ARTIKEL.001", zeile: 3, grund: "keine Datanorm-Zeile", text: "das ist keine Datanorm-Zeile" });
+    // im Browser (Bytes, häppchenweise) dieselben Nummern
+    const b = await datanormDateienLesen([{ name: "ARTIKEL.001", daten: new TextEncoder().encode(text) }]);
+    expect(b.probleme.map((p) => [p.zeile, p.grund])).toEqual(erwartet);
+  });
+
+  it("Problemliste hat höchstens 200 Einträge, gezählt werden alle", () => {
+    const e = datanormLesenMehrere([{ text: ["V;050;A;20260209;EUR;", ...Array.from({ length: 250 }, () => "Müll")].join("\n") }]);
+    expect(e.problemeGesamt).toBe(250);
+    expect(e.probleme).toHaveLength(PROBLEME_MAX);
+    expect(e.probleme.at(-1)!.zeile).toBe(201);
   });
 
   it("große Dateien: Bytes in Häppchen, Zeichensatz je Datei, Fortschritt bis 1", async () => {
