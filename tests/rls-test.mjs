@@ -156,6 +156,10 @@ ok(!eR, "Chef legt einen Rechnungsentwurf an" + (eR ? abgelehnt(eR) : ""));
   ok(!!e2, "Positionen der fertigen Rechnung sind fest" + abgelehnt(e2));
   const { error: e3 } = await chef.from("belege").update({ netto: 1 }).eq("id", re.id);
   ok(!!e3, "Beträge der fertigen Rechnung sind fest" + abgelehnt(e3));
+  const { error: eText } = await chef.from("belege").update({ betreff: "nachträglich" }).eq("id", re.id);
+  ok(!!eText, "Texte der fertigen Rechnung sind fest" + abgelehnt(eText));
+  const { error: eFaellig } = await chef.from("belege").update({ faellig_am: "2099-12-31" }).eq("id", re.id);
+  ok(!!eFaellig, "Fälligkeit der fertigen Rechnung ist fest" + abgelehnt(eFaellig));
   const { data: weg } = await chef.from("belege").delete().eq("id", re.id).select();
   ok(!weg?.length, "fertige Rechnung kann nicht gelöscht werden");
   const { error: e4 } = await chef.from("belege").update({ status: "bezahlt", bezahlt_am: new Date().toISOString().slice(0, 10) }).eq("id", re.id);
@@ -163,6 +167,8 @@ ok(!eR, "Chef legt einen Rechnungsentwurf an" + (eR ? abgelehnt(eR) : ""));
   const { error: e5 } = await chef.rpc("beleg_stornieren", { p_id: re.id });
   const { data: frei } = await chef.from("zeiten").select("rechnung_id").eq("id", zMonteur.id).single();
   ok(!e5 && frei?.rechnung_id === null, "Storno gibt die Stunde wieder frei" + (e5 ? abgelehnt(e5) : ""));
+  const { error: e6 } = await chef.from("belege").update({ status: "offen" }).eq("id", re.id);
+  ok(!!e6, "stornierte Rechnung bleibt storniert" + abgelehnt(e6));
 }
 
 console.log("\n— Regiebericht —");

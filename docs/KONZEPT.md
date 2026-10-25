@@ -88,7 +88,34 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
 - Verrechnete Stunden/Buchungen und alles aus einem unterschriebenen
   Regiebericht sind **festgeschrieben** (Trigger `buchung_schutz`): nur
   `rechnung_id` darf sich noch ändern
-- Fertige Rechnungen sind festgeschrieben (`beleg_schutz`, `positionen_schutz`)
+- Fertige Rechnungen sind festgeschrieben (`beleg_schutz`, `positionen_schutz`) —
+  alles, was auf dem PDF steht, auch Betreff, Texte und Fälligkeit. Danach
+  ändern sich nur Status und Zahldatum (bezahlt) und die E-Mail des
+  Empfängers; Projekt, Kunde und Angebot nur auf leer (wenn eines davon
+  gelöscht wird). Storniert bleibt storniert. Migration `20261025140000`.
+
+### Angebote und Rechnungen (`components/belege/`)
+
+- Ein Editor für beide (`BelegEditor`): Titel als Räume/Abschnitte, Positionen
+  aus Leistungskatalog, Artikelstamm, frei oder diktiert (`lib/sprachParser.ts`).
+- „Aus dem Projekt übernehmen“ (`ImportDialog`, `importieren.ts`): angenommenes
+  Angebot, unterschriebene Regieberichte (je Bericht ein Titel mit Stunden und
+  Material samt Zwischensumme), Stunden und Material ohne Bericht. Nicht
+  unterschriebene Berichte zeigt er als Hinweis, übernimmt sie aber nicht.
+  Schon das **Speichern des Entwurfs** setzt `rechnung_id` an den Quellen —
+  so kann niemand dieselbe Stunde ein zweites Mal verrechnen.
+- Fertigstellen (`beleg_fertigstellen`) vergibt die Nummer und rechnet die
+  Summen. Vorher warnt der Editor (blockiert nicht): kein Leistungszeitraum,
+  eigene UID fehlt (ab 400 € brutto), Empfänger-UID ab 10.000 € brutto und
+  bei Reverse Charge, Anschrift unvollständig, Positionen ohne Betrag.
+- PDF (`lib/belegPdf.ts`): offene Rechnungen mit Bankverbindung und
+  Bezahl-QR (EPC); am Handy teilen, sonst herunterladen.
+- Storno gibt Stunden, Material und Berichte frei; „Korrektur anlegen“ kopiert
+  die stornierte Rechnung in einen neuen Entwurf und hängt die Quellen dort an.
+- Bekannte Grenzen: die Wischgeste „zurück“ am Handy fragt bei ungespeicherten
+  Änderungen nicht nach (Zurück-Knopf und Neuladen schon); eine einzeln
+  gelöschte Materialzeile eines übernommenen Berichts kommt nur über einen
+  neuen Import zurück.
 
 ### Regiebericht = keine doppelte Erfassung
 

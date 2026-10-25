@@ -265,7 +265,9 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt }: B
   if (!istAngebot && firma.iban && (beleg.status === "offen" || beleg.status === "entwurf")) {
     const betrag = rc || klein ? s.netto : s.brutto;
     const qr = beleg.status === "offen" ? await zahlungsQr(firma, betrag, beleg.nummer || "") : null;
-    y = platzPruefen(pdf, y, qr ? 30 : 12);
+    // so viel braucht der Block unter y wirklich: QR samt Beschriftung bis
+    // y + 25,5, ohne QR zwei Zeilen — mehr schiebt ihn grundlos auf eine neue Seite
+    y = platzPruefen(pdf, y, qr ? 26 : 8);
     y += 2;
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(9);

@@ -117,7 +117,8 @@ export function BelegEditor({
   const entwurf = status === "entwurf";
   const bearbeitbar = entwurf || (istAngebot && status === "offen" && entsperrt);
 
-  const { data: projekt } = useProjekt(kopf.projekt_id ?? undefined);
+  const projektAbfrage = useProjekt(kopf.projekt_id ?? undefined);
+  const projekt = projektAbfrage.data;
   const stundensatz = stundensatzFuer(projekt, firma);
   const { data: katalog = [], isLoading: katalogLaedt } = useLeistungsKatalog();
   const { data: folge = [] } = useFolgeRechnungen(id, !neu && istAngebot);
@@ -338,6 +339,8 @@ export function BelegEditor({
   const pdf = () => ausfuehren("pdf", async () => {
     if (!firma) throw new Error("Firmendaten fehlen — bitte in den Einstellungen eintragen.");
     if (!entwurf && dirty) throw new Error("Bitte zuerst speichern.");
+    // Gleich nach dem Öffnen kann das Projekt noch laden — sonst fehlt es im PDF
+    const p = kopf.projekt_id ? projekt ?? (await projektAbfrage.refetch()).data ?? null : null;
     const { blob, dateiname } = await belegPdfErstellen({
       beleg: {
         typ: kopf.typ,
@@ -364,7 +367,7 @@ export function BelegEditor({
         art: p.art, bezeichnung: p.bezeichnung, langtext: p.langtext, menge: mengeVon(p), einheit: p.einheit, einzelpreis: preisVon(p),
       })),
       firma,
-      projekt: projekt ? { nummer: projekt.nummer, name: projekt.name, strasse: projekt.strasse, plz: projekt.plz, ort: projekt.ort } : null,
+      projekt: p ? { nummer: p.nummer, name: p.name, strasse: p.strasse, plz: p.plz, ort: p.ort } : null,
     });
     if (pc) setVorschau({ url: URL.createObjectURL(blob), blob, dateiname });
     else await pdfTeilenOderLaden(blob, dateiname);
