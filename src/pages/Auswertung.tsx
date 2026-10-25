@@ -66,7 +66,7 @@ export default function Auswertung() {
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {([["ueberblick", "Überblick"], ["nachkalkulation", "Nachkalkulation"]] as [Ansicht, string][]).map(([wert, text]) => (
           <button key={wert} type="button" onClick={() => setzen(wert, zeitraum)} aria-pressed={ansicht === wert}
-            className={cn("flex h-10 shrink-0 items-center rounded-full border px-3.5 text-sm font-medium transition-colors",
+            className={cn("flex h-11 shrink-0 items-center rounded-full border px-3.5 text-sm font-medium transition-colors",
               ansicht === wert ? "border-primary bg-primary-soft text-primary" : "bg-card text-muted-foreground hover:bg-muted")}>
             {text}
           </button>

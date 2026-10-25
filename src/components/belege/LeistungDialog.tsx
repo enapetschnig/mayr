@@ -139,7 +139,7 @@ function RaumChip({ aktiv, onClick, children }: { aktiv: boolean; onClick: () =>
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-10 shrink-0 items-center rounded-full border px-3.5 text-sm font-medium transition-colors",
+        "inline-flex h-11 shrink-0 items-center rounded-full border px-3.5 text-sm font-medium transition-colors",
         aktiv ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:border-primary/60",
       )}
     >

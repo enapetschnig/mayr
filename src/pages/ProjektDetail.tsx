@@ -150,7 +150,7 @@ export default function ProjektDetail() {
       aktionen={
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Projekt-Menü"><MoreVertical className="h-5 w-5" /></Button>
+            <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Projekt-Menü"><MoreVertical className="h-5 w-5" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={() => setDialog("bearbeiten")}><Pencil className="mr-2 h-4 w-4" /> Bearbeiten</DropdownMenuItem>

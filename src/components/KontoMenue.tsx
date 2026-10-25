@@ -29,7 +29,7 @@ export function KontoMenue() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" aria-label="Konto-Menü">
+          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" aria-label="Konto-Menü">
             <Avatar profil={profil} className="h-9 w-9 text-sm" />
           </Button>
         </DropdownMenuTrigger>

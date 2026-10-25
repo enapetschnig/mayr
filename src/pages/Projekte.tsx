@@ -72,7 +72,7 @@ export default function Projekte() {
           if (f.wert === "offen" && n === 0 && filter !== "offen") return null;
           return (
             <button key={f.wert} type="button" onClick={() => filterSetzen(f.wert)} aria-pressed={filter === f.wert}
-              className={cn("flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors",
+              className={cn("flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors",
                 filter === f.wert ? "border-primary bg-primary-soft text-primary" : "bg-card text-muted-foreground hover:bg-muted")}>
               {f.text} <span className="zahl text-xs opacity-70">{n}</span>
             </button>

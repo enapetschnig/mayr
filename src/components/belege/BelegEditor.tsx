@@ -628,7 +628,7 @@ export function BelegEditor({
   const menue = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-10 w-10" aria-label="Weitere Aktionen" disabled={!!laeuft}>
+        <Button variant="ghost" size="icon" className="h-11 w-11" aria-label="Weitere Aktionen" disabled={!!laeuft}>
           <MoreVertical className="h-5 w-5" />
         </Button>
       </DropdownMenuTrigger>
@@ -688,7 +688,7 @@ export function BelegEditor({
     </>
   ) : (
     <>
-      <Button variant="ghost" size="icon" className="h-10 w-10" onClick={pdf} disabled={!!laeuft} aria-label="PDF">
+      <Button variant="ghost" size="icon" className="h-11 w-11" onClick={pdf} disabled={!!laeuft} aria-label="PDF">
         <FileText className="h-5 w-5" />
       </Button>
       {menue}

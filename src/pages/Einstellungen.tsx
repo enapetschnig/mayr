@@ -50,7 +50,7 @@ export default function Einstellungen() {
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {erlaubt.map(({ wert, text, icon: I }) => (
           <button key={wert} type="button" onClick={() => setParams({ bereich: wert }, { replace: true })} aria-pressed={bereich === wert}
-            className={cn("flex h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
+            className={cn("flex h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
               bereich === wert ? "border-primary bg-primary-soft text-primary" : "bg-card text-muted-foreground hover:bg-muted")}>
             <I className="h-4 w-4" /> {text}
           </button>
