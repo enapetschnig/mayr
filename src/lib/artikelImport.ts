@@ -5,6 +5,7 @@
  * Speicherfunktion von außen, damit er ohne Datenbank testbar bleibt.
  */
 import type { TablesInsert } from "@/integrations/supabase/types";
+import { normalisieren } from "@/lib/strichcode";
 
 /** Ein Artikel aus einer Importdatei, Preise schon je 1 Einheit. */
 export interface ImportArtikel {
@@ -86,7 +87,8 @@ export function artikelZeilen(
     }
     const werte: Record<(typeof WAHLFELDER)[number], string | number | null> = {
       langtext: a.langtext?.trim() || null,
-      ean: a.ean?.trim() || null,
+      // in der Schreibweise, die der Scanner sucht (GTIN-14 „04012…“ → EAN-13)
+      ean: a.ean?.trim() ? normalisieren(a.ean) : null,
       hersteller: a.hersteller?.trim() || null,
       hersteller_nr: a.hersteller_nr?.trim() || null,
       warengruppe: a.warengruppe?.trim() || null,

@@ -34,6 +34,38 @@ describe("Dateien erkennen", () => {
     await expect(nurPreise).rejects.toBeInstanceOf(ImportFehler);
     await expect(nurPreise).rejects.toThrow(/Artikeldatei/);
   });
+
+  it("Bild, PDF, Unicode-Text und Binärdatei: ein Satz statt „CSV-Liste 0 Artikel“", async () => {
+    const jpg = [0xff, 0xd8, 0xff, 0xe0, ...Array.from({ length: 200 }, (_, i) => i % 256)];
+    expect(dateiArt(datei("foto.jpg", jpg))).toBe("bild");
+    expect(dateiArt(datei("x.png", [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe("bild");
+    expect(dateiArt(datei("IMG_1.HEIC", [0, 0, 0, 0x18, ...[..."ftypheic"].map((c) => c.charCodeAt(0))]))).toBe("bild");
+    expect(dateiArt(datei("liste.pdf", "%PDF-1.7\n…"))).toBe("pdf");
+    expect(dateiArt(datei("liste.txt", [0xff, 0xfe, 0x41, 0x00, 0x3b, 0x00]))).toBe("unicode");
+    expect(dateiArt(datei("daten.bin", Array.from({ length: 300 }, (_, i) => i % 32)))).toBe("binaer");
+    // DOS-Dateiende und Seitenvorschub sind keine Binärdaten
+    expect(dateiArt(datei("ARTIKEL.001", `${DN4_ARTIKEL}\r\n\f\x1a`))).toBe("datanorm");
+    await expect(importLesen([datei("foto.jpg", jpg)])).rejects.toThrow(/ist ein Bild, keine Artikelliste/);
+    await expect(importLesen([datei("liste.pdf", "%PDF-1.7\n…")])).rejects.toThrow(/PDF/);
+    await expect(importLesen([datei("liste.txt", [0xff, 0xfe, 0x41, 0x00])])).rejects.toThrow(/CSV UTF-8/);
+    // neben Datanorm-Dateien wird ein Bild übergangen
+    const g = await importLesen([datei("ARTIKEL.001", DN4_ARTIKEL), datei("logo.png", [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]);
+    expect(g.art === "datanorm" && g.uebergangen).toEqual(["logo.png"]);
+  });
+
+  it("Datanorm mit einer kaputten Zeile: gelesen, die Zeile steht mit Nummer in den Problemen", async () => {
+    const text = [
+      "V;050;A;20261025;EUR;ZZ Testdaten;;;ZZ Testgroßhandel;",
+      "A;N;ZZ-1;ZZ Kabelschelle;für Rohr 20 mm;PCE;1;100;4500;R1;ZZ;ZZ1;;;;;;;",
+      "das ist keine Datanorm-Zeile",
+      "A;N;ZZ-2;ZZ Mantelleitung NYM-J 5x2,5;Ring 50 m;MTR;1;1000;189000;R2;ZZ;ZZ2;;;;;;;",
+    ].join("\r\n");
+    expect(dateiArt(datei("ZZ_kaputt.001", text))).toBe("datanorm");
+    const g = await importLesen([datei("ZZ_kaputt.001", text)]);
+    if (g.art !== "datanorm") throw new Error("Datanorm erwartet");
+    expect(g.artikel.map((a) => a.artikelnummer)).toEqual(["ZZ-1", "ZZ-2"]);
+    expect(g.ergebnis.probleme).toEqual([{ datei: "ZZ_kaputt.001", zeile: 3, grund: "keine Datanorm-Zeile", text: "das ist keine Datanorm-Zeile" }]);
+  });
 });
 
 describe("Datanorm lesen", () => {

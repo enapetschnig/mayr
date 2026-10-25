@@ -20,7 +20,7 @@ import {
   CSV_FELDER, TRENNZEICHEN_TEXT, csvArtikelStueckweise, dezimalLesen, spaltenZuordnen,
   type CsvAuswertung, type CsvFeld, type Trennzeichen, type Zuordnung,
 } from "@/lib/csvImport";
-import { ZEICHENSATZ_TEXT, pause, type Zeichensatz } from "@/lib/datanorm";
+import { ZEICHENSATZ_TEXT, pause, type DatanormProblem, type Zeichensatz } from "@/lib/datanorm";
 import { zahl } from "@/lib/format";
 import { TON_KLASSE } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -83,7 +83,17 @@ interface Bericht extends UploadErgebnis {
   ohnePreis: number;
   preiseOhneArtikel: number;
   angehalten: boolean;
+  probleme: DatanormProblem[];
+  problemeGesamt: number;
+  mehrereDateien: boolean;
+  eanDoppelt: EanDoppelt;
 }
+
+/** Importierte Artikel, deren EAN schon ein anderer Artikel hat — mit ein paar Beispielen */
+type EanDoppelt = { anzahl: number; beispiele: string[] };
+
+/** „1 Artikel ist“ / „3 Artikel sind“ — Einzahl und Mehrzahl in einem Satz */
+const anzahl = (n: number, einzahl: string, mehrzahl: string) => `${zahl(n)} ${n === 1 ? einzahl : mehrzahl}`;
 
 /**
  * Artikel aus Datanorm (4/5, auch mehrere Dateien eines Lieferanten) oder
@@ -294,11 +304,37 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const csvPflichtFehlt = gelesen?.art === "csv" && (zuordnung.artikelnummer === undefined || zuordnung.bezeichnung === undefined);
 
   // ── Importieren ──────────────────────────────────────────────────────
+  const eanDoppelt = useRef<EanDoppelt>({ anzahl: 0, beispiele: [] });
+
+  /**
+   * Hat schon ein anderer (aktiver) Artikel dieselbe EAN? Nur ein Hinweis: zwei
+   * Lieferanten führen oft dieselbe Ware, beim Scannen kommt fest der
+   * Lagerartikel, sonst der ältere. Fehler hier halten den Import nicht auf.
+   */
+  const eanPruefen = async (paket: ArtikelZeile[]) => {
+    const mitEan = paket.filter((z) => z.ean);
+    for (let i = 0; i < mitEan.length; i += 250) {
+      const teil = mitEan.slice(i, i + 250);
+      const { data, error } = await supabase.from("artikel").select("bezeichnung, lieferant, artikelnummer, ean")
+        .in("ean", [...new Set(teil.map((z) => z.ean!))]).eq("aktiv", true);
+      if (error) return;
+      for (const z of teil) {
+        const andere = (data ?? []).find((a) => a.ean === z.ean && !(a.lieferant === z.lieferant && a.artikelnummer === z.artikelnummer));
+        if (!andere) continue;
+        eanDoppelt.current.anzahl++;
+        if (eanDoppelt.current.beispiele.length < 3) {
+          eanDoppelt.current.beispiele.push(`${z.ean}: „${z.bezeichnung}“ und „${andere.bezeichnung}“ (${andere.lieferant})`);
+        }
+      }
+    }
+  };
+
   const speichernPaket = async (paket: ArtikelZeile[]) => {
     const { data, error } = await supabase.from("artikel")
       .upsert(paket, { onConflict: "lieferant,artikelnummer" })
       .select("created_at, updated_at");
     if (error) throw new Error(fehlerText(error));
+    await eanPruefen(paket).catch(() => undefined);
     // Neu angelegt: beide Zeitstempel aus derselben Transaktion; aktualisiert: updated_at ist neuer
     const neu = (data ?? []).filter((z) => z.created_at === z.updated_at).length;
     return { neu, aktualisiert: (data?.length ?? 0) - neu };
@@ -314,6 +350,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
     const quelle = gelesen.art === "datanorm" ? "datanorm" : "csv";
     anhalten.current = false;
+    eanDoppelt.current = { anzahl: 0, beispiele: [] };
     setUpload({ erledigt: 0, gesamt: artikel.length });
     setSchritt("import");
     await pause(); // erst den Fortschritt zeigen, dann rechnen
@@ -339,6 +376,10 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       ohnePreis: dn?.ohnePreis ?? statistik.ohnePreis,
       preiseOhneArtikel: dn?.preiseOhneArtikel ?? 0,
       angehalten: anhalten.current,
+      probleme: dn?.probleme ?? [],
+      problemeGesamt: dn?.problemeGesamt ?? 0,
+      mehrereDateien: (dn?.dateien.length ?? 0) > 1,
+      eanDoppelt: eanDoppelt.current,
     });
     setSchritt("fertig");
     if (erg.neu + erg.aktualisiert > 0) {
@@ -465,7 +506,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               <div className="space-y-0.5 text-sm text-muted-foreground">
                 {gelesen.ergebnis.dateien.map((d, i) => (
                   <p key={i} className="truncate">
-                    {d.name || "Datei"} · {d.art ? DATEIART_TEXT[d.art] : "unbekannt"} · <span className="zahl">{zahl(d.saetze)}</span> Sätze
+                    {d.name || "Datei"} · {d.art ? DATEIART_TEXT[d.art] : "unbekannt"} · <span className="zahl">{anzahl(d.saetze, "Satz", "Sätze")}</span>
                   </p>
                 ))}
                 {gelesen.ergebnis.vorlauf && <p className="truncate text-xs">{gelesen.ergebnis.vorlauf}</p>}
@@ -513,7 +554,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             <Gruppentitel className="px-0 pb-0">Lieferant</Gruppentitel>
             <Feld id="imp-lief" label="Lieferant"
               hinweis={!lieferantQ ? "Unter diesem Namen landen die Artikel. Beim nächsten Import denselben Namen nehmen — dann wird aktualisiert statt doppelt angelegt."
-                : vorhanden ? `${zahl(vorhanden)} Artikel von „${lieferantQ}“ sind schon im Stamm. Gleiche Artikelnummern werden aktualisiert.`
+                : vorhanden ? `${zahl(vorhanden)} Artikel von „${lieferantQ}“ ${vorhanden === 1 ? "ist" : "sind"} schon im Stamm. Gleiche Artikelnummern werden aktualisiert.`
                   : vorhanden === 0 ? "Neuer Lieferant — alle Artikel werden neu angelegt." : null}>
               <Input id="imp-lief" className="h-12 sm:max-w-md" list="imp-lieferanten" value={lieferant} maxLength={80}
                 onChange={(e) => setLieferant(e.target.value)} placeholder="z. B. Sonepar" autoComplete="off" />
@@ -636,18 +677,55 @@ function ProzentFeld({ id, wert, onChange, label, className }: {
 function DatanormHinweise({ g }: { g: Extract<Gelesen, { art: "datanorm" }> }) {
   const e = g.ergebnis;
   const zeilen = [
-    e.geloescht > 0 && `${zahl(e.geloescht)} Artikel sind in der Datei als gelöscht gekennzeichnet — die werden nicht übernommen.`,
-    e.ohneText > 0 && `${zahl(e.ohneText)} Artikel ohne Bezeichnung werden übersprungen.`,
-    e.preiseOhneArtikel > 0 && `${zahl(e.preiseOhneArtikel)} Preise passen zu keinem Artikel in der Auswahl.`,
+    e.geloescht > 0 && (e.geloescht === 1
+      ? "1 Artikel ist in der Datei als gelöscht gekennzeichnet — der wird nicht übernommen."
+      : `${zahl(e.geloescht)} Artikel sind in der Datei als gelöscht gekennzeichnet — die werden nicht übernommen.`),
+    e.ohneText > 0 && `${anzahl(e.ohneText, "Artikel ohne Bezeichnung wird", "Artikel ohne Bezeichnung werden")} übersprungen.`,
+    e.preiseOhneArtikel > 0 && `${anzahl(e.preiseOhneArtikel, "Preis passt", "Preise passen")} zu keinem Artikel in der Auswahl.`,
     !e.dateien.some((d) => d.art === "preise") && e.ohnePreis > g.artikel.length / 2
       && "Viele Artikel ohne Preis — gibt es eine eigene Preisdatei (z. B. DATPREIS)? Dann beide zusammen wählen.",
     g.uebergangen.length > 0 && `Übergangen (keine Datanorm-Datei): ${g.uebergangen.join(", ")}`,
   ].filter(Boolean) as string[];
-  if (!zeilen.length) return null;
+  if (!zeilen.length && !e.problemeGesamt) return null;
   return (
-    <Hinweis ton="grau" icon={Info}>
-      <ul className="space-y-0.5">{zeilen.map((z) => <li key={z}>{z}</li>)}</ul>
-    </Hinweis>
+    <div className="space-y-2">
+      {zeilen.length > 0 && (
+        <Hinweis ton="grau" icon={Info}>
+          <ul className="space-y-0.5">{zeilen.map((z) => <li key={z}>{z}</li>)}</ul>
+        </Hinweis>
+      )}
+      <ProblemListe probleme={e.probleme} gesamt={e.problemeGesamt} mehrereDateien={e.dateien.length > 1} />
+    </div>
+  );
+}
+
+/**
+ * Zeilen, die nicht (ganz) gelesen werden konnten — mit Zeilennummer, zum
+ * Nachschauen in der Datei oder zum Weitergeben an den Lieferanten.
+ */
+function ProblemListe({ probleme, gesamt, mehrereDateien }: { probleme: DatanormProblem[]; gesamt: number; mehrereDateien: boolean }) {
+  if (!gesamt) return null;
+  return (
+    <details className="rounded-lg border bg-card text-sm">
+      <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2 font-medium">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-status-gelb-fg" />
+        <span>{anzahl(gesamt, "Zeile", "Zeilen")} nicht (ganz) gelesen <span className="font-normal text-muted-foreground">— anzeigen</span></span>
+      </summary>
+      <ul className="max-h-72 divide-y overflow-y-auto overscroll-contain border-t">
+        {probleme.map((p, i) => (
+          <li key={i} className="px-3 py-2">
+            <p>
+              <span className="font-medium">{p.zeile ? `Zeile ${p.zeile}` : "Zeile ?"}</span>
+              {mehrereDateien && p.datei ? <span className="text-muted-foreground"> · {p.datei}</span> : null}: {p.grund}
+            </p>
+            {p.text && <p className="truncate font-mono text-xs text-muted-foreground">{p.text}</p>}
+          </li>
+        ))}
+      </ul>
+      {gesamt > probleme.length && (
+        <p className="border-t px-3 py-2 text-xs text-muted-foreground">Die ersten {zahl(probleme.length)} von {zahl(gesamt)}.</p>
+      )}
+    </details>
   );
 }
 
@@ -693,7 +771,7 @@ function Spaltenwahl({ zeilen, kopf, kopfErkannt, zuordnung, auswertung, onKopf,
         </dl>
         {uebersprungen > 0 && (
           <p className="text-sm text-muted-foreground">
-            <span className="zahl">{zahl(uebersprungen)}</span> Zeilen ohne Artikelnummer oder Bezeichnung werden übersprungen.
+            <span className="zahl">{anzahl(uebersprungen, "Zeile", "Zeilen")}</span> ohne Artikelnummer oder Bezeichnung {uebersprungen === 1 ? "wird" : "werden"} übersprungen.
           </p>
         )}
       </section>
@@ -713,7 +791,7 @@ function Spaltenwahl({ zeilen, kopf, kopfErkannt, zuordnung, auswertung, onKopf,
       )}
       {!fehlt && uebersprungen > 0 && (
         <p className="text-sm text-muted-foreground">
-          <span className="zahl">{zahl(uebersprungen)}</span> Zeilen ohne Artikelnummer oder Bezeichnung werden übersprungen.
+          <span className="zahl">{anzahl(uebersprungen, "Zeile", "Zeilen")}</span> ohne Artikelnummer oder Bezeichnung {uebersprungen === 1 ? "wird" : "werden"} übersprungen.
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -832,7 +910,7 @@ function Ergebnis({ b }: { b: Bericht }) {
     b.ohneNummer > 0 && `${zahl(b.ohneNummer)} ohne Artikelnummer`,
     b.ohneBezeichnung > 0 && `${zahl(b.ohneBezeichnung)} ohne Bezeichnung`,
     b.geloescht > 0 && `${zahl(b.geloescht)} in der Datei als gelöscht gekennzeichnet`,
-    b.doppelt > 0 && `${zahl(b.doppelt)} doppelte Artikelnummern in der Datei — die letzte Zeile zählt`,
+    b.doppelt > 0 && `${anzahl(b.doppelt, "doppelte Artikelnummer", "doppelte Artikelnummern")} in der Datei — die letzte Zeile zählt`,
     b.fehler > 0 && `${zahl(b.fehler)} nicht gespeichert: ${b.meldungen.join(" · ")}`,
     b.offen > 0 && `${zahl(b.offen)} nicht mehr übertragen (${b.angehalten ? "angehalten" : "abgebrochen nach wiederholten Fehlern"}) — Datei einfach noch einmal importieren`,
   ].filter(Boolean) as string[];
@@ -840,8 +918,9 @@ function Ergebnis({ b }: { b: Bericht }) {
   const ok = !b.fehler && !b.offen;
   const infos = [
     b.ohnePreis > 0 && `${zahl(b.ohnePreis)} Artikel ohne Preis übernommen — EK und VK bei Bedarf nachtragen.`,
-    b.preiseOhneArtikel > 0 && `${zahl(b.preiseOhneArtikel)} Preise ohne passenden Artikel übergangen.`,
+    b.preiseOhneArtikel > 0 && `${anzahl(b.preiseOhneArtikel, "Preis", "Preise")} ohne passenden Artikel übergangen.`,
   ].filter(Boolean) as string[];
+  const d = b.eanDoppelt;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -870,6 +949,16 @@ function Ergebnis({ b }: { b: Bericht }) {
           <ul className="space-y-0.5">{infos.map((z) => <li key={z}>{z}</li>)}</ul>
         </Hinweis>
       )}
+      {d.anzahl > 0 && (
+        <Hinweis ton="gelb" icon={AlertTriangle}>
+          <p>
+            {d.anzahl === 1 ? "1 Artikel hat eine EAN, die schon ein anderer Artikel hat." : `${zahl(d.anzahl)} Artikel haben eine EAN, die schon ein anderer Artikel hat.`}{" "}
+            Beim Scannen kommt der Lagerartikel, sonst der ältere — ein anderer lässt sich im Artikel als weiterer Code festlegen.
+          </p>
+          <ul className="mt-1 space-y-0.5 text-xs">{d.beispiele.map((x) => <li key={x} className="break-words">{x}</li>)}</ul>
+        </Hinweis>
+      )}
+      <ProblemListe probleme={b.probleme} gesamt={b.problemeGesamt} mehrereDateien={b.mehrereDateien} />
       <p className="text-sm text-muted-foreground">
         VK leer = EK + Aufschlag aus den Einstellungen. Kategorie und Lagerartikel bei Bedarf im Artikel setzen.
       </p>
