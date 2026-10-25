@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  ChevronDown, ChevronRight, ClipboardCheck, History, Loader2, Package, PackagePlus, Plus, Search, Truck, Warehouse,
+  ChevronDown, ChevronRight, ClipboardCheck, Download, History, Loader2, Package, PackagePlus, Plus, Search, Truck, Warehouse,
 } from "lucide-react";
 import { Seite } from "@/components/PageHeader";
 import { Abschnitt, AktionsKachel, Kennzahl, Leer, StatusPille } from "@/components/Bausteine";
@@ -16,7 +16,8 @@ import {
 } from "@/components/material/materialDaten";
 import { useMitarbeiter } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
-import { euro, zahl } from "@/lib/format";
+import { csvHerunterladen } from "@/lib/abfrage";
+import { euro, isoTag, zahl } from "@/lib/format";
 import { runden2 } from "@/lib/preise";
 import { BUCHUNGS_ART, KATEGORIEN_ARTIKEL, name, type BuchungsArt, type Lagerort } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -115,6 +116,15 @@ export default function Lager() {
     const da = new Set(zeilen.map((z) => z.artikel.kategorie).filter((k): k is string => !!k));
     return [...KATEGORIEN_ARTIKEL.filter((k) => da.has(k)), ...[...da].filter((k) => !KATEGORIEN_ARTIKEL.includes(k)).sort()];
   }, [zeilen]);
+
+  // Artikelnummer und Menge vorne: so nehmen Großhändler-Webshops (Sonepar: CSV-Upload
+  // „Artikel und Menge“) die Datei an. Bestellt wird bis zum Mindestbestand, ganze Einheiten.
+  const bestelllisteLaden = () => csvHerunterladen(`bestellliste-${isoTag()}.csv`, [
+    ["Artikelnummer", "Menge", "Einheit", "Bezeichnung", "Hersteller", "Hersteller-Nr.", "EAN", "Lieferant", "Bestand", "Mindestbestand"],
+    ...nachbestellen.map(({ artikel: a, fehlt, gesamt }) => [
+      a.artikelnummer, Math.ceil(fehlt), a.einheit, a.bezeichnung, a.hersteller, a.hersteller_nr, a.ean, a.lieferant, gesamt, a.mindestbestand,
+    ]),
+  ]);
 
   const gruppen = nachVorgang(letzte);
   const laedt = laedtBestand || laedtArtikel;
@@ -300,6 +310,11 @@ export default function Lager() {
       </div>
 
       <section className="space-y-2.5">
+        {istChef && nurNachbestellen && nachbestellen.length > 0 && (
+          <Button variant="outline" className="h-11 w-full gap-2 sm:w-auto" onClick={bestelllisteLaden}>
+            <Download className="h-4 w-4" /> Bestellliste als CSV · {nachbestellen.length} Artikel
+          </Button>
+        )}
         {liste}
         {sichtbar.length > zeigen && (
           <Button variant="outline" className="h-11 w-full" onClick={() => setZeigen((n) => n + SEITE)}>
