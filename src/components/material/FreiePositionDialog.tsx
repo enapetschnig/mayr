@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MengeFeld } from "@/components/material/MengeFeld";
-import { zahlLesen } from "@/lib/format";
+import { zahl, zahlLesen } from "@/lib/format";
 import { EINHEITEN } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { runden3 } from "./materialDaten";
+import { MENGE_MAX, preisEingabe, runden3 } from "./materialDaten";
 
 export type FreiePosition = { bezeichnung: string; einheit: string; menge: number; ek_preis: number | null };
 
@@ -43,8 +43,10 @@ export function FreiePositionDialog({
     const m = runden3(zahlLesen(menge));
     if (!bez) return toast.error("Bitte eine Bezeichnung eingeben.");
     if (!(m > 0)) return toast.error("Die Menge muss größer als 0 sein.");
-    const preis = zahlLesen(ek);
-    onFertig({ bezeichnung: bez, einheit, menge: m, ek_preis: preis > 0 ? preis : null });
+    if (m > MENGE_MAX) return toast.error("Die Menge ist zu groß.", { description: `Höchstens ${zahl(MENGE_MAX)} ${einheit}.` });
+    const preis = preisEingabe(ek);
+    if (Number.isNaN(preis)) return toast.error(`Einkaufspreis „${ek.trim()}“ ist keine gültige Zahl.`, { description: "z. B. 12,50 oder 1.250,50" });
+    onFertig({ bezeichnung: bez, einheit, menge: m, ek_preis: preis && preis > 0 ? preis : null });
   };
 
   return (

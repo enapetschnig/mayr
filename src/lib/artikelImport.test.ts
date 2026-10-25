@@ -43,6 +43,14 @@ describe("Zeilen für die Tabelle", () => {
       { lieferant: "TEST-Import", artikelnummer: "1", bezeichnung: "Neu", einheit: "Stk", quelle: "csv", hersteller: "ZZ" },
     ]);
   });
+  it("EAN in der Schreibweise, die der Scanner sucht", () => {
+    const { zeilen } = artikelZeilen([
+      artikel({ artikelnummer: "1", ean: "04012345678901" }), // GTIN-14 mit führender 0
+      artikel({ artikelnummer: "2", ean: "036000291452" }), // UPC-A
+      artikel({ artikelnummer: "3", ean: "14012345678908" }), // Karton: bleibt
+    ], { lieferant: "TEST", quelle: "datanorm", rabatt: ohneRabatt });
+    expect(zeilen.map((z) => z.ean)).toEqual(["4012345678901", "0036000291452", "14012345678908"]);
+  });
   it("Pakete: gleiche Felder je Paket, höchstens 500", () => {
     const zeilen = [
       ...Array.from({ length: 1200 }, (_, i) => ({ a: i, b: 1 })),

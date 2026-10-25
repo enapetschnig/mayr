@@ -10,7 +10,7 @@ import {
 } from "./editor";
 import { ABGEGOLTEN_TEXT, importPositionen, materialGruppen, type ImportDaten, type ImportMaterial, type ImportZeit } from "./importieren";
 import { kvHinweis } from "@/lib/belegPdf";
-import { belegSummen, runden2 } from "@/lib/preise";
+import { belegSummen, buchungVk, runden2 } from "@/lib/preise";
 
 const FIRMA = { stundensatz: 72, material_aufschlag: 35 };
 
@@ -155,6 +155,23 @@ describe("Material zusammenfassen", () => {
     const g = materialGruppen([mat("m1", "direkt", 3, 2, null, "Kleinmaterial"), mat("m2", "direkt", 1, 2, null, "kleinmaterial ")], FIRMA);
     expect(g).toHaveLength(1);
     expect(g[0].menge).toBe(4);
+  });
+
+  it("mehr zurück als ausgefasst ergibt keine Minus-Position", () => {
+    const g = materialGruppen([
+      mat("m1", "ausfassung", 1, 3.45, "a-abox", "Abzweigkasten"),
+      mat("m2", "rueckgabe", 3, 3.45, "a-abox", "Abzweigkasten"),
+      mat("m3", "direkt", 2, 2, null, "Kleinmaterial"),
+    ], FIRMA);
+    expect(g.map((x) => [x.bezeichnung, x.menge])).toEqual([["Kleinmaterial", 2]]);
+  });
+
+  it("Preis geändert: VK aus dem aktuellen Artikelpreis wie im Projekt, EK bleibt der beim Buchen", () => {
+    const jetzt = { vk_preis: null, ek_preis: 1.1, listenpreis: null };
+    const g = materialGruppen([{ ...mat("m1", "ausfassung", 3, 0.85, "a-nym", "NYM-J 3x1,5", "m"), artikel: jetzt }], FIRMA);
+    // 1,10 × 1,35 = 1,485 → 1,49 — nicht 0,85 × 1,35 = 1,15 vom Buchungstag
+    expect(g[0]).toMatchObject({ menge: 3, ek: 0.85, vk: 1.49 });
+    expect(g[0].vk).toBe(buchungVk({ ek_preis: 0.85, artikel: jetzt }, FIRMA));
   });
 });
 

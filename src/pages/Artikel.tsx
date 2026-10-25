@@ -8,15 +8,17 @@ import { Leer, StatusPille } from "@/components/Bausteine";
 import { useIstPc } from "@/components/AppLayout";
 import { useVerzoegert } from "@/components/material/ArtikelSuche";
 import { ScanDialog } from "@/components/scanner/ScanDialog";
+import { artikelZuCode } from "@/components/scanner/artikelZuCode";
 import { ArtikelDialog } from "@/components/stamm/ArtikelDialog";
 import { ImportDialog } from "@/components/stamm/ImportDialog";
-import { useBestandSummen, useLieferanten } from "@/components/stamm/stammDaten";
+import { fehlerText, useBestandSummen, useLieferanten } from "@/components/stamm/stammDaten";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSitzung } from "@/hooks/useSitzung";
 import { euro, zahl } from "@/lib/format";
 import { artikelVk } from "@/lib/preise";
+import { codeVarianten, normalisieren } from "@/lib/strichcode";
 import { KATEGORIEN_ARTIKEL, type Artikel, type StatusEintrag } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -122,25 +124,38 @@ export default function ArtikelSeite() {
     window.scrollTo({ top: 0 });
   };
 
-  // Gescannter Code: Artikel öffnen — oder anbieten, ihn anzulegen
+  // Gescannter Code: Artikel öffnen — oder anbieten, ihn anzulegen. Alle
+  // Schreibweisen wie beim Buchen (GS1-Etikett, GTIN-14, UPC-A), sonst lädt
+  // ein Karton-Etikett zum doppelten Anlegen ein.
   // Nichts zurückgeben: einen Text würde der Scanner als Rückmeldung anzeigen
   const gescannt = async (code: string) => {
-    const { data, error } = await supabase.rpc("artikel_zu_code", { p_code: code });
-    if (error) {
-      toast.error("Suche fehlgeschlagen", { description: error.message });
+    let a: Artikel | null = null;
+    try {
+      const t = await artikelZuCode(code);
+      if (t) {
+        const { data, error } = await supabase.from("artikel").select("*").eq("id", t.artikel_id).maybeSingle();
+        if (error) throw error;
+        a = data;
+      } else {
+        // Inaktive kennt der Scanner nicht — im Stamm sollen sie trotzdem auftauchen
+        const varianten = codeVarianten(code);
+        const { data, error } = await supabase.from("artikel").select("*").in("ean", varianten).order("created_at").limit(1);
+        if (error) throw error;
+        a = data?.[0] ?? null;
+      }
+    } catch (e) {
+      toast.error("Suche fehlgeschlagen", { description: fehlerText(e as { code?: string; message?: string }) });
       return;
     }
-    if (data?.[0]) {
-      const { data: a } = await supabase.from("artikel").select("*").eq("id", data[0].artikel_id).maybeSingle();
-      if (a) {
-        setDialog({ artikel: a });
-        return;
-      }
+    if (a) {
+      setDialog({ artikel: a });
+      return;
     }
-    setText(code);
+    const ean = normalisieren(code);
+    setText(ean);
     toast("Kein Artikel mit diesem Code", {
       duration: 6000,
-      action: { label: "Neu anlegen", onClick: () => setDialog({ artikel: null, vorgabe: { ean: code } }) },
+      action: { label: "Neu anlegen", onClick: () => setDialog({ artikel: null, vorgabe: { ean } }) },
     });
   };
 
@@ -254,7 +269,12 @@ export default function ArtikelSeite() {
             <tbody className="divide-y">
               {zeilen.map((a) => (
                 <tr key={a.id} tabIndex={0} onClick={() => setDialog({ artikel: a })}
-                  onKeyDown={(e) => e.key === "Enter" && setDialog({ artikel: a })}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" || e.repeat) return;
+                    // Sonst „klickt“ dieselbe Enter-Taste den Knopf, der im eben geöffneten Dialog den Fokus bekommt
+                    e.preventDefault();
+                    setDialog({ artikel: a });
+                  }}
                   className={cn("cursor-pointer transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none", !a.aktiv && "text-muted-foreground")}>
                   <td className="max-w-[28rem] px-4 py-2.5">
                     <div className="flex items-center gap-2">

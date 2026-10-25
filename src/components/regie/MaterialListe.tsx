@@ -6,11 +6,13 @@ import FormularDialog from "@/components/FormularDialog";
 import { DiktatKnopf } from "@/components/DiktatKnopf";
 import { ArtikelSuche } from "@/components/material/ArtikelSuche";
 import { ScanDialog } from "@/components/scanner/ScanDialog";
+import { artikelZuCode, type CodeTreffer } from "@/components/scanner/artikelZuCode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { zahl, zahlLesen } from "@/lib/format";
+import { codeBereinigen } from "@/lib/strichcode";
 import { EINHEITEN, type Artikel, type Lagerort } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DIREKT, materialFehler, materialMenge, mengeSchritt, neueId, textAnhaengen, type Entwurf, type MaterialZeile } from "./regieLogik";
@@ -57,15 +59,19 @@ export function MaterialListe({
     });
   };
 
+  // Alle Schreibweisen wie auf der Scan-Seite (GS1-Etikett, GTIN-14, UPC-A …)
   const codeGelesen = async (code: string) => {
-    const { data, error } = await supabase.rpc("artikel_zu_code", { p_code: code });
-    if (error) return toast.error("Code nicht gelesen", { description: error.message });
-    const treffer = data?.[0];
-    if (!treffer) return toast.error("Unbekannter Code", { description: `${code} ist nicht im Artikelstamm. Über „Suchen“ oder „Frei“ eintragen.` });
+    let treffer: CodeTreffer | null;
+    try {
+      treffer = await artikelZuCode(code);
+    } catch (e) {
+      return toast.error("Code nicht gelesen", { description: e instanceof Error ? e.message : (e as { message?: string })?.message });
+    }
+    if (!treffer) return toast.error("Unbekannter Code", { description: `${codeBereinigen(code)} ist nicht im Artikelstamm. Über „Suchen“ oder „Frei“ eintragen.` });
     const { data: a, error: e2 } = await supabase.from("artikel").select("id, bezeichnung, einheit, ek_preis")
       .eq("id", treffer.artikel_id).maybeSingle();
     if (e2 || !a) return toast.error("Artikel nicht gefunden", { description: e2?.message ?? code });
-    const menge = Number(treffer.menge) > 0 ? Number(treffer.menge) : 1;
+    const menge = treffer.menge;
     artikelDazu(a, menge);
     toast.success(`${zahl(menge)} ${a.einheit} · ${a.bezeichnung}`);
   };

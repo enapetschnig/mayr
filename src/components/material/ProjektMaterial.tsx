@@ -13,7 +13,7 @@ import {
 import { useNeuLaden, type ProjektMitKunde } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datum, euro, zahl } from "@/lib/format";
-import { artikelVk, runden2 } from "@/lib/preise";
+import { buchungVk, runden2 } from "@/lib/preise";
 import { BUCHUNGS_ART, name, type BuchungsArt, type StatusEintrag } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -74,13 +74,13 @@ export function ProjektMaterial({ projekt }: { projekt: ProjektMitKunde }) {
         let vk: number;
         let wert: number;
         let wertOffen: number;
+        // Dieselbe Regel wie der Rechnungsimport: aktueller Artikelpreis, ohne Artikel EK der Buchung + Aufschlag
         if (z.artikel) {
-          vk = artikelVk(z.artikel, firma);
+          vk = buchungVk({ ek_preis: null, artikel: z.artikel }, firma);
           wert = runden2(vk * verbraucht);
           wertOffen = runden2(vk * offen);
         } else {
-          // Ohne Artikel gibt es nur den EK aus der Buchung → über preise.ts zum VK
-          const vkVon = (b: BuchungMitBezug) => artikelVk({ vk_preis: null, ek_preis: b.ek_preis, listenpreis: null }, firma);
+          const vkVon = (b: BuchungMitBezug) => buchungVk({ ek_preis: b.ek_preis, artikel: null }, firma);
           wert = runden2(eigene.reduce((s, b) => s + vorzeichen(b.art) * Number(b.menge) * vkVon(b), 0));
           wertOffen = runden2(eigene.filter((b) => !b.rechnung_id).reduce((s, b) => s + vorzeichen(b.art) * Number(b.menge) * vkVon(b), 0));
           vk = verbraucht ? runden2(wert / verbraucht) : 0;

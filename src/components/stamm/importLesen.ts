@@ -24,16 +24,45 @@ export class ImportFehler extends Error {}
 
 const KOPF = 64 * 1024;
 
-export type DateiArt = "datanorm" | "text" | "zip" | "excel" | "leer";
+export type DateiArt = "datanorm" | "text" | "zip" | "excel" | "leer" | "bild" | "pdf" | "unicode" | "binaer";
+
+const beginntMit = (b: Uint8Array, ...bytes: number[]) => bytes.every((x, i) => b[i] === x);
+const ascii = (b: Uint8Array, von: number, bis: number) => String.fromCharCode(...b.subarray(von, bis));
 
 export function dateiArt(d: RohDatei): DateiArt {
   const b = d.daten;
   if (!b.length) return "leer";
   const name = d.name.toLowerCase();
   // ZIP-Kennung »PK\3\4« — auch .xlsx ist innen ein ZIP
-  if (b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04) return /\.(xlsx|xlsm|ods)$/.test(name) ? "excel" : "zip";
-  if (b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0) return "excel"; // altes .xls
+  if (beginntMit(b, 0x50, 0x4b, 0x03, 0x04)) return /\.(xlsx|xlsm|ods)$/.test(name) ? "excel" : "zip";
+  if (beginntMit(b, 0xd0, 0xcf, 0x11, 0xe0)) return "excel"; // altes .xls
+  if (beginntMit(b, 0xff, 0xd8, 0xff) || beginntMit(b, 0x89, 0x50, 0x4e, 0x47) || ascii(b, 0, 4) === "GIF8"
+    || (ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP") || /^ftyp(hei|hev|mif|avi)/.test(ascii(b, 4, 11))) return "bild";
+  if (ascii(b, 0, 5) === "%PDF-") return "pdf";
+  // Excel „Unicode-Text“ ist UTF-16 — dafür hat der Leser keinen Zeichensatz
+  if (beginntMit(b, 0xff, 0xfe) || beginntMit(b, 0xfe, 0xff)) return "unicode";
+  // Steuerzeichen außer Tab, Zeilenende, Seitenvorschub und DOS-Dateiende gibt es in Text nicht
+  const probe = b.subarray(0, 4096);
+  let steuer = 0;
+  for (const x of probe) if (x < 0x20 && x !== 0x09 && x !== 0x0a && x !== 0x0d && x !== 0x0c && x !== 0x1a) steuer++;
+  if (steuer > Math.max(8, probe.length * 0.02)) return "binaer";
   return datanormDateiart(dateiText(b.subarray(0, KOPF))) ? "datanorm" : "text";
+}
+
+/** Satz für eine Datei, die weder Datanorm noch CSV ist — null = lesbar */
+function fremdText(d: RohDatei, art: DateiArt): string | null {
+  switch (art) {
+    case "bild":
+      return `„${d.name}“ ist ein Bild, keine Artikelliste. Bitte die Datanorm- oder CSV-Datei des Lieferanten wählen.`;
+    case "pdf":
+      return `„${d.name}“ ist eine PDF-Datei. Preislisten als PDF lassen sich nicht einlesen — bitte beim Lieferanten Datanorm oder eine CSV-Liste anfordern.`;
+    case "unicode":
+      return `„${d.name}“ ist als „Unicode-Text“ gespeichert. In Excel „Speichern unter“ → „CSV UTF-8 (durch Trennzeichen getrennt)“ wählen und diese Datei importieren.`;
+    case "binaer":
+      return `„${d.name}“ ist keine Textdatei und lässt sich nicht einlesen. Gebraucht wird Datanorm (.001, .dat, .txt) oder eine CSV-Liste.`;
+    default:
+      return null;
+  }
 }
 
 export interface DatanormGelesen {
@@ -97,6 +126,8 @@ export async function importLesen(dateien: RohDatei[], opt: LeseOptionen = {}): 
 
   const datanorm = mitInhalt.filter((x) => x.art === "datanorm").map((x) => x.d);
   const text = mitInhalt.filter((x) => x.art === "text").map((x) => x.d);
+  // Bild, PDF …: neben Datanorm-Dateien übergangen (Logo, Liesmich), allein ein klarer Satz
+  const fremd = mitInhalt.filter((x) => fremdText(x.d, x.art));
 
   if (datanorm.length) {
     const e = await datanormDateienLesen(datanorm, { zeichensatz: opt.zeichensatz, fortschritt: opt.fortschritt });
@@ -112,10 +143,11 @@ export async function importLesen(dateien: RohDatei[], opt: LeseOptionen = {}): 
       ergebnis: rest,
       artikel: artikel.map(datanormZuImport),
       zeichensatz: zeichensaetze[0],
-      uebergangen: text.map((d) => d.name),
+      uebergangen: [...text, ...fremd.map((x) => x.d)].map((d) => d.name),
     };
   }
 
+  if (fremd.length) throw new ImportFehler(fremdText(fremd[0].d, fremd[0].art)!);
   if (text.length > 1) throw new ImportFehler("Bitte nur eine CSV-Datei auf einmal wählen (mehrere Dateien gehen nur bei Datanorm).");
   return csvLesen(text[0], opt);
 }

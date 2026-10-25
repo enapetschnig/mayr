@@ -170,24 +170,33 @@ export async function textStueckweise(
   }
 }
 
-/** Zeilenweise lesen: jede nicht-leere Zeile an `proZeile`, über Häppchengrenzen hinweg. */
+/**
+ * Zeilenweise lesen: jede nicht-leere Zeile an `proZeile`, über Häppchengrenzen
+ * hinweg — mit ihrer Nummer in der Datei (ab 1, Leerzeilen mitgezählt).
+ */
 export async function zeilenStueckweise(
   daten: Uint8Array,
   zeichensatz: Zeichensatz,
-  proZeile: (zeile: string) => void,
+  proZeile: (zeile: string, nr: number) => void,
   fortschritt?: Fortschritt,
 ): Promise<void> {
   let rest = "";
+  let nr = 0;
+  const weiter = (z: string) => {
+    nr++;
+    const s = z.replace(/\u001A/g, "");
+    if (s.trim()) proZeile(s, nr);
+  };
   await textStueckweise(daten, zeichensatz, (text) => {
-    const zeilen = (rest + text).split(/\r\n|\n|\r/);
-    rest = zeilen.pop() ?? "";
-    for (const z of zeilen) {
-      const s = z.replace(/\u001A/g, "");
-      if (s.trim()) proZeile(s);
-    }
+    // „\r\n“ kann auf zwei Häppchen fallen — ein „\r“ am Ende wartet aufs nächste, sonst zählte eine Leerzeile zu viel
+    const s = rest + text;
+    const cr = s.endsWith("\r");
+    const zeilen = (cr ? s.slice(0, -1) : s).split(/\r\n|\n|\r/);
+    rest = (zeilen.pop() ?? "") + (cr ? "\r" : "");
+    zeilen.forEach(weiter);
   }, fortschritt);
-  const s = rest.replace(/\u001A/g, "");
-  if (s.trim()) proZeile(s);
+  const s = rest.replace(/\r$/, "");
+  if (s) weiter(s);
 }
 
 // ── Erkennen ───────────────────────────────────────────────────────────
@@ -214,10 +223,15 @@ const versionAusA = (f: string[]): DatanormVersion =>
 /** Art einer DATANORM-Datei (Artikel, Preise, Warengruppen, Rabatte) oder null = keine DATANORM-Datei. */
 export function datanormDateiart(text: string): DatanormDateiart | null {
   const zeilen = zeilenVon(text).slice(0, 60);
-  if (!zeilen.length || !zeilen.every((z) => satzart(z))) return null;
-  const arten = new Set(zeilen.map(satzart));
-  if (zeilen.some((z) => /^A;[NLAX];/.test(z))) return "artikel";
-  if (zeilen.some((z) => /^P;/.test(z))) return "preise";
+  // Eine kaputte Zeile macht aus einer Datanorm-Datei noch keine CSV-Liste (der
+  // Leser meldet sie mit Nummer). Mit Vorlauf reicht die Hälfte der Zeilen mit
+  // Satzart, ohne müssen es vier von fünf sein.
+  const saetze = zeilen.filter((z) => satzart(z));
+  const vorlauf = versionAusVorlauf(zeilen[0] ?? "") !== null;
+  if (!saetze.length || saetze.length < zeilen.length * (vorlauf ? 0.5 : 0.8)) return null;
+  const arten = new Set(saetze.map(satzart));
+  if (saetze.some((z) => /^A;[NLAX];/.test(z))) return "artikel";
+  if (saetze.some((z) => /^P;/.test(z))) return "preise";
   if (arten.has("S")) return "warengruppen";
   if (arten.has("R")) return "rabatt";
   return null;
@@ -230,15 +244,14 @@ export const istDatanorm = (text: string) => datanormDateiart(text) !== null;
 const t = (s: string | undefined) => (s ?? "").trim();
 const rund4 = (n: number) => Math.round(n * 10000) / 10000;
 
-/** Preis: ganze Zahl mit zwei impliziten Nachkommastellen; 0 oder leer = ohne Preis. */
+/** Preis: ganze Zahl mit zwei impliziten Nachkommastellen. null = leer, NaN = keine Zahl (0 und negativ prüft der Leser). */
 function preisAus(roh: string | undefined): number | null {
   const s = t(roh);
   if (!s) return null;
   // Abweichende Dateien schreiben den Preis mit Komma oder Punkt aus
-  const n = /^-?\d+$/.test(s)
+  return /^-?\d+$/.test(s)
     ? Number(s) / 100
     : Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
-  return !Number.isFinite(n) || n <= 0 ? null : n;
 }
 
 /** DN4: Preiseinheit als Code (0–3 → 1/10/100/1000) */
@@ -327,6 +340,19 @@ export interface DatanormRabattgruppe {
   rabatt: number;
 }
 
+/** Eine Zeile, die nicht (ganz) gelesen werden konnte — mit Nummer, damit man sie in der Datei findet. */
+export interface DatanormProblem {
+  datei: string;
+  /** Zeilennummer in der Datei, ab 1 (0 = unbekannt) */
+  zeile: number;
+  grund: string;
+  /** Anfang der Zeile */
+  text: string;
+}
+
+/** So viele Problemzeilen werden aufgehoben — gezählt werden alle. */
+export const PROBLEME_MAX = 200;
+
 export interface DatanormErgebnis {
   artikel: DatanormArtikel[];
   version: DatanormVersion | null;
@@ -342,6 +368,10 @@ export interface DatanormErgebnis {
   /** Preise in der Preisdatei ohne passenden Artikel */
   preiseOhneArtikel: number;
   dateien: { name: string; art: DatanormDateiart | null; version: DatanormVersion | null; saetze: number }[];
+  /** Zeilen, die nicht (ganz) gelesen werden konnten — höchstens PROBLEME_MAX, nach Datei und Zeile */
+  probleme: DatanormProblem[];
+  /** alle Problemzeilen, auch über PROBLEME_MAX hinaus */
+  problemeGesamt: number;
 }
 
 interface Roh {
@@ -361,6 +391,8 @@ interface Roh {
   pListe: number | null;
   pNetto: number | null;
   geloescht: boolean;
+  /** A-Satz ohne Kurztext — wo er steht, für die Problemliste */
+  ohneText?: Omit<DatanormProblem, "grund"> | null;
 }
 
 const rohLeer = (nr: string): Roh => ({
@@ -406,6 +438,10 @@ export class DatanormLeser {
   private v: DatanormVersion | null = null;
   private saetze = 0;
   private name = "";
+  private probleme: DatanormProblem[] = [];
+  private problemeGesamt = 0;
+  /** gerade gelesene Zeile und ihre Nummer */
+  private jetzt = { text: "", nr: 0 };
 
   dateiBeginnen(name = "") {
     this.name = name;
@@ -418,9 +454,31 @@ export class DatanormLeser {
     this.dateiInfo.push({ name: this.name, art, version: this.v, saetze: this.saetze });
   }
 
-  zeile(zeile: string) {
+  private stelle = (): Omit<DatanormProblem, "grund"> => ({ datei: this.name, zeile: this.jetzt.nr, text: this.jetzt.text.slice(0, 80) });
+
+  private problem(grund: string) {
+    this.problemeGesamt++;
+    if (this.probleme.length < PROBLEME_MAX) this.probleme.push({ ...this.stelle(), grund });
+  }
+
+  /** Preis der aktuellen Zeile; keine Zahl = Problem, der Artikel kommt dann ohne diesen Preis. 0 = ohne Preis. */
+  private preis(roh: string | undefined): number | null {
+    const n = preisAus(roh);
+    if (n !== null && !Number.isFinite(n)) {
+      this.problem(`Preis „${t(roh)}“ ist keine Zahl`);
+      return null;
+    }
+    return n !== null && n > 0 ? n : null;
+  }
+
+  /** Eine Zeile lesen; `nr` = Zeilennummer in der Datei für die Problemliste */
+  zeile(zeile: string, nr = 0) {
+    this.jetzt = { text: zeile, nr };
     const art = satzart(zeile);
-    if (!art) return;
+    if (!art) {
+      this.problem("keine Datanorm-Zeile");
+      return;
+    }
     const f = zeile.split(";");
     if (art === "V") {
       this.v = versionAusVorlauf(zeile) ?? this.v;
@@ -441,7 +499,10 @@ export class DatanormLeser {
       const ver = this.v ?? versionAusA(f);
       this.v = this.v ?? ver;
       const nr = t(f[2]);
-      if (!nr) return;
+      if (!nr) {
+        this.problem("Artikel ohne Artikelnummer");
+        return;
+      }
       const r = this.roh.get(nr) ?? rohLeer(nr);
       if (t(f[1]) === "L") {
         r.geloescht = true;
@@ -458,7 +519,7 @@ export class DatanormLeser {
         r.hwg = t(f[10]) || r.hwg;
         r.wg = t(f[11]) || r.wg;
         r.ean = eanAus(f[18]) || r.ean;
-        preisSetzen(r, t(f[6]), preisAus(f[8]), false);
+        preisSetzen(r, t(f[6]), this.preis(f[8]), false);
       } else {
         r.kt1 = f[4] ?? "";
         r.kt2 = f[5] ?? "";
@@ -466,8 +527,10 @@ export class DatanormLeser {
         r.teiler = teilerAusCode(f[7]);
         r.rabattgruppe = t(f[10]) || r.rabattgruppe;
         r.hwg = t(f[11]) || r.hwg;
-        preisSetzen(r, t(f[6]), preisAus(f[9]), false);
+        preisSetzen(r, t(f[6]), this.preis(f[9]), false);
       }
+      // Ob die Bezeichnung fehlt, steht erst am Ende fest (ein späterer A-Satz kann sie bringen)
+      r.ohneText = r.kt1.trim() || r.kt2.trim() ? null : this.stelle();
       this.roh.set(nr, r);
       return;
     }
@@ -490,12 +553,15 @@ export class DatanormLeser {
           if (!nr) continue;
           const rk = t(rest[i + 3]);
           const r1 = Number(t(rest[i + 4]));
-          this.pSaetze.push({ nr, pk: t(rest[i + 1]), preis: preisAus(rest[i + 2]), teiler: null, rabatt: rk === "1" && r1 > 0 ? r1 / 100 : null });
+          this.pSaetze.push({ nr, pk: t(rest[i + 1]), preis: this.preis(rest[i + 2]), teiler: null, rabatt: rk === "1" && r1 > 0 ? r1 / 100 : null });
         }
       } else {
         // DN5: P;Nr;PK;PE;Preis;RabGr;RabKz1;R1;RabKz2;R2;RabKz3;R3;Datum
         const nr = t(f[1]);
-        if (!nr) return;
+        if (!nr) {
+          this.problem("Preis ohne Artikelnummer");
+          return;
+        }
         let faktor = 1;
         let hatRabatt = false;
         for (const k of [6, 8, 10]) {
@@ -506,7 +572,7 @@ export class DatanormLeser {
           }
         }
         this.pSaetze.push({
-          nr, pk: t(f[2]), preis: preisAus(f[4]), teiler: teilerAusMenge(f[3]),
+          nr, pk: t(f[2]), preis: this.preis(f[4]), teiler: teilerAusMenge(f[3]),
           rabatt: hatRabatt ? Math.round((1 - faktor) * 10000) / 100 : null,
         });
       }
@@ -553,6 +619,8 @@ export class DatanormLeser {
     let geloescht = 0;
     let ohneText = 0;
     let ohnePreis = 0;
+    const probleme = [...this.probleme];
+    let problemeGesamt = this.problemeGesamt;
     const wgName = (h: string, w: string) =>
       this.wg.get(`${h}|${w}`)?.name
       ?? (w ? [...this.wg.values()].find((x) => x.warengruppe === w)?.name : this.wg.get(`${h}|`)?.name)
@@ -570,6 +638,9 @@ export class DatanormLeser {
       const bezeichnung = kurztextVerbinden(r.kt1, r.kt2);
       if (!bezeichnung) {
         ohneText++;
+        problemeGesamt++;
+        const stelle = r.ohneText ?? { datei: "", zeile: 0, text: "" };
+        if (probleme.length < PROBLEME_MAX) probleme.push({ ...stelle, grund: `Artikel ${r.nr} ohne Bezeichnung — nicht übernommen` });
         continue;
       }
       const listenpreis = r.pListe ?? r.liste;
@@ -592,6 +663,9 @@ export class DatanormLeser {
         ean: r.ean,
       });
     }
+    // In Lesereihenfolge: Datei für Datei, Zeile für Zeile
+    const dateiNr = (name: string) => this.dateiInfo.findIndex((d) => d.name === name);
+    probleme.sort((a, b) => dateiNr(a.datei) - dateiNr(b.datei) || a.zeile - b.zeile);
     return {
       artikel,
       version: this.version ?? this.v,
@@ -603,6 +677,8 @@ export class DatanormLeser {
       ohnePreis,
       preiseOhneArtikel,
       dateien: this.dateiInfo,
+      probleme,
+      problemeGesamt,
     };
   }
 }
@@ -612,7 +688,10 @@ export function datanormLesenMehrere(dateien: { name?: string; text: string }[])
   const leser = new DatanormLeser();
   for (const d of dateien) {
     leser.dateiBeginnen(d.name ?? "");
-    for (const z of zeilenVon(d.text)) leser.zeile(z);
+    d.text.split(/\r\n|\n|\r/).forEach((z, i) => {
+      const s = z.replace(/\u001A/g, "");
+      if (s.trim()) leser.zeile(s, i + 1);
+    });
     leser.dateiBeenden(datanormDateiart(d.text));
   }
   return leser.ergebnis();
@@ -641,7 +720,7 @@ export async function datanormDateienLesen(
     zeichensaetze.push(zs);
     const kopf = dateiText(d.daten.subarray(0, 64 * 1024), zs);
     leser.dateiBeginnen(d.name);
-    await zeilenStueckweise(d.daten, zs, (z) => leser.zeile(z),
+    await zeilenStueckweise(d.daten, zs, (z, nr) => leser.zeile(z, nr),
       (a) => optionen.fortschritt?.((fertig + d.daten.length * (0.2 + a * 0.8)) / gesamt));
     leser.dateiBeenden(datanormDateiart(kopf));
     fertig += d.daten.length;

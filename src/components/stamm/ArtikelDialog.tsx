@@ -20,6 +20,7 @@ import { useSitzung } from "@/hooks/useSitzung";
 import { dezimalLesen } from "@/lib/csvImport";
 import { datum, euro, zahl } from "@/lib/format";
 import { artikelVk } from "@/lib/preise";
+import { codeVarianten, normalisieren } from "@/lib/strichcode";
 import { EINHEITEN, KATEGORIEN_ARTIKEL, type Artikel, type ArtikelCode } from "@/lib/types";
 import { Feld, leerNull, useBeimOeffnen, zahlFeld, Zusatz } from "./Felder";
 import { fehlerText, useBestandSummen, useLieferanten } from "./stammDaten";
@@ -100,6 +101,8 @@ export function ArtikelDialog({
   const [scanZiel, setScanZiel] = useState<"ean" | "code" | null>(null);
   const [speichert, setSpeichert] = useState(false);
   const [verwendung, setVerwendung] = useState<Verwendung | null>(null);
+  /** zuletzt entfernter Code — für „Rückgängig“ */
+  const [entfernt, setEntfernt] = useState<ArtikelCode | null>(null);
 
   const neu = !artikel;
   const darfPflegen = istChef || neu;
@@ -112,6 +115,7 @@ export function ArtikelDialog({
     setCodeText("");
     setCodeMenge("1");
     setVerwendung(null);
+    setEntfernt(null);
   });
 
   const { data: codes = [] } = useQuery({
@@ -140,27 +144,33 @@ export function ArtikelDialog({
   const bestand = artikel ? bestaende?.[artikel.id] ?? 0 : 0;
 
   // ── Strichcodes ─────────────────────────────────────────────────────
-  /** Prüft, ob ein Code frei ist. Gehört er schon einem anderen Artikel, geht es nicht. */
+  // Gespeichert wird jeder Code in einer Schreibweise (normalisieren), gesucht
+  // in allen (codeVarianten) — „(01)02000000000992“ ist derselbe Strichcode
+  // wie „2000000000992“ und darf nicht zu einem zweiten Artikel führen.
+
+  /** Prüft, ob ein (normalisierter) Code frei ist. Gehört er schon einem anderen Artikel, geht es nicht. */
   const codePruefen = async (code: string): Promise<boolean> => {
-    if (code === f.ean.trim()) {
+    if (f.ean.trim() && code === normalisieren(f.ean)) {
       toast.error("Das ist schon die EAN dieses Artikels.");
       return false;
     }
-    if (codes.some((c) => c.code === code) || neueCodes.some((c) => c.code === code)) {
+    if (codes.some((c) => normalisieren(c.code) === code) || neueCodes.some((c) => c.code === code)) {
       toast.error("Dieser Code ist schon eingetragen.");
       return false;
     }
+    const varianten = codeVarianten(code);
     const { data: belegt, error } = await supabase.from("artikel_codes")
-      .select("artikel_id, artikel(bezeichnung)").eq("code", code).maybeSingle();
+      .select("artikel_id, artikel(bezeichnung)").in("code", varianten).limit(1);
     if (error) {
       toast.error("Code nicht geprüft", { description: fehlerText(error) });
       return false;
     }
-    if (belegt) {
-      toast.error("Code ist schon vergeben", { description: `Gehört zu „${belegt.artikel?.bezeichnung ?? "anderer Artikel"}“.` });
+    if (belegt?.length) {
+      if (belegt[0].artikel_id === artikel?.id) toast.error("Dieser Code ist schon eingetragen.");
+      else toast.error("Code ist schon vergeben", { description: `Gehört zu „${belegt[0].artikel?.bezeichnung ?? "anderer Artikel"}“.` });
       return false;
     }
-    let andere = supabase.from("artikel").select("bezeichnung").eq("ean", code);
+    let andere = supabase.from("artikel").select("bezeichnung").in("ean", varianten);
     if (artikel) andere = andere.neq("id", artikel.id);
     const { data: mitEan } = await andere.limit(1);
     if (mitEan?.length) {
@@ -170,7 +180,7 @@ export function ArtikelDialog({
   };
 
   const codeHinzufuegen = async (roh?: string) => {
-    const code = (roh ?? codeText).trim();
+    const code = normalisieren((roh ?? codeText).trim());
     const menge = dezimalLesen(codeMenge) ?? 1;
     if (!code) return toast.error("Bitte einen Code eingeben oder scannen.");
     if (!(menge > 0)) return toast.error("Die Menge muss größer als 0 sein.");
@@ -180,6 +190,7 @@ export function ArtikelDialog({
     } else {
       const { error } = await supabase.from("artikel_codes").insert({ code, artikel_id: artikel!.id, menge });
       if (error) return toast.error("Code nicht gespeichert", { description: fehlerText(error) });
+      setEntfernt(null);
       await neuLaden("artikel");
       toast.success("Code zugeordnet");
     }
@@ -187,27 +198,42 @@ export function ArtikelDialog({
     setCodeMenge("1");
   };
 
+  // Rückgängig steht im Dialog selbst: einen Toast kann man nicht anklicken,
+  // solange der Dialog offen ist (Radix sperrt alles außerhalb)
   const codeEntfernen = async (c: ArtikelCode) => {
     const { error } = await supabase.from("artikel_codes").delete().eq("code", c.code);
     if (error) return toast.error("Code nicht entfernt", { description: fehlerText(error) });
+    setEntfernt(c);
     await neuLaden("artikel");
-    toast("Code entfernt", {
-      duration: 6000,
-      action: {
-        label: "Rückgängig",
-        onClick: async () => {
-          const { error: e2 } = await supabase.from("artikel_codes").insert({ code: c.code, artikel_id: c.artikel_id, menge: c.menge });
-          if (e2) toast.error("Nicht wiederhergestellt", { description: fehlerText(e2) });
-          await neuLaden("artikel");
-        },
-      },
-    });
+  };
+
+  const codeZurueck = async () => {
+    if (!entfernt) return;
+    const { error } = await supabase.from("artikel_codes").insert({ code: entfernt.code, artikel_id: entfernt.artikel_id, menge: entfernt.menge });
+    if (error) return toast.error("Nicht wiederhergestellt", { description: fehlerText(error) });
+    setEntfernt(null);
+    await neuLaden("artikel");
   };
 
   const gescannt = (code: string) => {
-    if (scanZiel === "ean") setze("ean", code);
+    if (scanZiel === "ean") setze("ean", normalisieren(code));
     else void codeHinzufuegen(code);
     setScanZiel(null);
+  };
+
+  /** Hat ein anderer Artikel denselben Strichcode (als EAN oder weiteren Code)? Nur ein Hinweis — zwei Lieferanten führen oft dieselbe Ware. */
+  const strichcodeDoppelt = async (ean: string): Promise<string | null> => {
+    const varianten = codeVarianten(ean);
+    let mitEan = supabase.from("artikel").select("bezeichnung").in("ean", varianten).eq("aktiv", true);
+    if (artikel) mitEan = mitEan.neq("id", artikel.id);
+    const [{ data: a }, { data: c }] = await Promise.all([
+      mitEan.limit(1),
+      supabase.from("artikel_codes").select("artikel_id, artikel(bezeichnung, aktiv)").in("code", varianten).limit(10),
+    ]);
+    const gelernt = (c ?? []).find((x) => x.artikel_id !== artikel?.id && x.artikel?.aktiv);
+    if (gelernt) return `„${gelernt.artikel?.bezeichnung}“ hat diesen Strichcode als weiteren Code — beim Scannen kommt dieser.`;
+    if (a?.length) return `„${a[0].bezeichnung}“ hat dieselbe EAN. Beim Scannen kommt der Lagerartikel, sonst der ältere.`;
+    return null;
   };
 
   // ── Speichern ───────────────────────────────────────────────────────
@@ -220,6 +246,9 @@ export function ArtikelDialog({
       if (roh && (n === null || n < 0)) return toast.error(`${text}: „${roh}“ ist keine gültige Zahl.`);
     }
     setSpeichert(true);
+    const ean = f.ean.trim() ? normalisieren(f.ean) : null;
+    const eanVorher = artikel?.ean ? normalisieren(artikel.ean) : null;
+    const doppelt = ean && ean !== eanVorher ? await strichcodeDoppelt(ean).catch(() => null) : null;
     const daten = {
       bezeichnung: f.bezeichnung.trim(),
       langtext: leerNull(f.langtext),
@@ -227,7 +256,7 @@ export function ArtikelDialog({
       lieferant: f.lieferant.trim() || "Eigen",
       hersteller: leerNull(f.hersteller),
       hersteller_nr: leerNull(f.hersteller_nr),
-      ean: leerNull(f.ean.replace(/\s/g, "")),
+      ean,
       einheit: f.einheit || "Stk",
       kategorie: leerNull(f.kategorie),
       warengruppe: leerNull(f.warengruppe),
@@ -254,6 +283,7 @@ export function ArtikelDialog({
     setSpeichert(false);
     await neuLaden("artikel", "leistungen", "lager");
     toast.success(neu ? "Artikel angelegt" : "Artikel gespeichert");
+    if (doppelt) toast.warning("Strichcode doppelt", { description: doppelt, duration: 8000 });
     onGespeichert?.(data);
     onOpenChange(false);
   };
@@ -434,17 +464,26 @@ export function ArtikelDialog({
                 ))}
               </ul>
             )}
+            {entfernt && (
+              <div className="flex items-center gap-3 rounded-lg border border-dashed bg-card py-1 pl-3 pr-1 text-sm" role="status">
+                <span className="min-w-0 flex-1 truncate text-muted-foreground"><span className="font-mono">{entfernt.code}</span> entfernt</span>
+                <Button type="button" variant="outline" className="h-11 shrink-0" onClick={() => void codeZurueck()}>Rückgängig</Button>
+              </div>
+            )}
             <div className="grid grid-cols-[1fr_5.5rem] gap-2 sm:grid-cols-[1fr_7rem_auto_auto]">
               <Input className="h-11 font-mono" value={codeText} onChange={(e) => setCodeText(e.target.value)} placeholder="Code"
                 aria-label="Weiterer Code" onKeyDown={(e) => e.key === "Enter" && codeHinzufuegen()} />
               <Input className="h-11 text-right" inputMode="decimal" value={codeMenge} onChange={(e) => setCodeMenge(e.target.value)}
                 aria-label="Menge je Code (Packungsinhalt)" title="Packungsinhalt" />
-              <Button type="button" variant="outline" className="h-11" onClick={() => setScanZiel("code")}>
-                <ScanBarcode className="h-4 w-4" /> Code scannen
-              </Button>
-              <Button type="button" variant="outline" className="h-11" onClick={() => codeHinzufuegen()}>
-                <Plus className="h-4 w-4" /> Hinzufügen
-              </Button>
+              {/* Handy: die Knöpfe teilen sich eine eigene Zeile, ab Tablet stehen sie neben den Feldern */}
+              <div className="col-span-2 grid grid-cols-2 gap-2 sm:contents">
+                <Button type="button" variant="outline" className="h-11" onClick={() => setScanZiel("code")}>
+                  <ScanBarcode className="h-4 w-4" /> Code scannen
+                </Button>
+                <Button type="button" variant="outline" className="h-11" onClick={() => codeHinzufuegen()}>
+                  <Plus className="h-4 w-4" /> Hinzufügen
+                </Button>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">Die Zahl rechts ist der Packungsinhalt: ein Karton-Code mit 50 bucht beim Scannen 50 {f.einheit}.</p>
           </div>

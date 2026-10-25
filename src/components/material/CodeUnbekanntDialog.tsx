@@ -16,7 +16,7 @@ import { zahlLesen } from "@/lib/format";
 import { codeVerdaechtig, normalisieren } from "@/lib/strichcode";
 import { EINHEITEN, KATEGORIEN_ARTIKEL, type Artikel } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { ARTIKEL_KURZ, artikelInfo, fehlerText, runden3, type ArtikelKurz } from "./materialDaten";
+import { ARTIKEL_KURZ, artikelInfo, fehlerText, preisEingabe, runden3, type ArtikelKurz } from "./materialDaten";
 
 type Schritt = "wahl" | "zuordnen" | "neu";
 
@@ -84,13 +84,14 @@ export function CodeUnbekanntDialog({
     if (!code) return;
     const bez = bezeichnung.trim();
     if (!bez) return toast.error("Bitte eine Bezeichnung eingeben.");
-    const preis = zahlLesen(ek);
+    const preis = preisEingabe(ek);
+    if (Number.isNaN(preis)) return toast.error(`Einkaufspreis „${ek.trim()}“ ist keine gültige Zahl.`, { description: "z. B. 12,50 oder 1.250,50" });
     setSpeichert(true);
     const { data, error } = await supabase.from("artikel").insert({
       bezeichnung: bez,
       einheit,
       kategorie: kategorie || null,
-      ek_preis: preis > 0 ? preis : null,
+      ek_preis: preis && preis > 0 ? preis : null,
       ean: normalisieren(code),
       lieferant: "Eigen",
       quelle: "manuell",
