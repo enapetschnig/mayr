@@ -39,3 +39,6 @@ DEMO-ZUGAENGE.txt
 
 # Python
 __pycache__/
+
+# Passwort der RLS-Testkonten (nur lokal)
+tests/.rlstest-passwort

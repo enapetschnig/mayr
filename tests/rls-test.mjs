@@ -8,10 +8,16 @@
 // Danach tests/rls-aufraeumen.sql ausführen: Testdaten, Testkonten und
 // Nummernkreise (der Test vergibt echte Projekt-, Rechnungs- und Regienummern).
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 import fs from "fs";
 
 const env = Object.fromEntries(fs.readFileSync(".env", "utf8").split("\n").filter(Boolean).map((l) => l.split(/=(.*)/s)));
-const PW = "Test-Passwort-2026!";
+// Passwort der Testkonten: zufällig und nur auf diesem Rechner. Das Repo ist
+// öffentlich — mit einem bekannten Passwort könnte jemand die Testkonten vorab
+// anlegen und würde beim Freischalten zum Chef.
+const PW_DATEI = "tests/.rlstest-passwort";
+if (!fs.existsSync(PW_DATEI)) fs.writeFileSync(PW_DATEI, crypto.randomBytes(18).toString("base64url"), { mode: 0o600 });
+const PW = fs.readFileSync(PW_DATEI, "utf8").trim();
 const mail = (k) => `rlstest-${k}@mayr-test.at`;
 const neuerClient = () => createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_KEY, { auth: { persistSession: false } });
 
