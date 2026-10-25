@@ -2,7 +2,7 @@
 --  Demo-Daten der Elektriker-App — setzt ALLES auf den Demo-Stand zurück.
 --
 --  Läuft als EIN Befehl (DO-Block), damit `supabase db query` ihn annimmt:
---    sql.sh "$(cat supabase/demo-daten.sql)"
+--    sql.sh -f supabase/demo/01-stamm.sql   (danach 02-artikel.sql, 03-verlauf.sql)
 --  Benutzer (chef/max/lisa) und die Zeile `firma` bleiben, alles andere wird
 --  gelöscht und neu angelegt. Dateien im Storage vorher über die Storage-API
 --  löschen (SQL darf storage.objects nicht anfassen).
@@ -17,13 +17,19 @@ declare
   v_lisa uuid := (select id from profiles where email = 'lisa@elektro.handwerkapp.at');
   k_huber uuid; k_gruber uuid; k_sonnenhof uuid; k_berger uuid; k_kirchenwirt uuid;
 begin
-  -- Festschreib-Trigger (fertige Rechnungen, unterschriebene Regieberichte) für das Zurücksetzen aus
-  perform set_config('session_replication_role', 'replica', true);
+  -- Festschreib-Trigger (fertige Rechnungen, unterschriebene Regieberichte,
+  -- verrechnete Buchungen) nur für das Zurücksetzen aus. Läuft in EINER
+  -- Transaktion — bricht etwas ab, sind sie sofort wieder an.
+  -- (session_replication_role darf die Rolle postgres hier nicht setzen.)
+  alter table beleg_positionen disable trigger user;
+  alter table regieberichte disable trigger user;
+  alter table zeiten disable trigger user;
+  alter table material_buchungen disable trigger user;
   delete from beleg_positionen;
-  delete from belege;
   delete from material_buchungen;
   delete from zeiten;
   delete from regieberichte;
+  delete from belege;
   delete from dateien;
   delete from termine;
   delete from projekte;
@@ -34,7 +40,10 @@ begin
   delete from artikel;
   delete from lagerorte;
   delete from nummernkreise;
-  perform set_config('session_replication_role', 'origin', true);
+  alter table beleg_positionen enable trigger user;
+  alter table regieberichte enable trigger user;
+  alter table zeiten enable trigger user;
+  alter table material_buchungen enable trigger user;
   perform setval(pg_get_serial_sequence('kunden', 'nummer'), 1001, false);
 
   -- ── Betrieb ──────────────────────────────────────────────────────────────
@@ -56,7 +65,7 @@ begin
     bic = 'DEMOATW1',
     farbe = '#1D4ED8',
     stundensatz = 72,
-    material_aufschlag = 20,
+    material_aufschlag = 35,
     zahlungsziel_tage = 14,
     angebot_gueltig_tage = 30,
     kleinunternehmer = false,
@@ -111,7 +120,7 @@ begin
   insert into leistungen (nummer, kurztext, langtext, kategorie, einheit, minuten, preis, suchwoerter, aktiv, reihenfolge) values
     ('01.01', 'Steckdose UP komplett', 'Schutzkontakt-Steckdose unter Putz, inkl. Gerätedose, Anschluss und Abdeckung', 'Schalter & Steckdosen', 'Stk', 25, null, 'steckdose schuko dose', true, 101),
     ('01.02', 'Doppelsteckdose UP komplett', 'Zweifach-Schutzkontakt-Steckdose unter Putz, inkl. Gerätedosen, Anschluss und Abdeckung', 'Schalter & Steckdosen', 'Stk', 30, null, 'doppelsteckdose zweifach 2fach', true, 102),
-    ('01.03', 'Steckdose Feuchtraum AP IP44', 'Schutzkontakt-Steckdose Aufputz, spritzwassergeschützt IP44', 'Schalter & Steckdosen', 'Stk', 25, null, 'feuchtraum nassraum aufputz ip44 garten', true, 103),
+    ('01.03', 'Steckdose Feuchtraum AP IP44', 'Schutzkontakt-Steckdose Aufputz, spritzwassergeschützt IP44', 'Schalter & Steckdosen', 'Stk', 25, 42, 'feuchtraum nassraum aufputz ip44 garten', true, 103),
     ('01.04', 'Ausschalter UP komplett', 'Ausschalter unter Putz, inkl. Gerätedose, Anschluss und Abdeckung', 'Schalter & Steckdosen', 'Stk', 20, null, 'schalter ausschalter lichtschalter', true, 104),
     ('01.05', 'Wechselschalter UP komplett', 'Wechselschalter unter Putz, inkl. Gerätedose, Anschluss und Abdeckung', 'Schalter & Steckdosen', 'Stk', 25, null, 'wechselschalter wechsel', true, 105),
     ('01.06', 'Kreuzschalter UP komplett', 'Kreuzschalter unter Putz, inkl. Gerätedose, Anschluss und Abdeckung', 'Schalter & Steckdosen', 'Stk', 30, null, 'kreuzschalter kreuz', true, 106),
@@ -119,18 +128,18 @@ begin
     ('01.08', 'Taster UP komplett', 'Taster unter Putz, inkl. Gerätedose, Anschluss und Abdeckung', 'Schalter & Steckdosen', 'Stk', 20, null, 'taster', true, 108),
     ('01.09', 'Bewegungsmelder UP', 'Bewegungsmelder unter Putz 180°, inkl. Anschluss und Einstellung', 'Schalter & Steckdosen', 'Stk', 30, null, 'bewegungsmelder präsenzmelder melder', true, 109),
     ('02.01', 'Leerverrohrung Flexrohr M20', 'Isolierrohr flexibel M20 liefern und verlegen', 'Leitungen & Verrohrung', 'm', 3, null, 'rohr flexrohr verrohrung leerrohr', true, 201),
-    ('02.02', 'Mantelleitung 3x1,5 verlegen', 'Mantelleitung NYM-J 3x1,5 mm² liefern und verlegen', 'Leitungen & Verrohrung', 'm', 2, null, 'leitung kabel nym 3x1,5', true, 202),
-    ('02.03', 'Mantelleitung 5x2,5 verlegen', 'Mantelleitung NYM-J 5x2,5 mm² liefern und verlegen', 'Leitungen & Verrohrung', 'm', 3, null, 'leitung kabel nym 5x2,5 drehstrom', true, 203),
+    ('02.02', 'Mantelleitung 3x1,5 verlegen', 'Mantelleitung YM-J 3x1,5 mm² liefern und verlegen', 'Leitungen & Verrohrung', 'm', 2, null, 'leitung kabel ym nym 3x1,5', true, 202),
+    ('02.03', 'Mantelleitung 5x2,5 verlegen', 'Mantelleitung YM-J 5x2,5 mm² liefern und verlegen', 'Leitungen & Verrohrung', 'm', 3, null, 'leitung kabel ym nym 5x2,5 drehstrom', true, 203),
     ('02.04', 'Schlitz stemmen und verputzen', 'Mauerschlitz für Leitungen stemmen und nach Verlegung verschließen', 'Leitungen & Verrohrung', 'm', 10, null, 'stemmen schlitz verputzen', true, 204),
     ('02.05', 'Hohlwanddose setzen', 'Hohlwand-Gerätedose bohren und setzen', 'Leitungen & Verrohrung', 'Stk', 8, null, 'dose hohlwanddose rigips', true, 205),
     ('03.01', 'Kleinverteiler 3-reihig komplett', 'Kleinverteiler 3-reihig setzen, Hutschienen bestücken, verdrahten und beschriften', 'Verteiler', 'Stk', 240, null, 'verteiler unterverteiler kleinverteiler', true, 301),
     ('03.02', 'Leitungsschutzschalter B16', 'Leitungsschutzschalter 1-polig B16 liefern, einbauen und anschließen', 'Verteiler', 'Stk', 10, null, 'ls sicherung leitungsschutzschalter b16 automat', true, 302),
     ('03.03', 'FI-Schutzschalter 40A/30mA', 'Fehlerstromschutzschalter 4-polig 40 A / 30 mA liefern, einbauen und prüfen', 'Verteiler', 'Stk', 20, null, 'fi fehlerstromschutzschalter rcd', true, 303),
     ('03.04', 'FI/LS-Schalter einbauen', 'FI/LS-Kombischalter B16 / 30 mA liefern, einbauen und prüfen', 'Verteiler', 'Stk', 15, null, 'fi/ls fi-ls kombi', true, 304),
-    ('03.05', 'Überspannungsschutz Typ 2', 'Überspannungsableiter Typ 2 liefern und im Verteiler einbauen', 'Verteiler', 'Stk', 30, null, 'überspannung überspannungsschutz spd', true, 305),
+    ('03.05', 'Überspannungsschutz Typ 2', 'Überspannungsableiter Typ 2 liefern und im Verteiler einbauen', 'Verteiler', 'Stk', 30, 245, 'überspannung überspannungsschutz spd', true, 305),
     ('04.01', 'Deckenauslass mit Leuchtenmontage', 'Deckenauslass herstellen, beigestellte Leuchte montieren und anschließen', 'Licht', 'Stk', 30, null, 'lampe leuchte deckenauslass auslass deckenlampe', true, 401),
     ('04.02', 'LED-Einbauspot komplett', 'LED-Einbaustrahler liefern, Deckenbohrung herstellen, montieren und anschließen', 'Licht', 'Stk', 20, null, 'spot einbauspot downlight strahler', true, 402),
-    ('04.03', 'LED-Panel 60x60 montieren', 'LED-Panel 60x60 cm liefern, in Rasterdecke einsetzen und anschließen', 'Licht', 'Stk', 30, null, 'panel ledpanel rasterleuchte büroleuchte', true, 403),
+    ('04.03', 'LED-Panel 60x60 montieren', 'LED-Panel 60x60 cm liefern, in Rasterdecke einsetzen und anschließen', 'Licht', 'Stk', 30, 119, 'panel ledpanel rasterleuchte büroleuchte', true, 403),
     ('05.01', 'Netzwerkdose Cat6 komplett', 'Netzwerkdose Cat6 unter Putz, 2-fach, inkl. Auflegen und Messung', 'Netzwerk & Medien', 'Stk', 30, null, 'netzwerk lan cat6 dose datendose', true, 501),
     ('05.02', 'Netzwerkkabel Cat7 verlegen', 'Datenkabel Cat7 liefern und verlegen', 'Netzwerk & Medien', 'm', 2, null, 'netzwerkkabel cat7 datenkabel lan', true, 502),
     ('05.03', 'TV/SAT-Dose komplett', 'Antennen-Enddose TV/SAT unter Putz, inkl. Anschluss', 'Netzwerk & Medien', 'Stk', 25, null, 'tv sat antenne fernseher dose', true, 503),

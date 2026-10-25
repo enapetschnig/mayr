@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check": "node scripts/check-crash-risks.mjs",
-    "typecheck": "tsc -p tsconfig.app.json --noEmit"
+    "typecheck": "tsc -p tsconfig.app.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -45,6 +46,8 @@
     "@supabase/supabase-js": "^2.79.0",
     "@tanstack/react-query": "^5.83.0",
     "@types/qrcode": "^1.5.6",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
@@ -82,6 +85,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
-    "vite": "^5.4.19"
+    "vite": "^5.4.19",
+    "vitest": "^2.1.9"
   }
 }
