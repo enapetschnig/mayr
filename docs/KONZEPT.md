@@ -139,10 +139,13 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   (`belege.kv_verbindlich`), ohne Wahl unverbindlich.
 - Storno gibt Stunden, Material und Berichte frei; „Korrektur anlegen“ kopiert
   die stornierte Rechnung in einen neuen Entwurf und hängt die Quellen dort an.
-- Bekannte Grenzen: die Wischgeste „zurück“ am Handy fragt bei ungespeicherten
-  Änderungen nicht nach (Zurück-Knopf und Neuladen schon); eine einzeln
-  gelöschte Materialzeile eines übernommenen Berichts kommt nur über einen
-  neuen Import zurück.
+- Ungespeichertes schützt zweierlei: Links, Zurück-Knopf und Neuladen fragen
+  nach (`useVerlassenSchutz`); was das nicht abfängt — Wischgeste „zurück“
+  am Handy, abgestürzter Browser, leerer Akku — sichert der Editor laufend im
+  Gerät (`sicherung.ts`, localStorage) und bietet es beim nächsten Öffnen an.
+  Abmelden löscht die Sicherungen.
+- Bekannte Grenze: eine einzeln gelöschte Materialzeile eines übernommenen
+  Berichts kommt nur über einen neuen Import zurück.
 
 ### Regiebericht = keine doppelte Erfassung
 

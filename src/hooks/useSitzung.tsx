@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { alleSicherungenLoeschen } from "@/components/belege/sicherung";
 import { supabase } from "@/integrations/supabase/client";
 import type { Firma, Profil } from "@/lib/types";
 
@@ -46,7 +47,9 @@ export function SitzungProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Erst den Listener, dann die bestehende Sitzung — und nie await im
     // Listener selbst (Supabase-Eigenheit, sonst hängt die Anmeldung).
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((e, s) => {
+      // Gesicherte Beleg-Entwürfe enthalten Kundendaten — nicht fürs nächste Konto am Gerät
+      if (e === "SIGNED_OUT") alleSicherungenLoeschen();
       setSession(s);
       window.setTimeout(() => void datenLaden(s), 0);
     });

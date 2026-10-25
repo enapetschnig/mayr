@@ -45,6 +45,7 @@ import {
   belegKopieren, belegLoeschen, belegSpeichern, fertigstellen, inRechnungUmwandeln, projektAktivieren, projektLoeschen,
   projektNurFuerBeleg, projektZurueckAufAngebot, statusSetzen, stornieren,
 } from "./speichern";
+import { sicherungLesen, sicherungLoeschen, sicherungSchreiben, sicherungsSchluessel, type Sicherung } from "./sicherung";
 import { SpracheDialog, type SprachUebernahme } from "./SpracheDialog";
 import { TitelDialog } from "./TitelDialog";
 import { useVerlassenSchutz } from "./useVerlassenSchutz";
@@ -133,6 +134,39 @@ export function BelegEditor({
 
   const schutz = useVerlassenSchutz(dirty);
 
+  // ── Sicherung im Gerät — gegen Zurück-Geste, Absturz, leeren Akku ──
+  const schluessel = sicherungsSchluessel(id, neu, kopf.typ);
+  const [gefunden, setGefunden] = useState<{ s: Sicherung; schluessel: string } | null>(() => {
+    const k = sicherungsSchluessel(id, !daten, start.k.typ);
+    const s = sicherungLesen(k);
+    if (!s) return null;
+    // Nur für Entwürfe — schon gespeichert oder inzwischen fertig: weg damit
+    if ((daten && daten.beleg.status !== "entwurf") || schnappschuss(s.kopf, s.positionen) === start.s) {
+      sicherungLoeschen(k);
+      return null;
+    }
+    return { s, schluessel: k };
+  });
+  useEffect(() => {
+    if (gefunden || !bearbeitbar) return; // erst entscheiden: wiederherstellen oder verwerfen
+    if (dirty) sicherungSchreiben(schluessel, { zeit: new Date().toISOString(), basis, kopf, positionen });
+    else sicherungLoeschen(schluessel);
+  }, [kopf, positionen, dirty, basis, bearbeitbar, gefunden, schluessel]);
+
+  const wiederherstellen = () => {
+    if (!gefunden) return;
+    const { s } = gefunden;
+    setKopf({ ...s.kopf, typ: kopf.typ });
+    setPositionen(s.positionen);
+    setAktiverTitel([...s.positionen].reverse().find((p) => p.art === "titel")?.id ?? null);
+    setGefunden(null);
+    toast.success("Wiederhergestellt — zum Behalten speichern.");
+  };
+  const sicherungVerwerfen = () => {
+    if (gefunden) sicherungLoeschen(gefunden.schluessel);
+    setGefunden(null);
+  };
+
   // ── Gespeicherten Stand übernehmen ──
   const anwenden = useCallback((d: BelegMitPositionen) => {
     const k = kopfAusBeleg(d.beleg);
@@ -198,6 +232,7 @@ export function BelegEditor({
         onProjektAngelegt: (pid) => { merk.projekt = pid; },
       });
       const d: BelegMitPositionen = { beleg: erg.beleg, positionen: erg.positionen };
+      if (warNeu) sicherungLoeschen(sicherungsSchluessel(id, true, kopf.typ));
       letzteDaten.current = d;
       qc.setQueryData(DETAIL(id), d);
       if (aktuellRef.current === vorher) {
@@ -318,6 +353,7 @@ export function BelegEditor({
 
   // ── Löschen ──
   const verwerfen = () => {
+    sicherungLoeschen(schluessel);
     setBasis(aktuellRef.current);
     if (window.history.length > 1) navigate(-1);
     else navigate("/belege");
@@ -331,6 +367,7 @@ export function BelegEditor({
     const projektAuch = loeschen?.projektAuch && beleg?.projekt_id ? beleg.projekt_id : null;
     setLoeschen(null);
     await belegLoeschen(id);
+    sicherungLoeschen(schluessel);
     if (projektAuch) await projektLoeschen(projektAuch);
     setBasis(aktuellRef.current);
     toast.success(`${entwurf ? "Entwurf" : typText} gelöscht${projektAuch ? " — das Projekt auch" : ""}`);
@@ -702,6 +739,26 @@ export function BelegEditor({
     <Seite titel={titel} untertitel={untertitel} aktionen={aktionen} breit={pc}>
       {statusKarte}
 
+      {gefunden && bearbeitbar && (
+        <section className={cn("rounded-lg border p-4", TON_KLASSE.gelb)}>
+          <p className="font-semibold">Nicht gespeicherte Änderungen gefunden</p>
+          <p className="mt-1 text-sm">
+            {[
+              `vom ${new Date(gefunden.s.zeit).toLocaleDateString("de-AT")} um ${new Date(gefunden.s.zeit).toLocaleTimeString("de-AT", { hour: "2-digit", minute: "2-digit" })}`,
+              gefunden.s.kopf.empf_name || gefunden.s.kopf.betreff || "ohne Empfänger",
+              ((n) => `${n} ${n === 1 ? "Position" : "Positionen"}`)(gefunden.s.positionen.filter((p) => !ohneBetrag(p)).length),
+            ].join(" · ")}
+          </p>
+          {!neu && gefunden.s.basis !== start.s && (
+            <p className="mt-1 text-xs">Der Beleg wurde seitdem anderswo gespeichert — Wiederherstellen ersetzt das beim nächsten Speichern.</p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button className="h-11" onClick={wiederherstellen}><RotateCcw className="h-4 w-4" /> Wiederherstellen</Button>
+            <Button variant="outline" className="h-11 bg-card" onClick={sicherungVerwerfen}>Verwerfen</Button>
+          </div>
+        </section>
+      )}
+
       <BelegKopf kopf={kopf} aendern={kopfAendern} bearbeitbar={bearbeitbar} firma={firma} pc={pc} startOffen={neu && !kopf.empf_name} />
       {angebot && (
         <p className="-mt-2 px-1 text-sm text-muted-foreground">
@@ -907,7 +964,7 @@ export function BelegEditor({
       <VerlassenDialog
         offen={!!schutz.ziel}
         onAbbrechen={schutz.abbrechen}
-        onVerwerfen={() => schutz.weiter()}
+        onVerwerfen={() => { sicherungLoeschen(schluessel); schutz.weiter(); }}
         onSpeichern={async () => {
           const ziel = schutz.ziel;
           const ok = await speichernIntern({ weiterleiten: false });
