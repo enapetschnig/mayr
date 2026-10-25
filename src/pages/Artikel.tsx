@@ -123,12 +123,19 @@ export default function ArtikelSeite() {
   };
 
   // Gescannter Code: Artikel öffnen — oder anbieten, ihn anzulegen
+  // Nichts zurückgeben: einen Text würde der Scanner als Rückmeldung anzeigen
   const gescannt = async (code: string) => {
     const { data, error } = await supabase.rpc("artikel_zu_code", { p_code: code });
-    if (error) return toast.error("Suche fehlgeschlagen", { description: error.message });
+    if (error) {
+      toast.error("Suche fehlgeschlagen", { description: error.message });
+      return;
+    }
     if (data?.[0]) {
       const { data: a } = await supabase.from("artikel").select("*").eq("id", data[0].artikel_id).maybeSingle();
-      if (a) return setDialog({ artikel: a });
+      if (a) {
+        setDialog({ artikel: a });
+        return;
+      }
     }
     setText(code);
     toast("Kein Artikel mit diesem Code", {

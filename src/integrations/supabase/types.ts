@@ -1228,6 +1228,10 @@ export type Database = {
         Returns: string
       }
       regie_unterschrieben: { Args: { p_id: string }; Returns: boolean }
+      regie_zeiten_zuordnen: {
+        Args: { p_dazu?: string[]; p_regie: string; p_weg?: string[] }
+        Returns: string[]
+      }
     }
     Enums: {
       [_ in never]: never

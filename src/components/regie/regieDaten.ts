@@ -165,41 +165,17 @@ export function fehlerText(e: DbFehler): string {
 
 // ── Stunden einem Bericht zuordnen ──────────────────────────────────────
 
-type RpcAntwort = { data: unknown; error: DbFehler | null };
-const ohneTypen = supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<RpcAntwort> };
-
-const funktionFehlt = (e: DbFehler) =>
-  e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
-
 /**
  * Vorhandene Stunden in den Bericht holen (dazu) oder wieder herausnehmen
  * (weg). Über regie_zeiten_zuordnen() geht das auch mit den Stunden eines
- * Kollegen; fehlt die Funktion (Migration 20261025122000 noch nicht
- * eingespielt), direkt — dann lässt die RLS nur eigene, selbst angelegte
- * oder als Chef zu.
+ * Kollegen — die Partie schreibt den Bericht meist auf einem Handy.
  */
 export async function zeitenZuordnen(berichtId: string, dazu: string[], weg: string[]): Promise<{ ok: Set<string>; fehler?: string }> {
   const ok = new Set<string>();
   if (!dazu.length && !weg.length) return { ok };
-  const { data, error } = await ohneTypen.rpc("regie_zeiten_zuordnen", { p_regie: berichtId, p_dazu: dazu, p_weg: weg });
-  if (!error) {
-    ((data as string[] | null) ?? []).forEach((id) => ok.add(id));
-    return { ok };
-  }
-  if (!funktionFehlt(error)) return { ok, fehler: error.message };
-
-  if (dazu.length) {
-    const r = await supabase.from("zeiten").update({ regiebericht_id: berichtId })
-      .in("id", dazu).is("regiebericht_id", null).is("rechnung_id", null).select("id");
-    if (r.error) return { ok, fehler: r.error.message };
-    (r.data ?? []).forEach((z) => ok.add(z.id));
-  }
-  if (weg.length) {
-    const r = await supabase.from("zeiten").update({ regiebericht_id: null })
-      .in("id", weg).eq("regiebericht_id", berichtId).select("id");
-    if (r.error) return { ok, fehler: r.error.message };
-    (r.data ?? []).forEach((z) => ok.add(z.id));
-  }
+  const { data, error } = await supabase.rpc("regie_zeiten_zuordnen", { p_regie: berichtId, p_dazu: dazu, p_weg: weg });
+  if (error) return { ok, fehler: error.message };
+  (data ?? []).forEach((id) => ok.add(id));
   return { ok };
 }
 
@@ -285,9 +261,9 @@ export async function regieSpeichern(
   if (loesen.length || dazu.length) {
     const r = await zeitenZuordnen(berichtId, dazu, loesen);
     if (r.fehler) fehler.push(`Stunden nicht zugeordnet: ${r.fehler}`);
-    e.entfernt.zeiten = e.entfernt.zeiten.filter((x) => !x.behalten || !r.ok.has(x.id));
-    const nichtGeloest = loesen.filter((id) => !r.ok.has(id)).length;
-    if (!r.fehler && nichtGeloest) fehler.push(`${nichtGeloest} Stundenzeile(n) nicht aus dem Bericht genommen — fremde Stunden ordnet nur der Chef um.`);
+    // Ohne Fehler steckt danach keine der Zeilen mehr im Bericht — auch die,
+    // die schon vorher draußen waren
+    else e.entfernt.zeiten = e.entfernt.zeiten.filter((x) => !x.behalten);
     const nichtUebernommen = new Set<string>();
     e.zeilen = e.zeilen.filter((z) => {
       if (z.herkunft !== "uebernehmen") return true;
@@ -296,7 +272,7 @@ export async function regieSpeichern(
       return false;
     });
     if (!r.fehler && nichtUebernommen.size) {
-      fehler.push(`Nicht übernommen: Stunden von ${[...nichtUebernommen].join(", ")} — fremde Buchungen ordnet nur der Chef zu oder die Person selbst.`);
+      fehler.push(`Nicht übernommen: Stunden von ${[...nichtUebernommen].join(", ")} — schon in einem anderen Bericht oder verrechnet.`);
     }
   }
 
