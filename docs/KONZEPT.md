@@ -96,9 +96,38 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   (für jeden Mitarbeiter der Partie — Monteure dürfen Stunden für Kollegen eintragen)
 - Material im Regiebericht = `material_buchungen` mit `regiebericht_id`
   (art `ausfassung` aus dem Bus/Lager oder `direkt`)
+- Schon gebuchte Stunden desselben Projekts und Tages schlägt der Editor vor
+  („übernehmen“) — `regie_zeiten_zuordnen(regie, dazu[], weg[])` setzt nur
+  `regiebericht_id`, auch bei Stunden eines Kollegen (die Partie schreibt den
+  Bericht meist auf EINEM Handy). Migration `20261025122000`.
 - Unterschreiben: Bild nach `projekt-dateien/<projekt_id>/unterschriften/<regie_id>.png`,
-  dann `status = 'unterschrieben'`, `unterschrift_name`, `unterschrieben_am`
-- Danach ist der Bericht fest (Trigger `regie_schutz`)
+  dann `status = 'unterschrieben'` + `unterschrift_name`. Ohne Bild und Namen
+  lehnt der Trigger `regieberichte_unterschrift` ab; `unterschrieben_am` setzt
+  der Server (eine falsch gehende Handyuhr landet nicht im Beleg).
+- Danach ist der Bericht fest (Trigger `regie_schutz`); die Unterschriftsdatei
+  kann niemand löschen (Storage-Policy `unterschriften_bleiben`, restriktiv)
+- Ungespeicherte Eingaben sichert der Editor im Gerät (`regie/sicherung.ts`) —
+  eine Wischgeste „zurück“ am Handy verliert nichts
+- PDF (`lib/regiePdf.ts`): Material **ohne Preise** — der Kunde unterschreibt
+  auf der Baustelle, die Preise stehen auf der Rechnung
+
+### Strichcodes und Artikel-Import
+
+- Kamera: `components/scanner/leser.ts` — BarcodeDetector des Browsers, wo er
+  die Formate kann, sonst @zxing; eintippen geht immer.
+- `lib/strichcode.ts` macht aus einem Code alle Schreibweisen (UPC-A/EAN-13
+  mit führender 0, GS1-128 mit „(01)“, Leerzeichen); `artikel_zu_code()` sucht
+  in `artikel.ean` und `artikel_codes` (Karton = `menge` Stück).
+- Unbekannter Code → `CodeUnbekanntDialog`: vorhandenen Artikel wählen (der
+  Code wird gelernt) oder neuen Artikel anlegen.
+- Import (Artikelstamm → „Import“, Chef): **DATANORM 4/5** (eine oder mehrere
+  Dateien eines Lieferanten) oder **CSV** (Trennzeichen, Kopfzeile, Spalten
+  und Zahlenformat automatisch, Spalten von Hand korrigierbar).
+  EK = Listenpreis − Rabatt, Preise immer **je 1 Einheit**. Vorhandene Artikel
+  erkennt der Import an Lieferant + Artikelnummer (`unique`, Upsert) — ein
+  zweiter Import aktualisiert die Preise, statt doppelt anzulegen.
+  Echte Sonepar-Daten gibt es in der Demo nicht; eine Sonepar-Lieferung
+  (Datanorm oder CSV aus dem Webshop) geht über denselben Import.
 
 ### Nummern
 
@@ -149,7 +178,9 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
 - Nach dem Speichern `neuLaden("projekte", …)` mit den betroffenen Query-Keys
 - Gemeinsame Bausteine — **benutzen statt nachbauen**:
   - `components/material/ArtikelSuche.tsx` (`<ArtikelSuche onWahl={…} />`, `useArtikelSuche`)
-  - `components/scanner/ScanDialog.tsx` (`<ScanDialog open onOpenChange onCode dauerhaft titel />`)
+  - `components/scanner/ScanDialog.tsx` (`<ScanDialog open onOpenChange onCode dauerhaft titel />`;
+    gibt `onCode` einen Text zurück, zeigt der Scanner ihn als Rückmeldung — sonst nichts zurückgeben)
+  - `components/material/MengeFeld.tsx`, `CodeUnbekanntDialog.tsx`, `FreiePositionDialog.tsx`
   - `components/DiktatKnopf.tsx` (`<DiktatKnopf onText={…} />`, `useDiktat`)
   - `components/KundeWahl.tsx`, `components/ProjektWahl.tsx`
   - `components/FormularDialog.tsx` (Vollbild-Formular mit festem Fuß)

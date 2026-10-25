@@ -1,8 +1,8 @@
 /**
  * DATANORM 4 und 5 lesen — so liefern die Elektro-Großhändler ihre Artikel
- * und Preise. Portiert aus Lengauer (lib/lengauer/datanorm.ts), dort an
- * Lieferungen echter Händler erprobt; hier ohne Staffelpreise und Packungs-
- * Umrechnung, weil der Artikelstamm dafür keine Spalten hat.
+ * und Preise. Nach einem an Händler-Lieferungen erprobten Leser; hier ohne
+ * Staffelpreise und Packungs-Umrechnung, weil der Artikelstamm dafür keine
+ * Spalten hat.
  *
  * Satzarten (Feldnummern 0-basiert nach dem Zerlegen an „;“):
  *   V  Vorlauf. DN5 »V;050;A;Datum;EUR;Text;…;Firma(8)«, DN4 feste Breite »V 220726 … 04EUR«

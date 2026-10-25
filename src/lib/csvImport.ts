@@ -5,8 +5,7 @@
  * automatisch zugeordnet — von Hand korrigierbar.
  *
  * Zahlen: deutsch (1.250,50) und englisch (1,250.50) — welche Schreibweise
- * gilt, entscheidet die ganze Spalte. Zahlen-Logik aus Lengauer
- * (lib/lengauer/artikelImport.ts).
+ * gilt, entscheidet die ganze Spalte.
  */
 import type { ImportArtikel } from "@/lib/artikelImport";
 import { einheitNorm, kurztextVerbinden, pause } from "@/lib/datanorm";
