@@ -321,6 +321,23 @@ export function BelegEditor({
   };
   const speichern = () => { if (!laeuft) void gesperrt(async () => { await speichernIntern(); }); };
 
+  // Strg+S (Mac: Cmd+S) speichert — statt „Seite speichern unter …“ des Browsers.
+  // Nicht, solange ein Dialog offen ist: dessen Eingabe steckt noch nicht im Beleg.
+  const tasteSpeichern = useRef(() => {});
+  tasteSpeichern.current = () => {
+    if (bearbeitbar && !laeuft && (dirty || neu) && !document.querySelector('[role="dialog"], [role="alertdialog"]')) speichern();
+  };
+  useEffect(() => {
+    const taste = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        tasteSpeichern.current();
+      }
+    };
+    window.addEventListener("keydown", taste);
+    return () => window.removeEventListener("keydown", taste);
+  }, []);
+
   // ── Fertigstellen ──
   const warnungen = fertigHinweise(kopf, positionen, s.brutto, firma, heute);
 

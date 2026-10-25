@@ -110,7 +110,9 @@ export default function LeistungenSeite() {
                     {g.leistungen.map((l) => {
                       const k = kalk(l);
                       return (
-                        <tr key={l.id} tabIndex={0} onClick={() => oeffnen(l)} onKeyDown={(e) => e.key === "Enter" && oeffnen(l)}
+                        <tr key={l.id} tabIndex={0} onClick={() => oeffnen(l)}
+                          // preventDefault: sonst „klickt“ dieselbe Enter-Taste gleich den Knopf im geöffneten Dialog
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); oeffnen(l); } }}
                           className={cn("cursor-pointer transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none", !l.aktiv && "text-muted-foreground")}>
                           <td className="px-4 py-2.5 font-mono text-xs">{l.nummer || "–"}</td>
                           <td className="px-3 py-2.5">

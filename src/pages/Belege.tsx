@@ -91,7 +91,21 @@ export default function Belege() {
     });
   }, [belege, typ, filter, suche, heute, verrechnet]);
 
-  const summeListe = liste.filter((b) => b.status !== "storniert" && b.status !== "storno").reduce((s, b) => s + Number(b.brutto), 0);
+  // Angebote und Rechnungen getrennt — zusammengezählt sagt die Summe nichts.
+  // Es zählen nur fertige: keine Entwürfe, kein Storno, keine abgelehnten Angebote.
+  const zaehlt = (b: BelegListenEintrag) =>
+    b.typ === "rechnung" ? b.status === "offen" || b.status === "bezahlt" : b.status === "offen" || b.status === "angenommen";
+  const summenListe = (["rechnung", "angebot"] as const)
+    .map((t) => {
+      const l = liste.filter((b) => b.typ === t && zaehlt(b));
+      return { typ: t, anzahl: l.length, summe: l.reduce((s, b) => s + Number(b.brutto), 0) };
+    })
+    .filter((x) => x.anzahl > 0);
+  const ohneListe = [
+    liste.some((b) => b.status === "entwurf") && "Entwürfe",
+    liste.some((b) => b.status === "storniert" || b.status === "storno") && "Storno",
+    liste.some((b) => b.status === "abgelehnt") && "abgelehnte Angebote",
+  ].filter((x): x is string => !!x);
   const gefiltert = typ !== "alle" || filter !== "alle" || !!suche;
 
   const neuKnoepfe = pc ? (
@@ -229,8 +243,14 @@ export default function Belege() {
         <div className="space-y-2">
           <BelegListe belege={liste} heute={heute} pc={pc} verrechneteAngebote={verrechnet} />
           <p className="px-1 text-right text-xs text-muted-foreground">
-            {liste.length} {liste.length === 1 ? "Beleg" : "Belege"} · Summe brutto <span className="zahl font-semibold text-foreground">{euro(summeListe)}</span>
-            {liste.some((b) => b.status === "storniert" || b.status === "storno") && " (ohne Storno)"}
+            {liste.length} {liste.length === 1 ? "Beleg" : "Belege"}
+            {summenListe.map((x) => (
+              <span key={x.typ}>
+                {" · "}{x.typ === "rechnung" ? "Rechnungen" : "Angebote"} <span className="zahl font-semibold text-foreground">{euro(x.summe)}</span>
+              </span>
+            ))}
+            {summenListe.length > 0 && " brutto"}
+            {summenListe.length > 0 && ohneListe.length > 0 && ` (ohne ${ohneListe.join(", ").replace(/, ([^,]*)$/, " und $1")})`}
           </p>
         </div>
       )}

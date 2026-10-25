@@ -55,8 +55,10 @@ export function BelegListe({
               return (
                 <tr
                   key={b.id}
-                  className="cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/40"
+                  tabIndex={0}
+                  className="cursor-pointer border-b transition-colors last:border-b-0 hover:bg-muted/40 focus-visible:bg-muted/50 focus-visible:outline-none"
                   onClick={() => navigate(`/belege/${b.id}`)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); navigate(`/belege/${b.id}`); } }}
                 >
                   <td className="py-2.5 pl-4">
                     <span className="flex items-center gap-2">
