@@ -93,9 +93,9 @@ export default function Kalender() {
       aktionen={<Button onClick={() => setDialog({ datum: ansicht === "woche" && heute >= von && heute <= bis ? heute : bezug })} className="gap-1.5"><CalendarPlus className="h-4 w-4" /> Termin</Button>}>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => blaettern(-1)} aria-label="Zurück"><ChevronLeft className="h-5 w-5" /></Button>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => blaettern(-1)} aria-label={ansicht === "woche" ? "Vorige Woche" : "Voriger Monat"}><ChevronLeft className="h-5 w-5" /></Button>
           <Button variant="outline" className="h-11" onClick={() => setBezug(heute)}>Heute</Button>
-          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => blaettern(1)} aria-label="Weiter"><ChevronRight className="h-5 w-5" /></Button>
+          <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => blaettern(1)} aria-label={ansicht === "woche" ? "Nächste Woche" : "Nächster Monat"}><ChevronRight className="h-5 w-5" /></Button>
         </div>
         <Segment werte={[["woche", "Woche"], ["monat", "Monat"]]} wert={ansicht} onChange={(a) => ansichtSetzen(a as Ansicht)} />
         <Segment werte={[["alle", "Alle"], ["meine", "Meine"]]} wert={nurMeine ? "meine" : "alle"} onChange={(w) => setNurMeine(w === "meine")} />
@@ -110,14 +110,15 @@ export default function Kalender() {
         <div className="space-y-4">
           {tage.map((tag, i) => {
             const liste = sichtbar.filter((t) => amTag(t, tag));
-            if (i >= 5 && liste.length === 0) return null;
+            // Leeres Wochenende ausblenden — außer es ist heute
+            if (i >= 5 && liste.length === 0 && tag !== heute) return null;
             return (
               <section key={tag}>
                 <div className="flex items-center justify-between px-1 pb-1.5">
                   <h3 className={cn("text-sm font-semibold", tag === heute && "text-primary")}>
                     {tag === heute ? "Heute, " : `${WOCHENTAGE[i]}, `}{datumText(tag).slice(0, 6)}
                   </h3>
-                  <button type="button" className="text-xs font-medium text-primary" onClick={() => setDialog({ datum: tag })}>+ Termin</button>
+                  <button type="button" className="-my-3 -mr-2 min-h-11 px-2 text-sm font-medium text-primary" onClick={() => setDialog({ datum: tag })}>+ Termin</button>
                 </div>
                 {liste.length === 0
                   ? <p className="rounded-lg border border-dashed px-3.5 py-2.5 text-sm text-muted-foreground">Nichts eingeteilt</p>
@@ -304,7 +305,7 @@ function Monat({
             {bezug === heute ? "Heute, " : ""}
             {isoZuDatum(bezug).toLocaleDateString("de-AT", { weekday: "long", day: "numeric", month: "long" })}
           </h3>
-          <Button variant="ghost" size="sm" className="text-primary" onClick={() => onNeu(bezug)}>+ Termin</Button>
+          <Button variant="ghost" className="h-11 text-primary" onClick={() => onNeu(bezug)}>+ Termin</Button>
         </div>
         {tagesTermine.length === 0
           ? <Leer icon={CalendarPlus} text="Keine Termine an diesem Tag." className="py-6" />

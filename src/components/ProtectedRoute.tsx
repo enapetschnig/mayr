@@ -84,7 +84,7 @@ export function ProtectedRoute({ children, nurChef = false }: { children: ReactN
 export function Hinweis({ icon, titel, text, children }: { icon: ReactNode; titel: string; text: string; children: ReactNode }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm rounded-3xl border bg-card p-6 text-center shadow-sm">
+      <div className="w-full max-w-sm rounded-3xl border bg-card p-6 text-center">
         <img src={KUNDE.logo} alt="" className="mx-auto mb-5 h-14 w-14 rounded-2xl" />
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">{icon}</div>
         <h1 className="text-xl font-bold">{titel}</h1>

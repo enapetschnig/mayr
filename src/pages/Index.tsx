@@ -59,14 +59,17 @@ export default function Index() {
 
   const heute = isoTag();
   const montag = wochenbeginn(heute);
+  const sonntag = tageDazu(montag, 6);
 
+  // Letzte und diese Woche — nicht weiter: eine (versehentlich) vorausgebuchte
+  // Stunde zählt nicht zur Woche und steht nicht oben in „Zuletzt gebucht“
   const { data: woche } = useQuery({
     queryKey: ["zeiten", "start", profil?.id, montag],
     enabled: !!profil,
     queryFn: async () => {
       const { data, error } = await supabase.from("zeiten")
         .select("id, datum, stunden, taetigkeit, projekt_id, projekte(nummer, name)")
-        .eq("user_id", profil!.id).gte("datum", tageDazu(montag, -7))
+        .eq("user_id", profil!.id).gte("datum", tageDazu(montag, -7)).lte("datum", sonntag)
         .order("datum", { ascending: false }).order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -182,7 +185,7 @@ export default function Index() {
             {zuletzt.length === 0 ? (
               <div className="px-4 pb-4 text-sm text-muted-foreground">
                 Noch kein laufendes Projekt.{" "}
-                <button type="button" className="font-medium text-primary hover:underline" onClick={() => setProjektOffen(true)}>Projekt anlegen</button>
+                <button type="button" className="min-h-11 font-medium text-primary hover:underline" onClick={() => setProjektOffen(true)}>Projekt anlegen</button>
               </div>
             ) : (
               <ul className="divide-y">

@@ -8,7 +8,7 @@ import { ZeitDialog } from "@/components/dialoge/ZeitDialog";
 import { ZeitenListe, useZeitenListe, type ZeitMitInfo } from "@/components/zeiten/ZeitenListe";
 import { useMitarbeiter } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
-import { datum, isoTag, isoZuDatum, stunden, tageDazu } from "@/lib/format";
+import { datum, isoTag, isoZuDatum, stunden, tageDazu, zahl } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const SOLL_WOCHE = 40;
@@ -76,7 +76,7 @@ export default function Zeiten() {
             const an = person === x.id || (!person && x.id === profil?.id);
             return (
               <button key={x.id} type="button" onClick={() => setPerson(x.id)} aria-pressed={an}
-                className={cn("flex h-10 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                className={cn("flex h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
                   "m" in x && "pl-1.5",
                   an ? "border-primary bg-primary-soft text-primary" : "bg-card text-muted-foreground hover:bg-muted")}>
                 {"m" in x && <Avatar profil={x.m} className="h-7 w-7 text-[11px]" />}
@@ -99,7 +99,8 @@ export default function Zeiten() {
 
         {alle ? (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[22rem] text-sm">
+            {/* Am Handy klein genug, dass die Σ-Spalte ohne Wischen zu sehen ist */}
+            <table className="w-full min-w-[18rem] text-xs sm:text-sm">
               <thead>
                 <tr className="text-xs text-muted-foreground">
                   <th className="pb-1.5 text-left font-medium" />
@@ -112,17 +113,17 @@ export default function Zeiten() {
                   const s = tage.reduce((x, t) => x + jeTag(t, m.id), 0);
                   return (
                     <tr key={m.id}>
-                      <td className="py-2 pr-2">
-                        <button type="button" className="flex items-center gap-2 font-medium hover:text-primary" onClick={() => setPerson(m.id)}>
-                          <Avatar profil={m} className="h-6 w-6 text-[10px]" />{m.vorname}
+                      <td className="pr-1">
+                        <button type="button" className="flex min-h-11 items-center gap-1.5 font-medium hover:text-primary" onClick={() => setPerson(m.id)}>
+                          <Avatar profil={m} className="h-6 w-6 text-[10px]" /><span className="max-w-[5rem] truncate">{m.vorname}</span>
                         </button>
                       </td>
                       {tage.map((t) => {
                         const h = jeTag(t, m.id);
-                        return <td key={t} className={cn("zahl py-2 text-right", !h && "text-muted-foreground/50")}>{h ? String(h).replace(".", ",") : "–"}</td>;
+                        return <td key={t} className={cn("zahl py-2 text-right", !h && "text-muted-foreground/50")}>{h ? zahl(h) : "–"}</td>;
                       })}
                       <td className={cn("zahl py-2 text-right font-semibold", s < SOLL_WOCHE && montag < montagVon(heute) && "text-status-rot-fg")}>
-                        {String(s).replace(".", ",")}
+                        {zahl(s)}
                       </td>
                     </tr>
                   );
@@ -137,7 +138,7 @@ export default function Zeiten() {
               return (
                 <button key={t} type="button" onClick={() => setDialog({ datum: t })}
                   className="group flex flex-col items-center gap-1" aria-label={`${TAGE[i]}: ${stunden(h)} — Stunden buchen`}>
-                  <span className="zahl text-xs font-semibold">{h ? String(h).replace(".", ",") : ""}</span>
+                  <span className="zahl text-xs font-semibold">{h ? zahl(h) : ""}</span>
                   <span className="flex h-20 w-full items-end overflow-hidden rounded-md bg-muted">
                     <span className={cn("w-full rounded-md transition-all", h ? "bg-primary" : "")} style={{ height: `${(h / max) * 100}%` }} />
                   </span>
