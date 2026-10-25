@@ -5,8 +5,13 @@ import { Camera, ChevronLeft, ChevronRight, Download, FileText, Trash2, X } from
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, Leer } from "@/components/Bausteine";
 import { FotoDialog } from "@/components/dialoge/FotoDialog";
+import { fehlerText } from "@/components/stamm/stammDaten";
 import { useNeuLaden } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { signierteAdressen } from "@/lib/upload";
@@ -22,6 +27,7 @@ export function FotosTab({ projektId, art = "foto" }: { projektId: string; art?:
   const neuLaden = useNeuLaden();
   const [hochladenOffen, setHochladenOffen] = useState(false);
   const [gross, setGross] = useState<number | null>(null);
+  const [loeschFrage, setLoeschFrage] = useState<DateiMitPerson | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["dateien", projektId],
@@ -50,10 +56,12 @@ export function FotosTab({ projektId, art = "foto" }: { projektId: string; art?:
   const darfLoeschen = (d: Datei) => istChef || d.user_id === profil?.id;
 
   const loeschen = async (d: Datei) => {
-    const { error } = await supabase.from("dateien").delete().eq("id", d.id);
-    if (error) return toast.error("Nicht gelöscht", { description: error.message });
+    setLoeschFrage(null);
+    const { data: weg, error } = await supabase.from("dateien").delete().eq("id", d.id).select("id");
+    if (error) return toast.error("Nicht gelöscht", { description: fehlerText(error) });
+    if (!weg?.length) return toast.error("Nicht gelöscht", { description: "Löschen kann nur, wer hochgeladen hat, oder der Chef." });
     await supabase.storage.from("projekt-dateien").remove([d.pfad]);
-    toast.success("Gelöscht");
+    toast.success(d.art === "foto" ? "Foto gelöscht" : "Dokument gelöscht");
     setGross(null);
     await neuLaden("dateien");
   };
@@ -92,12 +100,12 @@ export function FotosTab({ projektId, art = "foto" }: { projektId: string; art?:
                 <p className="text-xs text-muted-foreground">{datum(d.created_at)} · {name(d.profiles)}</p>
               </div>
               {urls[d.pfad] && (
-                <Button variant="ghost" size="icon" asChild>
-                  <a href={urls[d.pfad]} target="_blank" rel="noreferrer" aria-label="Öffnen"><Download className="h-4 w-4" /></a>
+                <Button variant="ghost" size="icon" className="h-11 w-11" asChild>
+                  <a href={urls[d.pfad]} target="_blank" rel="noreferrer" aria-label={`${d.name} öffnen`}><Download className="h-4 w-4" /></a>
                 </Button>
               )}
               {darfLoeschen(d) && (
-                <Button variant="ghost" size="icon" onClick={() => loeschen(d)} aria-label="Löschen">
+                <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => setLoeschFrage(d)} aria-label={`${d.name} löschen`}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               )}
@@ -112,25 +120,27 @@ export function FotosTab({ projektId, art = "foto" }: { projektId: string; art?:
           {aktuelles && (
             <div className="relative">
               <img src={urls[aktuelles.pfad]} alt={aktuelles.name} className="max-h-[80dvh] w-full object-contain" />
-              <button type="button" className="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white" onClick={() => setGross(null)} aria-label="Schließen">
+              <button type="button" className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white" onClick={() => setGross(null)} aria-label="Schließen">
                 <X className="h-5 w-5" />
               </button>
               {gross! > 0 && (
-                <button type="button" className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white" onClick={() => setGross(gross! - 1)} aria-label="Zurück">
+                <button type="button" className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white" onClick={() => setGross(gross! - 1)} aria-label="Voriges Foto">
                   <ChevronLeft className="h-6 w-6" />
                 </button>
               )}
               {gross! < liste.length - 1 && (
-                <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white" onClick={() => setGross(gross! + 1)} aria-label="Weiter">
+                <button type="button" className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white" onClick={() => setGross(gross! + 1)} aria-label="Nächstes Foto">
                   <ChevronRight className="h-6 w-6" />
                 </button>
               )}
               <div className="flex items-center gap-2 bg-black/80 p-3 text-sm text-white">
                 <Avatar profil={aktuelles.profiles} className="h-6 w-6 text-[10px]" />
                 <span className="flex-1 truncate">{aktuelles.beschreibung || `${name(aktuelles.profiles)} · ${datum(aktuelles.created_at)}`}</span>
-                <a href={urls[aktuelles.pfad]} target="_blank" rel="noreferrer" className="p-1.5" aria-label="Herunterladen"><Download className="h-4 w-4" /></a>
+                <a href={urls[aktuelles.pfad]} target="_blank" rel="noreferrer" className="flex h-11 w-11 items-center justify-center" aria-label="Herunterladen"><Download className="h-4 w-4" /></a>
                 {darfLoeschen(aktuelles) && (
-                  <button type="button" onClick={() => loeschen(aktuelles)} className="p-1.5" aria-label="Löschen"><Trash2 className="h-4 w-4 text-red-400" /></button>
+                  <button type="button" onClick={() => setLoeschFrage(aktuelles)} className="flex h-11 w-11 items-center justify-center" aria-label="Löschen">
+                    <Trash2 className="h-4 w-4 text-red-400" />
+                  </button>
                 )}
               </div>
             </div>
@@ -139,6 +149,21 @@ export function FotosTab({ projektId, art = "foto" }: { projektId: string; art?:
       </Dialog>
 
       <FotoDialog open={hochladenOffen} onOpenChange={setHochladenOffen} projektId={projektId} art={art} />
+
+      <AlertDialog open={!!loeschFrage} onOpenChange={(o) => !o && setLoeschFrage(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{loeschFrage?.art === "foto" ? "Foto löschen?" : "Dokument löschen?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {loeschFrage?.beschreibung || loeschFrage?.name} wird endgültig gelöscht — auch für alle Kollegen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-11">Behalten</AlertDialogCancel>
+            <Button variant="destructive" className="h-11" onClick={() => loeschFrage && loeschen(loeschFrage)}>Löschen</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
