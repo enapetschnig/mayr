@@ -4,8 +4,10 @@
 --  Läuft als EIN Befehl (DO-Block), damit `supabase db query` ihn annimmt:
 --    sql.sh -f supabase/demo/01-stamm.sql   (danach 02-artikel.sql, 03-verlauf.sql)
 --  Benutzer (chef/max/lisa) und die Zeile `firma` bleiben, alles andere wird
---  gelöscht und neu angelegt. Dateien im Storage vorher über die Storage-API
---  löschen (SQL darf storage.objects nicht anfassen).
+--  gelöscht und neu angelegt. Am einfachsten alles auf einmal:
+--    DEMO_CHEF_PASSWORT=… scripts/demo-zuruecksetzen.sh
+--  (löscht vorher die Dateien über die Storage-API — SQL darf storage.objects
+--  nicht anfassen).
 --
 --  Alle Firmen- und Kundendaten sind erfunden und als Demo erkennbar
 --  (Musterstraße, .demo-Adressen, ungültige IBAN AT00…, UID ATU00000000).
@@ -73,7 +75,8 @@ begin
     angebot_schluss = 'Wir freuen uns auf Ihren Auftrag und stehen für Rückfragen gerne zur Verfügung.',
     rechnung_einleitung = 'Für die durchgeführten Arbeiten erlauben wir uns, wie folgt zu verrechnen:',
     rechnung_schluss = 'Vielen Dank für Ihren Auftrag!',
-    fusszeile = null
+    fusszeile = null,
+    logo_pfad = null
   where id = 1;
 
   -- ── Lager und Busse ──────────────────────────────────────────────────────

@@ -48,15 +48,18 @@ node tests/rls-test.mjs
 scripts/sql.sh -f tests/rls-aufraeumen.sql       # Testdaten, Testkonten, Nummernkreise zurück
 ```
 
-Demo zurücksetzen (Reihenfolge einhalten; Dateien im Storage vorher über die
-Storage-API löschen):
+Demo zurücksetzen — Dateien im Speicher, Stamm, Artikel, Verlauf und
+Unterschriftsbilder in der richtigen Reihenfolge (die Konten bleiben):
 
 ```bash
-scripts/sql.sh -f supabase/demo/01-stamm.sql     # Betrieb, Kunden, Projekte, Leistungen
-scripts/sql.sh -f supabase/demo/02-artikel.sql   # aus artikel_sql.py erzeugt
-scripts/sql.sh -f supabase/demo/03-verlauf.sql   # Stunden, Material, Regie, Belege
-DEMO_CHEF_PASSWORT=… python3 -I supabase/demo/unterschriften.py   # Unterschriftsbilder der Regieberichte
+DEMO_CHEF_PASSWORT=… scripts/demo-zuruecksetzen.sh
 ```
+
+Einzeln: `scripts/demo-dateien-loeschen.mjs`, dann `supabase/demo/01-stamm.sql`,
+`02-artikel.sql` (aus `artikel_sql.py` erzeugt), `03-verlauf.sql` je mit
+`scripts/sql.sh -f`, zuletzt `supabase/demo/unterschriften.py`. Unterschriften
+im Speicher lassen sich nicht löschen (Policy `unterschriften_bleiben`) — alte
+bleiben nach dem Zurücksetzen als verwaiste Dateien liegen, wenige KB.
 
 `scripts/sql.sh` liest das DB-Passwort aus `.supabase-db-passwort.txt` (nie
 ausgeben). **Eine Anweisung je Aufruf** — mehrere mit Strichpunkt laufen still
