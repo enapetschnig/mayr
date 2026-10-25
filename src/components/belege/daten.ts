@@ -96,15 +96,23 @@ export function useBelegKurz(id: string | null) {
   });
 }
 
-/** Die Stornorechnung zu einer stornierten Rechnung */
-export function useStornoZu(rechnungId: string, aktiv: boolean) {
+/** Was aus einer stornierten Rechnung wurde: ihre Stornorechnung und ihre Korrektur */
+export function useNachfolger(rechnungId: string, aktiv: boolean) {
   return useQuery({
-    queryKey: ["belege", "storno", rechnungId],
+    queryKey: ["belege", "nachfolger", rechnungId],
     enabled: aktiv,
     queryFn: async () => {
-      const { data, error } = await supabase.from("belege").select("id, typ, nummer, status").eq("storno_von", rechnungId).maybeSingle();
+      const { data, error } = await supabase
+        .from("belege")
+        .select("id, typ, nummer, status, storno_von, korrektur_von")
+        .or(`storno_von.eq.${rechnungId},korrektur_von.eq.${rechnungId}`);
       if (error) throw error;
-      return data as BelegKurz | null;
+      const zeilen = data ?? [];
+      const kurz = (b: (typeof zeilen)[number] | undefined): BelegKurz | null => (b ? { id: b.id, typ: b.typ, nummer: b.nummer, status: b.status } : null);
+      return {
+        storno: kurz(zeilen.find((b) => b.storno_von === rechnungId)),
+        korrektur: kurz(zeilen.find((b) => b.korrektur_von === rechnungId)),
+      };
     },
   });
 }
@@ -112,7 +120,8 @@ export function useStornoZu(rechnungId: string, aktiv: boolean) {
 /** Leistungskatalog mit Material — für Preis (lib/preise.ts) und Spracherkennung */
 export function useLeistungsKatalog() {
   return useQuery({
-    queryKey: ["leistungen", "katalog"],
+    // nicht „katalog“: das ist der Stamm mit allen (auch inaktiven) Leistungen
+    queryKey: ["leistungen", "katalog-aktiv"],
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase

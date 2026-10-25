@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { belegSummen } from "@/lib/preise";
 import type { Beleg, Firma, Position } from "@/lib/types";
+import { fehlerText } from "@/components/stamm/stammDaten";
 import {
   kopfZuDb, neueId, ohneUstFuer, positionZuDb, quelleJson, quellenIds, summen,
   type BelegTyp, type EditorPosition, type Kopf, type Quelle,
@@ -20,8 +21,16 @@ import {
  *     markieren — nur wenn noch frei; was schon woanders hängt, wird gezählt
  */
 
-const fehler = (text: string, e: { message: string } | null | undefined) =>
-  new Error(e?.message ? `${text}: ${e.message}` : text);
+const fehler = (text: string, e: { code?: string; message: string } | null | undefined) =>
+  new Error(e?.message ? `${text}: ${fehlerText(e)}` : text);
+
+/** Der Beleg wurde seit dem Laden anderswo gespeichert (zweites Fenster, anderes Gerät) */
+export class StandVeraltet extends Error {
+  constructor() {
+    super("Inzwischen woanders gespeichert");
+    this.name = "StandVeraltet";
+  }
+}
 
 export type SpeicherErgebnis = {
   beleg: Beleg;
@@ -31,7 +40,7 @@ export type SpeicherErgebnis = {
 };
 
 export async function belegSpeichern({
-  id, neu, kopf, positionen, geloescht, firma, onProjektAngelegt,
+  id, neu, kopf, positionen, geloescht, firma, stand, onProjektAngelegt,
 }: {
   id: string;
   neu: boolean;
@@ -39,9 +48,20 @@ export async function belegSpeichern({
   positionen: EditorPosition[];
   geloescht: string[];
   firma: Firma | null;
+  /** `updated_at` beim Laden — weicht die Datenbank ab, wird nichts geschrieben */
+  stand?: string | null;
   onProjektAngelegt?: (projektId: string) => void;
 }): Promise<SpeicherErgebnis> {
   let k = kopf;
+
+  // Zwei offene Editoren: sonst schriebe der ältere Stand den neueren still
+  // über (und holte gelöschte Positionen zurück). Erst prüfen, bevor etwas
+  // angelegt wird; das Update unten prüft noch einmal in einem Schritt.
+  if (!neu && stand) {
+    const { data, error } = await supabase.from("belege").select("updated_at").eq("id", id).maybeSingle();
+    if (error) throw fehler("Beleg konnte nicht gespeichert werden", error);
+    if (data && data.updated_at !== stand) throw new StandVeraltet();
+  }
 
   if (!k.projekt_id && k.typ === "angebot") {
     const name = (k.betreff.trim() || k.empf_name.trim() || "Angebot").slice(0, 120);
@@ -68,9 +88,17 @@ export async function belegSpeichern({
   // legt das nächste „Speichern“ nicht doppelt an, sondern schreibt drüber.
   const antwort = neu
     ? await supabase.from("belege").upsert({ id, ...zeile }, { onConflict: "id" }).select("*").single()
-    : await supabase.from("belege").update(zeile).eq("id", id).select("*").maybeSingle();
+    : stand
+      ? await supabase.from("belege").update(zeile).eq("id", id).eq("updated_at", stand).select("*").maybeSingle()
+      : await supabase.from("belege").update(zeile).eq("id", id).select("*").maybeSingle();
   if (antwort.error) throw fehler("Beleg konnte nicht gespeichert werden", antwort.error);
-  if (!antwort.data) throw new Error("Beleg nicht gefunden — wurde er inzwischen gelöscht?");
+  if (!antwort.data) {
+    if (stand) {
+      const { data } = await supabase.from("belege").select("id").eq("id", id).maybeSingle();
+      if (data) throw new StandVeraltet();
+    }
+    throw new Error("Beleg nicht gefunden — wurde er inzwischen gelöscht?");
+  }
 
   if (geloescht.length) {
     const { error } = await supabase.from("beleg_positionen").delete().in("id", geloescht);
@@ -203,7 +231,8 @@ export async function projektLoeschen(projektId: string): Promise<void> {
 /**
  * Neuer Entwurf aus einem bestehenden Beleg: Angebot → Rechnung, Kopie,
  * Korrektur einer stornierten Rechnung (dann mit Herkunft — die Quellen sind
- * durch das Storno wieder frei und werden neu gebunden).
+ * durch das Storno wieder frei und werden neu gebunden — und mit Verweis auf
+ * die ersetzte Rechnung; gibt es die Korrektur schon, kommt sie zurück).
  */
 export async function belegKopieren({
   quelle, positionen, typ, firma, heute, mitHerkunft = false,
@@ -214,7 +243,16 @@ export async function belegKopieren({
   firma: Firma | null;
   heute: string;
   mitHerkunft?: boolean;
-}): Promise<{ id: string; konflikte: number }> {
+}): Promise<{ id: string; konflikte: number; schonDa?: boolean }> {
+  const korrektur = mitHerkunft && quelle.typ === "rechnung";
+  const vorhandeneKorrektur = async () => {
+    const { data } = await supabase.from("belege").select("id").eq("korrektur_von", quelle.id).maybeSingle();
+    return data?.id ?? null;
+  };
+  if (korrektur) {
+    const da = await vorhandeneKorrektur();
+    if (da) return { id: da, konflikte: 0, schonDa: true };
+  }
   const id = neueId();
   const gleicherTyp = quelle.typ === typ;
   const ohneUst = !!quelle.reverse_charge || !!firma?.kleinunternehmer;
@@ -242,10 +280,16 @@ export async function belegKopieren({
     ust_satz: quelle.ust_satz,
     reverse_charge: quelle.reverse_charge,
     kv_verbindlich: typ === "angebot" && quelle.kv_verbindlich,
+    korrektur_von: korrektur ? quelle.id : null,
     netto: s.netto,
     ust: s.ust,
     brutto: s.brutto,
   });
+  if (error?.code === "23505" && korrektur) {
+    // gleichzeitig ein zweites Mal gedrückt — die andere gewinnt
+    const da = await vorhandeneKorrektur();
+    if (da) return { id: da, konflikte: 0, schonDa: true };
+  }
   if (error) throw fehler("Neuer Beleg konnte nicht angelegt werden", error);
 
   if (positionen.length) {

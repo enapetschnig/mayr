@@ -8,7 +8,7 @@ import {
   mengeInGruppe, positionZuDb, positionsNummern, quelleJson, summen, titelPosition, verschieben, zwischensummen,
   type EditorPosition, type KatalogLeistung,
 } from "./editor";
-import { importPositionen, materialGruppen, type ImportDaten, type ImportMaterial, type ImportZeit } from "./importieren";
+import { ABGEGOLTEN_TEXT, importPositionen, materialGruppen, type ImportDaten, type ImportMaterial, type ImportZeit } from "./importieren";
 import { kvHinweis } from "@/lib/belegPdf";
 import { belegSummen, runden2 } from "@/lib/preise";
 
@@ -169,6 +169,7 @@ describe("Rechnung aus dem Projekt", () => {
     zeiten: [zeit("z3", "2026-10-15", 8, "u1"), zeit("z4", "2026-10-16", 6, "u1"), zeit("z5", "2026-10-16", 6, "u2")],
     material: [mat("m2", "ausfassung", 10, 0.12, "a-wago", "WAGO 2273-205")],
     unsigniert: [],
+    angebotImEntwurf: null,
   };
   const alles = { angebote: [], regie: ["rb2"], zeiten: ["z3", "z4", "z5"], material: ["a-wago"] };
 
@@ -221,6 +222,46 @@ describe("Rechnung aus dem Projekt", () => {
     expect(r.positionen[1].menge).toBe("2");
     expect(r.angebotId).toBe("an1");
   });
+
+  const angebot = {
+    id: "an1", nummer: "AN-2026-001", betreff: "Bad", status: "angenommen", netto: 100,
+    positionen: [
+      { id: "p1", beleg_id: "an1", pos: 1, art: "leistung", bezeichnung: "Steckdose UP komplett", langtext: null, menge: 2, einheit: "Stk", einzelpreis: 39.07, gesamt: 78.14, ek_preis: 4.59, minuten: 25, artikel_id: null, leistung_id: "l1", quelle: null },
+    ],
+  };
+  const nurAngebot = { angebote: ["an1"], regie: [], zeiten: [], material: [] };
+  const opt = { stundenJeMitarbeiter: false, materialPauschale: false, stundensatz: 72 };
+
+  it("nach Angebot abgerechnet: übrige Stunden und Material hängen abgegolten an einer Textzeile", () => {
+    const r = importPositionen({ ...daten, angebote: [angebot] }, nurAngebot, { ...opt, abgegolten: true }, FIRMA, false);
+    expect(r.positionen.map((p) => [p.art, p.bezeichnung])).toEqual([
+      ["leistung", "Steckdose UP komplett"],
+      ["text", ABGEGOLTEN_TEXT],
+    ]);
+    // Regieberichte nie — das ist Zusatzarbeit und bleibt offen
+    expect(r.positionen[1].quelle).toEqual({ zeiten: ["z3", "z4", "z5"], material: ["m2"], regie: [] });
+    expect(summen(r.positionen, 20, false).netto).toBe(78.14);
+  });
+
+  it("angehakte Stunden werden verrechnet, nur der Rest ist abgegolten", () => {
+    const r = importPositionen({ ...daten, angebote: [angebot] }, { ...nurAngebot, zeiten: ["z3"] }, { ...opt, abgegolten: true }, FIRMA, false);
+    const abg = r.positionen.find((p) => p.art === "text");
+    expect(abg?.quelle).toEqual({ zeiten: ["z4", "z5"], material: ["m2"], regie: [] });
+    expect(r.positionen.find((p) => p.art === "arbeit")?.quelle?.zeiten).toEqual(["z3"]);
+  });
+
+  it("ohne Angebot oder ausgeschaltet: nichts abgegolten", () => {
+    expect(importPositionen(daten, { ...nurAngebot, angebote: [] }, { ...opt, abgegolten: true }, FIRMA, false).positionen).toEqual([]);
+    const aus = importPositionen({ ...daten, angebote: [angebot] }, nurAngebot, { ...opt, abgegolten: false }, FIRMA, false);
+    expect(aus.positionen.some((p) => p.art === "text")).toBe(false);
+  });
+
+  it("Angebot schon im Entwurf: nur die Abgegolten-Zeile, ans Ende", () => {
+    const r = importPositionen({ ...daten, angebotImEntwurf: { id: "an1", nummer: "AN-2026-001" } }, { ...nurAngebot, angebote: [] },
+      { ...opt, abgegolten: true }, FIRMA, true);
+    expect(r.positionen.map((p) => p.art)).toEqual(["text"]);
+    expect(r.angebotId).toBeNull();
+  });
 });
 
 describe("Hinweise vor dem Fertigstellen", () => {
@@ -233,6 +274,15 @@ describe("Hinweise vor dem Fertigstellen", () => {
 
   it("vollständige Rechnung: keine Hinweise", () => {
     expect(fertigHinweise(rechnung, pos, 600, firma)).toEqual([]);
+    expect(fertigHinweise(rechnung, pos, 600, firma, "2026-10-25")).toEqual([]);
+  });
+
+  it("rückdatiert oder negativ", () => {
+    expect(fertigHinweise({ ...rechnung, datum: "2026-09-01" }, pos, 600, firma, "2026-10-25")).toEqual([
+      "Rechnungsdatum liegt vor heute — auf die Rechnung gehört das Ausstellungsdatum.",
+    ]);
+    expect(fertigHinweise({ ...rechnung, typ: "angebot" as const, datum: "2026-09-01" }, pos, 600, firma, "2026-10-25")).toEqual([]);
+    expect(fertigHinweise(rechnung, pos, -10, firma)).toEqual(["Summe negativ — für eine Gutschrift die Rechnung lieber stornieren."]);
   });
 
   it("eigene UID fehlt erst über 400 € brutto — bei Kleinunternehmern nie", () => {
@@ -279,6 +329,11 @@ describe("Kostenvoranschlag verbindlich oder nicht", () => {
 
 describe("Runden wie die Datenbank", () => {
   it("halber Cent weg von null, auch bei Gleitkomma-Resten", () => {
+    // aus dem Funktionstest: die Datenbank rechnet 2,18 / 2,98 / 1,04 / 16,28
+    expect(runden2(1.5 * 1.45)).toBe(2.18);
+    expect(runden2(2.5 * 1.19)).toBe(2.98);
+    expect(runden2(0.75 * 1.38)).toBe(1.04);
+    expect(runden2(7.5 * 2.17)).toBe(16.28);
     expect(runden2(1.5 * 0.33)).toBe(0.5); // Postgres: round(1.5 * 0.33, 2) = 0.50
     expect(runden2(-1.5 * 0.33)).toBe(-0.5);
     expect(runden2(2.675)).toBe(2.68);

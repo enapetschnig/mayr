@@ -38,11 +38,13 @@ export type BelegPdfDaten = {
   projekt?: { nummer: string; name: string; strasse?: string | null; plz?: string | null; ort?: string | null } | null;
   /** Stornorechnung: Nummer der Rechnung, die sie aufhebt */
   stornoZu?: string | null;
+  /** Korrektur: Nummer der stornierten Rechnung, die sie ersetzt */
+  ersetzt?: string | null;
 };
 
 const GRAU: [number, number, number] = [110, 110, 110];
 
-export async function belegPdfErstellen({ beleg, positionen, firma, projekt, stornoZu }: BelegPdfDaten): Promise<{ blob: Blob; dateiname: string }> {
+export async function belegPdfErstellen({ beleg, positionen, firma, projekt, stornoZu, ersetzt }: BelegPdfDaten): Promise<{ blob: Blob; dateiname: string }> {
   const { pdf, autoTable } = await pdfLaden();
   const bw = pdf.internal.pageSize.getWidth();
   const bh = pdf.internal.pageSize.getHeight();
@@ -72,6 +74,7 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt, sto
     [istAngebot || storno ? "Datum" : "Rechnungsdatum", fmtDatum(beleg.datum)],
   ];
   if (storno && stornoZu) daten.push(["Storno zu", stornoZu]);
+  if (!istAngebot && !storno && ersetzt) daten.push(["Ersetzt Rechnung", ersetzt]);
   if (istAngebot) {
     if (beleg.gueltig_bis) daten.push(["Gültig bis", fmtDatum(beleg.gueltig_bis)]);
   } else {
@@ -262,15 +265,15 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt, sto
       ? `Dieses Angebot ist gültig bis ${fmtDatum(beleg.gueltig_bis)}.`
       : `Dieses Angebot ist ${firma.angebot_gueltig_tage} Tage ab Angebotsdatum gültig.`;
     absatz(`${gueltig} ${kvHinweis(!!beleg.kv_verbindlich)}`);
-  } else if (beleg.status !== "storniert" && !storno) {
+  } else if (beleg.status !== "storniert" && !storno && s.brutto > 0) {
     absatz(beleg.faellig_am
       ? `Zahlbar bis ${fmtDatum(beleg.faellig_am)} ohne Abzug.${beleg.nummer ? ` Bitte geben Sie als Zahlungsreferenz ${beleg.nummer} an.` : ""}`
       : `Zahlbar innerhalb von ${firma.zahlungsziel_tage} Tagen ohne Abzug.`);
   }
   if (beleg.schlusstext?.trim()) absatz(beleg.schlusstext.trim());
 
-  // Bankverbindung + Bezahl-QR nur auf einer offenen Rechnung
-  if (!istAngebot && firma.iban && (beleg.status === "offen" || beleg.status === "entwurf")) {
+  // Bankverbindung + Bezahl-QR nur auf einer offenen Rechnung (mit etwas zu zahlen)
+  if (!istAngebot && firma.iban && (beleg.status === "offen" || beleg.status === "entwurf") && s.brutto > 0) {
     const betrag = rc || klein ? s.netto : s.brutto;
     const qr = beleg.status === "offen" ? await zahlungsQr(firma, betrag, beleg.nummer || "") : null;
     // so viel braucht der Block unter y wirklich: QR samt Beschriftung bis

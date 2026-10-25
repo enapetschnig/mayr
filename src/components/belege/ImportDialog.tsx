@@ -12,8 +12,8 @@ import { datum, euro, stunden, zahl, zahlLesen } from "@/lib/format";
 import type { Firma } from "@/lib/types";
 import { TON_KLASSE } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { summen, type EditorPosition, type Quelle } from "./editor";
-import { importDatenLaden, importPositionen, materialGruppen, type ImportAuswahl } from "./importieren";
+import { ohneBetrag, summen, type EditorPosition, type Quelle } from "./editor";
+import { ABGEGOLTEN_TEXT, importDatenLaden, importPositionen, materialGruppen, type ImportAuswahl } from "./importieren";
 
 export type ImportErgebnis = { positionen: EditorPosition[]; von: string | null; bis: string | null; angebotId: string | null };
 
@@ -21,16 +21,18 @@ export type ImportErgebnis = { positionen: EditorPosition[]; von: string | null;
  * Assistent „Aus dem Projekt übernehmen“: zeigt alles Offene — Angebot,
  * unterschriebene Regieberichte, Stunden ohne Bericht, verbrauchtes
  * Material — zum Anhaken. Mit Angebot sind Stunden und Material nicht
- * vorgewählt (stecken meist im Angebotspreis).
+ * vorgewählt (stecken meist im Angebotspreis) und gelten als abgegolten.
  */
 export function ImportDialog({
-  open, onOpenChange, projektId, belegId, belegt, stundensatzStart, firma, vorhandeneTitel, onUebernehmen,
+  open, onOpenChange, projektId, belegId, belegt, angebotId, stundensatzStart, firma, vorhandeneTitel, onUebernehmen,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   projektId: string | null;
   belegId: string | null;
   belegt: Quelle;
+  /** Angebot, das schon in diesem Entwurf steckt (auch ungespeichert) */
+  angebotId: string | null;
   stundensatzStart: number;
   firma: Firma | null;
   vorhandeneTitel: boolean;
@@ -38,18 +40,19 @@ export function ImportDialog({
 }) {
   const belegtSchluessel = [...belegt.zeiten, ...belegt.material, ...belegt.regie].sort().join(",");
   const { data, isLoading, error } = useQuery({
-    queryKey: ["belege", "import", projektId, belegId, belegtSchluessel],
+    queryKey: ["belege", "import", projektId, belegId, belegtSchluessel, angebotId],
     enabled: open && !!projektId,
     staleTime: 0,
     refetchOnMount: "always",
     // sonst setzt ein Fensterwechsel die Häkchen zurück
     refetchOnWindowFocus: false,
-    queryFn: () => importDatenLaden(projektId!, belegId, belegt),
+    queryFn: () => importDatenLaden(projektId!, belegId, belegt, angebotId),
   });
 
   const [auswahl, setAuswahl] = useState<ImportAuswahl>({ angebote: [], regie: [], zeiten: [], material: [] });
   const [jeMitarbeiter, setJeMitarbeiter] = useState(true);
   const [pauschale, setPauschale] = useState(false);
+  const [abgegolten, setAbgegolten] = useState(true);
   const [satz, setSatz] = useState(String(stundensatzStart).replace(".", ","));
 
   const gruppen = useMemo(() => (data ? materialGruppen(data.material, firma) : []), [data, firma]);
@@ -57,7 +60,7 @@ export function ImportDialog({
   // Vorauswahl, sobald die Daten da sind
   useEffect(() => {
     if (!data || !open) return;
-    const mitAngebot = data.angebote.length > 0;
+    const mitAngebot = data.angebote.length > 0 || !!data.angebotImEntwurf;
     setAuswahl({
       angebote: data.angebote.map((a) => a.id),
       regie: data.regie.map((r) => r.id),
@@ -65,16 +68,24 @@ export function ImportDialog({
       material: mitAngebot ? [] : gruppen.map((g) => g.schluessel),
     });
   }, [data, gruppen, open]);
-  useEffect(() => { if (open) setSatz(String(stundensatzStart).replace(".", ",")); }, [open, stundensatzStart]);
+  useEffect(() => {
+    if (!open) return;
+    setSatz(String(stundensatzStart).replace(".", ","));
+    setAbgegolten(true);
+  }, [open, stundensatzStart]);
 
   const vorschau = useMemo(
     () => (data
-      ? importPositionen(data, auswahl, { stundenJeMitarbeiter: jeMitarbeiter, materialPauschale: pauschale, stundensatz: zahlLesen(satz) }, firma, vorhandeneTitel)
+      ? importPositionen(data, auswahl, {
+        stundenJeMitarbeiter: jeMitarbeiter, materialPauschale: pauschale, stundensatz: zahlLesen(satz), abgegolten,
+      }, firma, vorhandeneTitel)
       : null),
-    [data, auswahl, jeMitarbeiter, pauschale, satz, firma, vorhandeneTitel],
+    [data, auswahl, jeMitarbeiter, pauschale, satz, abgegolten, firma, vorhandeneTitel],
   );
   const netto = vorschau ? summen(vorschau.positionen, 20, true).netto : 0;
-  const anzahl = vorschau?.positionen.filter((p) => p.art !== "titel").length ?? 0;
+  // Gezählt wird, was einen Betrag hat — wie auf der Angebotskarte
+  const anzahl = vorschau?.positionen.filter((p) => !ohneBetrag(p)).length ?? 0;
+  const nurAbgegolten = !!vorschau && anzahl === 0 && vorschau.positionen.some((p) => p.art === "text" && p.quelle);
 
   const umschalten = (feld: keyof ImportAuswahl, id: string, an: boolean) =>
     setAuswahl((a) => ({ ...a, [feld]: an ? [...new Set([...a[feld], id])] : a[feld].filter((x) => x !== id) }));
@@ -82,7 +93,10 @@ export function ImportDialog({
     setAuswahl((a) => ({ ...a, [feld]: an ? ids : [] }));
 
   const leer = data && !data.angebote.length && !data.regie.length && !data.zeiten.length && !gruppen.length;
-  const mitAngebot = !!data?.angebote.length;
+  const mitAngebot = !!data?.angebote.length || !!data?.angebotImEntwurf;
+  // Abgegolten-Schalter nur, wenn ein Angebot dabei ist und Stunden oder Material übrig bleiben
+  const restOffen = !!data && (data.zeiten.some((z) => !auswahl.zeiten.includes(z.id)) || gruppen.some((g) => !auswahl.material.includes(g.schluessel)));
+  const abgegoltenMoeglich = (auswahl.angebote.length > 0 || !!data?.angebotImEntwurf) && restOffen;
   const stundenSumme = (data?.zeiten ?? []).filter((z) => auswahl.zeiten.includes(z.id)).reduce((s, z) => s + z.stunden, 0);
 
   return (
@@ -96,10 +110,10 @@ export function ImportDialog({
           <Button variant="outline" className="h-12" onClick={() => onOpenChange(false)}>Abbrechen</Button>
           <Button
             className="h-12"
-            disabled={!vorschau || anzahl === 0}
+            disabled={!vorschau || (anzahl === 0 && !nurAbgegolten)}
             onClick={() => { if (vorschau) { onUebernehmen(vorschau); onOpenChange(false); } }}
           >
-            {anzahl ? `${anzahl} ${anzahl === 1 ? "Position" : "Positionen"} übernehmen · ${euro(netto)}` : "Übernehmen"}
+            {anzahl ? `${anzahl} ${anzahl === 1 ? "Position" : "Positionen"} übernehmen · ${euro(netto)}` : nurAbgegolten ? "Als abgegolten übernehmen" : "Übernehmen"}
           </Button>
         </>
       )}
@@ -121,6 +135,12 @@ export function ImportDialog({
         </div>
       )}
 
+      {data?.angebotImEntwurf && (
+        <p className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
+          Angebot {data.angebotImEntwurf.nummer ?? ""} steckt schon in dieser Rechnung — Stunden und Material sind deshalb nicht vorgewählt.
+        </p>
+      )}
+
       {data && data.angebote.length > 0 && (
         <Bereich titel="Angebot">
           {data.angebote.map((a) => (
@@ -130,7 +150,9 @@ export function ImportDialog({
                 <StatusBadge status={a.status} />
               </div>
               <p className="text-sm text-muted-foreground">
-                {a.betreff ? `${a.betreff} · ` : ""}{a.positionen.filter((p) => p.art !== "titel" && p.art !== "text").length} Positionen · <span className="zahl">{euro(a.netto)}</span> netto
+                {a.betreff ? `${a.betreff} · ` : ""}
+                {((n) => `${n} ${n === 1 ? "Position" : "Positionen"}`)(a.positionen.filter((p) => p.art !== "titel" && p.art !== "text").length)} ·{" "}
+                <span className="zahl">{euro(a.netto)}</span> netto
               </p>
             </Zeile>
           ))}
@@ -195,6 +217,17 @@ export function ImportDialog({
           <h3 className="text-sm font-semibold">So übernehmen</h3>
           <Schalter id="imp-je" an={jeMitarbeiter} onAn={setJeMitarbeiter} text="Stunden je Mitarbeiter" unter={jeMitarbeiter ? "Eine Zeile je Mitarbeiter, mit Namen" : "Eine Zeile „Arbeitszeit“"} />
           <Schalter id="imp-pausch" an={pauschale} onAn={setPauschale} text="Material als Materialpauschale" unter={pauschale ? "Eine Zeile, Artikel im Langtext" : "Jeder Artikel eine Zeile"} />
+          {abgegoltenMoeglich && (
+            <Schalter
+              id="imp-abg"
+              an={abgegolten}
+              onAn={setAbgegolten}
+              text="Übrige Stunden und Material sind mit dem Angebot abgegolten"
+              unter={abgegolten
+                ? `Gelten als verrechnet — ohne Betrag, auf der Rechnung steht „${ABGEGOLTEN_TEXT}“`
+                : "Bleiben offen für eine spätere Rechnung"}
+            />
+          )}
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="imp-satz" className="text-sm">Stundensatz netto €</Label>
             <Input id="imp-satz" value={satz} onChange={(e) => setSatz(e.target.value)} inputMode="decimal" className="zahl h-11 w-28 text-right" />

@@ -63,6 +63,8 @@ export type ImportDaten = {
   material: ImportMaterial[];
   /** Regieberichte, die noch nicht unterschrieben sind (Hinweis) */
   unsigniert: { id: string; nummer: string | null; datum: string }[];
+  /** Angebot, das schon in diesem Entwurf steckt — wird nicht noch einmal angeboten */
+  angebotImEntwurf: { id: string; nummer: string | null } | null;
 };
 
 export type ImportAuswahl = {
@@ -77,7 +79,15 @@ export type ImportOptionen = {
   stundenJeMitarbeiter: boolean;
   materialPauschale: boolean;
   stundensatz: number;
+  /**
+   * Nach Angebot abgerechnet: Stunden und Material, die nicht angehakt sind,
+   * mit dem Angebot abgegolten — eine Textzeile bindet sie an die Rechnung
+   * (gelten als verrechnet, ohne Betrag). Sonst blieben sie für immer „offen“.
+   */
+  abgegolten?: boolean;
 };
+
+export const ABGEGOLTEN_TEXT = "Arbeitszeit und Material sind im Angebotspreis enthalten.";
 
 // ── Laden ───────────────────────────────────────────────────────────────
 
@@ -95,8 +105,9 @@ type MaterialZeile = {
  * Lädt alles Offene eines Projekts. `belegId`: was schon an DIESEM Entwurf
  * hängt, zählt als frei (es kann im Editor gelöscht und neu übernommen
  * werden); `belegt`: was im Editor gerade schon übernommen ist, fehlt.
+ * `angebotDrin`: Angebot dieses Entwurfs (auch ungespeichert) — fehlt auch.
  */
-export async function importDatenLaden(projektId: string, belegId: string | null, belegt: Quelle): Promise<ImportDaten> {
+export async function importDatenLaden(projektId: string, belegId: string | null, belegt: Quelle, angebotDrin: string | null = null): Promise<ImportDaten> {
   // frei = noch nicht verrechnet, oder an genau diesem Entwurf
   const frei = belegId ? `rechnung_id.is.null,rechnung_id.eq.${belegId}` : "rechnung_id.is.null";
 
@@ -115,7 +126,8 @@ export async function importDatenLaden(projektId: string, belegId: string | null
   const zeitZeilen = (zt.data ?? []) as unknown as ZeitZeile[];
   const materialZeilen = (mt.data ?? []) as unknown as MaterialZeile[];
 
-  // Angebote, die schon in einer (nicht stornierten) Rechnung stecken, fallen weg
+  // Angebote, die schon in einer (nicht stornierten) Rechnung stecken, fallen
+  // weg — auch in diesem Entwurf: ein zweites Mal übernommen = doppelt verrechnet
   const angebotIds = (an.data ?? []).map((a) => a.id);
   let verrechnet = new Set<string>();
   let angebotPositionen: Position[] = [];
@@ -126,9 +138,10 @@ export async function importDatenLaden(projektId: string, belegId: string | null
     ]);
     if (re.error) throw new Error(re.error.message);
     if (po.error) throw new Error(po.error.message);
-    verrechnet = new Set((re.data ?? []).filter((r) => r.id !== belegId).map((r) => r.angebot_id as string));
+    verrechnet = new Set((re.data ?? []).map((r) => r.angebot_id as string));
     angebotPositionen = po.data ?? [];
   }
+  if (angebotDrin) verrechnet.add(angebotDrin);
 
   const zeiten: ImportZeit[] = zeitZeilen
     .filter((z) => !belegt.zeiten.includes(z.id))
@@ -183,6 +196,7 @@ export async function importDatenLaden(projektId: string, belegId: string | null
     zeiten: zeiten.filter((z) => !z.regiebericht_id),
     material: material.filter((m) => !m.regiebericht_id),
     unsigniert: berichte.filter((r) => r.status !== "unterschrieben").map((r) => ({ id: r.id, nummer: r.nummer, datum: r.datum })),
+    angebotImEntwurf: angebotDrin ? { id: angebotDrin, nummer: (an.data ?? []).find((a) => a.id === angebotDrin)?.nummer ?? null } : null,
   };
 }
 
@@ -309,8 +323,21 @@ export function importPositionen(
   const angebote = daten.angebote.filter((a) => auswahl.angebote.includes(a.id));
   const berichte = daten.regie.filter((r) => auswahl.regie.includes(r.id)).sort((a, b) => a.datum.localeCompare(b.datum));
   const zeiten = daten.zeiten.filter((z) => auswahl.zeiten.includes(z.id));
-  const gruppen = materialGruppen(daten.material, firma).filter((g) => auswahl.material.includes(g.schluessel));
+  const alleGruppen = materialGruppen(daten.material, firma);
+  const gruppen = alleGruppen.filter((g) => auswahl.material.includes(g.schluessel));
   const restDa = zeiten.length > 0 || gruppen.length > 0;
+
+  // Mit dem Angebot abgegolten: was nicht angehakt ist (Regieberichte nie — die sind Zusatzarbeit)
+  const mitAngebot = angebote.length > 0 || !!daten.angebotImEntwurf;
+  const abgegolten = opt.abgegolten && mitAngebot
+    ? q({
+      zeiten: daten.zeiten.filter((z) => !auswahl.zeiten.includes(z.id)).map((z) => z.id),
+      material: alleGruppen.filter((g) => !auswahl.material.includes(g.schluessel)).flatMap((g) => g.ids),
+    })
+    : null;
+  const abgegoltenZeile = abgegolten && (abgegolten.zeiten.length || abgegolten.material.length)
+    ? leerePosition("text", { bezeichnung: ABGEGOLTEN_TEXT, quelle: abgegolten })
+    : null;
   const bloeckeGesamt = angebote.length + berichte.length + (restDa ? 1 : 0);
 
   const aus: EditorPosition[] = [];
@@ -323,6 +350,8 @@ export function importPositionen(
     aus.push(...kopien);
     if (brauchtTitel || kopien.some((p) => p.art === "titel")) titelDavor = true;
   });
+  // gleich unter das Angebot — ist es schon im Entwurf, ganz ans Ende
+  if (abgegoltenZeile && angebote.length) aus.push(abgegoltenZeile);
 
   berichte.forEach((r) => {
     tage.push(r.datum);
@@ -344,6 +373,8 @@ export function importPositionen(
     aus.push(...arbeitszeitPositionen(zeiten, opt, true));
     aus.push(...materialPositionen(gruppen, opt));
   }
+
+  if (abgegoltenZeile && !angebote.length) aus.push(abgegoltenZeile);
 
   zeiten.forEach((z) => tage.push(z.datum));
   daten.material.filter((m) => gruppen.some((g) => g.ids.includes(m.id))).forEach((m) => tage.push(m.datum));

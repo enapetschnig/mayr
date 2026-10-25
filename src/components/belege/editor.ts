@@ -589,10 +589,11 @@ export const ohneUstFuer = (k: Pick<Kopf, "reverse_charge">, firma: Pick<Firma, 
  * keine UID — dort kein Hinweis auf die eigene.
  */
 export function fertigHinweise(
-  k: Pick<Kopf, "typ" | "reverse_charge" | "empf_uid" | "empf_strasse" | "empf_ort" | "leistung_von" | "leistung_bis">,
+  k: Pick<Kopf, "typ" | "reverse_charge" | "empf_uid" | "empf_strasse" | "empf_ort" | "leistung_von" | "leistung_bis"> & Partial<Pick<Kopf, "datum">>,
   positionen: Pick<EditorPosition, "art" | "menge" | "einzelpreis">[],
   brutto: number,
   firma: Pick<Firma, "uid" | "kleinunternehmer"> | null | undefined,
+  heute?: string,
 ): string[] {
   const rechnung = k.typ === "rechnung";
   const rc = !!k.reverse_charge && !firma?.kleinunternehmer;
@@ -604,6 +605,8 @@ export function fertigHinweise(
     rechnung && !rc && brutto >= 10_000 && !empfUid && "Bei Firmenkunden ab 10.000 € brutto gehört die UID des Empfängers auf die Rechnung.",
     rechnung && !!firma && !firma.kleinunternehmer && !firma.uid?.trim() && (brutto > 400 || rc) && "Eigene UID fehlt — in Einstellungen → Betrieb eintragen.",
     rechnung && !k.leistung_von && !k.leistung_bis && "Kein Leistungszeitraum — auf Rechnungen Pflicht (§ 11 UStG)",
+    rechnung && !!heute && !!k.datum && k.datum < heute && "Rechnungsdatum liegt vor heute — auf die Rechnung gehört das Ausstellungsdatum.",
+    rechnung && brutto < 0 && "Summe negativ — für eine Gutschrift die Rechnung lieber stornieren.",
     (!k.empf_strasse.trim() || !k.empf_ort.trim()) && "Anschrift des Empfängers unvollständig",
   ].filter((w): w is string => !!w);
 }

@@ -1,4 +1,5 @@
--- Storno als eigener Beleg: Stornorechnung mit eigener Nummer.
+-- Storno als eigener Beleg: Stornorechnung mit eigener Nummer. Dazu der
+-- Verweis der Korrektur-Rechnung und Angebote, die als Nachweis bleiben.
 --
 -- Bisher bekam die Rechnung nur den Status „storniert“ — der Kunde hatte kein
 -- Dokument, das sie aufhebt (ein Firmenkunde braucht es, um die Vorsteuer zu
@@ -11,6 +12,24 @@ alter table public.belege add constraint belege_status_check
   check (status in ('entwurf','offen','angenommen','abgelehnt','bezahlt','storniert','storno'));
 alter table public.belege add column storno_von uuid references public.belege(id);
 create unique index belege_storno_von_einmal on public.belege (storno_von) where storno_von is not null;
+
+-- „Korrektur anlegen“: die neue Rechnung weiß, welche sie ersetzt (Verweis
+-- auf dem PDF) — und es gibt je stornierter Rechnung nur eine
+alter table public.belege add column korrektur_von uuid references public.belege(id);
+create unique index belege_korrektur_von_einmal on public.belege (korrektur_von) where korrektur_von is not null;
+
+-- Ein Angebot, das in einer fertigen Rechnung steckt, bleibt als Nachweis
+-- (sonst verliert die Rechnung still ihren Verweis)
+create function public.angebot_verrechnet(p_id uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.belege where angebot_id = p_id and typ = 'rechnung' and status <> 'entwurf');
+$$;
+revoke execute on function public.angebot_verrechnet(uuid) from public, anon;
+grant execute on function public.angebot_verrechnet(uuid) to authenticated;
+
+drop policy belege_nicht_loeschen on public.belege;
+create policy belege_nicht_loeschen on public.belege as restrictive for delete to authenticated
+  using (case when typ = 'angebot' then not public.angebot_verrechnet(id) else status = 'entwurf' end);
 
 -- Festschreiben wie bisher (20261025140000), dazu: eine Stornorechnung bleibt,
 -- wie sie ist — auch ihr Status

@@ -208,6 +208,7 @@ export type Database = {
           gueltig_bis: string | null
           id: string
           kunde_id: string | null
+          korrektur_von: string | null
           kv_verbindlich: boolean
           leistung_bis: string | null
           leistung_von: string | null
@@ -244,6 +245,7 @@ export type Database = {
           gueltig_bis?: string | null
           id?: string
           kunde_id?: string | null
+          korrektur_von?: string | null
           kv_verbindlich?: boolean
           leistung_bis?: string | null
           leistung_von?: string | null
@@ -280,6 +282,7 @@ export type Database = {
           gueltig_bis?: string | null
           id?: string
           kunde_id?: string | null
+          korrektur_von?: string | null
           kv_verbindlich?: boolean
           leistung_bis?: string | null
           leistung_von?: string | null
@@ -1224,6 +1227,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      angebot_verrechnet: { Args: { p_id: string }; Returns: boolean }
       artikel_zu_code: {
         Args: { p_code: string }
         Returns: {

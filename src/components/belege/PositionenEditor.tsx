@@ -253,7 +253,7 @@ export function PositionenEditor({
         if (p.art === "text") {
           return (
             <div key={p.id} className="flex items-start gap-2 rounded-lg border border-dashed bg-card px-3 py-2.5">
-              <button type="button" className="min-w-0 flex-1 text-left text-sm italic text-muted-foreground" onClick={() => bearbeitbar && setBearbeiten(p)} disabled={!bearbeitbar}>
+              <button type="button" className="min-w-0 flex-1 text-left text-sm italic text-muted-foreground [overflow-wrap:anywhere]" onClick={() => bearbeitbar && setBearbeiten(p)} disabled={!bearbeitbar}>
                 {p.bezeichnung || "Hinweistext"}
               </button>
               {bearbeitbar && <ZeilenMenue p={p} positionen={positionen} onAktion={(a) => aktion(p, a)} />}
@@ -265,8 +265,8 @@ export function PositionenEditor({
             <div className="flex items-start gap-2">
               <span className="zahl w-9 shrink-0 pt-0.5 text-xs text-muted-foreground">{nummern[i]}</span>
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => bearbeitbar && setBearbeiten(p)} disabled={!bearbeitbar}>
-                <span className="block text-sm font-medium leading-snug">{p.bezeichnung || <span className="text-muted-foreground">Ohne Bezeichnung</span>}</span>
-                {p.langtext && <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{p.langtext}</span>}
+                <span className="block text-sm font-medium leading-snug [overflow-wrap:anywhere]">{p.bezeichnung || <span className="text-muted-foreground">Ohne Bezeichnung</span>}</span>
+                {p.langtext && <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground [overflow-wrap:anywhere]">{p.langtext}</span>}
                 {p.quelle && <Herkunft />}
               </button>
               {bearbeitbar && <ZeilenMenue p={p} positionen={positionen} onAktion={(a) => aktion(p, a)} />}

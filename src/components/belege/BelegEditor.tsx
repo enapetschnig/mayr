@@ -31,7 +31,7 @@ import { belegStatus, TON_KLASSE, type Artikel, type Beleg, type Firma } from "@
 import { cn } from "@/lib/utils";
 import { ArtikelDialog } from "./ArtikelDialog";
 import { BelegKopf, BelegTexte } from "./BelegKopf";
-import { belegLaden, useBelegKurz, useFolgeRechnungen, useLeistungsKatalog, useStornoZu, type BelegMitPositionen } from "./daten";
+import { belegLaden, useBelegKurz, useFolgeRechnungen, useLeistungsKatalog, useNachfolger, type BelegMitPositionen } from "./daten";
 import {
   artikelPosition, fertigHinweise, hinzufuegen, kopfAusBeleg, leerePosition, leistungPosition, leistungWeniger, mengeVon,
   ohneBetrag, ohneUstFuer, positionAusDb, preisVon, quellenIds, summen, titelMitNamen, titelPosition, zahlText,
@@ -43,7 +43,7 @@ import { PositionDialog } from "./PositionDialog";
 import { PositionenEditor } from "./PositionenEditor";
 import {
   belegKopieren, belegLoeschen, belegSpeichern, fertigstellen, inRechnungUmwandeln, projektAktivieren, projektLoeschen,
-  projektNurFuerBeleg, projektZurueckAufAngebot, statusSetzen, stornieren,
+  projektNurFuerBeleg, projektZurueckAufAngebot, StandVeraltet, statusSetzen, stornieren,
 } from "./speichern";
 import { sicherungLesen, sicherungLoeschen, sicherungSchreiben, sicherungsSchluessel, type Sicherung } from "./sicherung";
 import { SpracheDialog, type SprachUebernahme } from "./SpracheDialog";
@@ -104,6 +104,8 @@ export function BelegEditor({
   const [dialog, setDialog] = useState<Dialog>(autoSprache ? "sprache" : autoImport ? "import" : null);
   const [titelOffen, setTitelOffen] = useState(false);
   const [freie, setFreie] = useState<EditorPosition | null>(null);
+  /** Buchungen, die beim letzten Speichern schon an einer anderen Rechnung hingen */
+  const [konflikte, setKonflikte] = useState(0);
 
   const aktuell = useMemo(() => schnappschuss(kopf, positionen), [kopf, positionen]);
   const dirty = aktuell !== basis;
@@ -128,7 +130,11 @@ export function BelegEditor({
   const { data: angebot } = useBelegKurz(istAngebot ? null : kopf.angebot_id);
   // Storno: die Stornorechnung zeigt auf die Rechnung, die sie aufhebt
   const stornoQuelle = useBelegKurz(beleg?.storno_von ?? null);
-  const { data: stornoBeleg } = useStornoZu(id, !neu && status === "storniert");
+  const { data: nachfolger } = useNachfolger(id, !neu && status === "storniert");
+  const stornoBeleg = nachfolger?.storno ?? null;
+  const korrekturBeleg = nachfolger?.korrektur ?? null;
+  // Korrektur: die Rechnung, die sie ersetzt
+  const ersetztQuelle = useBelegKurz(beleg?.korrektur_von ?? null);
 
   const ohneUst = ohneUstFuer(kopf, firma);
   const s = useMemo(() => summen(positionen, kopf.ust_satz, ohneUst), [positionen, kopf.ust_satz, ohneUst]);
@@ -203,16 +209,58 @@ export function BelegEditor({
     return d;
   };
 
+  // Doppelklick: `laeuft` kommt erst mit dem nächsten Render an — die Sperre sofort
+  const sperre = useRef(false);
+  const gesperrt = async (fn: () => Promise<void>) => {
+    if (sperre.current) return;
+    sperre.current = true;
+    try {
+      await fn();
+    } finally {
+      sperre.current = false;
+    }
+  };
   const ausfuehren = async (was: string, fn: () => Promise<void>) => {
-    if (laeuft) return;
+    if (laeuft || sperre.current) return;
+    sperre.current = true;
     setLaeuft(was);
     try {
       await fn();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
+      sperre.current = false;
       setLaeuft(null);
     }
+  };
+
+  /**
+   * Anderswo gespeichert: den neuen Stand laden, die eigenen Änderungen als
+   * Sicherung anbieten — wiederherstellen und speichern ersetzt dann bewusst.
+   */
+  const standVeraltet = async () => {
+    const meine: Sicherung = { zeit: new Date().toISOString(), basis, kopf, positionen };
+    const d = await belegLaden(id).catch(() => null);
+    if (!d) {
+      toast.error("Beleg nicht gefunden — wurde er inzwischen gelöscht?");
+      return;
+    }
+    const nochOffen = d.beleg.status === "entwurf" || (d.beleg.typ === "angebot" && d.beleg.status === "offen" && entsperrt);
+    if (nochOffen) {
+      sicherungSchreiben(schluessel, meine);
+      setGefunden({ s: meine, schluessel });
+    } else {
+      sicherungLoeschen(schluessel);
+    }
+    letzteDaten.current = d;
+    qc.setQueryData(DETAIL(id), d);
+    anwenden(d);
+    toast.error("Inzwischen woanders gespeichert — anderes Gerät oder Fenster.", {
+      description: nochOffen
+        ? "Der neue Stand ist geladen. Deine Änderungen kannst du oben wiederherstellen."
+        : "Der Beleg ist inzwischen fertig — deine Änderungen ließen sich nicht mehr speichern.",
+      duration: 12_000,
+    });
   };
 
   // ── Speichern ──
@@ -232,7 +280,7 @@ export function BelegEditor({
     try {
       const geloescht = [...dbIds.current].filter((x) => !positionen.some((p) => p.id === x));
       const erg = await belegSpeichern({
-        id, neu: warNeu, kopf, positionen, geloescht, firma,
+        id, neu: warNeu, kopf, positionen, geloescht, firma, stand: warNeu ? null : beleg?.updated_at ?? null,
         onProjektAngelegt: (pid) => { merk.projekt = pid; },
       });
       const d: BelegMitPositionen = { beleg: erg.beleg, positionen: erg.positionen };
@@ -250,6 +298,7 @@ export function BelegEditor({
         setBasis("");
       }
       setEntsperrt(false);
+      setKonflikte(erg.konflikte);
       if (erg.konflikte > 0) {
         toast.warning(
           `${erg.konflikte} ${erg.konflikte === 1 ? "Buchung steckt" : "Buchungen stecken"} schon in einer anderen Rechnung — bitte die übernommenen Positionen prüfen.`,
@@ -263,23 +312,24 @@ export function BelegEditor({
       return true;
     } catch (e) {
       if (merk.projekt) setKopf((k) => ({ ...k, projekt_id: merk.projekt }));
-      toast.error((e as Error).message);
+      if (e instanceof StandVeraltet) await standVeraltet();
+      else toast.error((e as Error).message);
       return false;
     } finally {
       setLaeuft(null);
     }
   };
-  const speichern = () => { if (!laeuft) void speichernIntern(); };
+  const speichern = () => { if (!laeuft) void gesperrt(async () => { await speichernIntern(); }); };
 
   // ── Fertigstellen ──
-  const warnungen = fertigHinweise(kopf, positionen, s.brutto, firma);
+  const warnungen = fertigHinweise(kopf, positionen, s.brutto, firma, heute);
 
   const fertigFragen = () => {
     if (!anzahl) { toast.error("Zuerst mindestens eine Position mit Betrag hinzufügen."); return; }
     if (!kopf.empf_name.trim()) { toast.error("Bitte zuerst den Empfänger (Kunde) eintragen."); return; }
     setFrage("fertig");
   };
-  const fertigAusfuehren = async () => {
+  const fertigAusfuehren = () => gesperrt(async () => {
     setFrage(null);
     const warNeu = neu;
     if (dirty || neu) {
@@ -291,14 +341,14 @@ export function BelegEditor({
       const nr = await fertigstellen(id);
       const d = await neuHolen();
       toast.success(`${typText} ${nr} ist fertig.`);
-      if (d) void archivAnlegen(d).catch(() => toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen."));
+      if (d) void archivAnlegen(d, { ersetzt: await ersetztFuerPdf() }).catch(() => toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen."));
       if (warNeu) navigate(`/belege/${id}`, { replace: true });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
       setLaeuft(null);
     }
-  };
+  });
 
   // ── Status ──
   const angenommen = () => ausfuehren("status", async () => {
@@ -331,7 +381,7 @@ export function BelegEditor({
     const stornoId = await stornieren(id);
     await neuHolen();
     const d = await belegLaden(stornoId).catch(() => null);
-    if (d) void archivAnlegen(d, rechnungNr).catch(() => toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen."));
+    if (d) void archivAnlegen(d, { stornoZu: rechnungNr }).catch(() => toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen."));
     toast.success(`Stornorechnung ${d?.beleg.nummer ?? ""} angelegt — schick sie dem Kunden. Stunden, Material und Regieberichte sind wieder frei.`, {
       action: { label: "Öffnen", onClick: () => navigate(`/belege/${stornoId}`) },
     });
@@ -353,12 +403,18 @@ export function BelegEditor({
   });
   const kopieren = (mitHerkunft: boolean) => ausfuehren("kopieren", async () => {
     const d = await frisch();
-    const { id: neueId, konflikte } = await belegKopieren({ quelle: d.beleg, positionen: d.positionen, typ: kopf.typ, firma, heute, mitHerkunft });
+    const { id: neueId, konflikte, schonDa } = await belegKopieren({ quelle: d.beleg, positionen: d.positionen, typ: kopf.typ, firma, heute, mitHerkunft });
     void neuLaden(...NACH_AENDERUNG);
-    if (konflikte) toast.warning(`${konflikte} Buchungen stecken schon in einer anderen Rechnung — bitte prüfen.`);
-    else toast.success(mitHerkunft ? "Korrektur angelegt — Stunden und Material hängen jetzt an diesem Entwurf." : "Kopie angelegt");
+    if (schonDa) toast.info("Die Korrektur gibt es schon — hier ist sie.");
+    else if (konflikte) toast.warning(`${konflikte} ${konflikte === 1 ? "Buchung steckt" : "Buchungen stecken"} schon in einer anderen Rechnung — bitte prüfen.`);
+    else if (mitHerkunft) toast.success("Korrektur angelegt — Stunden und Material hängen jetzt an diesem Entwurf.");
+    else if (!istAngebot && d.positionen.some((p) => p.quelle)) {
+      // Eine Kopie bindet keine Stunden — sonst stünden sie in zwei Rechnungen
+      toast.warning("Kopie angelegt — ohne Verbindung zu Stunden und Material des Projekts. Nichts doppelt verrechnen.", { duration: 10_000 });
+    } else toast.success("Kopie angelegt");
     navigate(`/belege/${neueId}`);
   });
+  const korrekturOeffnen = () => (korrekturBeleg ? navigate(`/belege/${korrekturBeleg.id}`) : kopieren(true));
 
   // ── Löschen ──
   const verwerfen = () => {
@@ -368,6 +424,11 @@ export function BelegEditor({
     else navigate("/belege");
   };
   const loeschenFragen = () => ausfuehren("pruefen", async () => {
+    const inRechnung = istAngebot ? folge.find((f) => f.status !== "entwurf") : undefined;
+    if (inRechnung) {
+      toast.error(`Das Angebot steckt in Rechnung ${inRechnung.nummer ?? ""} und bleibt als Nachweis erhalten.`);
+      return;
+    }
     let moeglich = false;
     if (istAngebot && beleg?.projekt_id) moeglich = await projektNurFuerBeleg(beleg.projekt_id, id).catch(() => false);
     setLoeschen({ projektMoeglich: moeglich, projektAuch: moeglich });
@@ -396,12 +457,17 @@ export function BelegEditor({
     if (!beleg?.storno_von) return null;
     return (stornoQuelle.data ?? (await stornoQuelle.refetch()).data)?.nummer ?? null;
   };
+  /** Korrektur: Nummer der stornierten Rechnung, die sie ersetzt */
+  const ersetztFuerPdf = async () => {
+    if (!beleg?.korrektur_von) return null;
+    return (ersetztQuelle.data ?? (await ersetztQuelle.refetch()).data)?.nummer ?? null;
+  };
 
   /**
    * Fertige Rechnung (oder neue Stornorechnung) ablegen — aus dem Stand in der
    * Datenbank (Nummer und Fälligkeit setzt erst das Fertigstellen)
    */
-  const archivAnlegen = async (d: BelegMitPositionen, stornoZu: string | null = null) => {
+  const archivAnlegen = async (d: BelegMitPositionen, verweise: { stornoZu?: string | null; ersetzt?: string | null } = {}) => {
     if (!firma || d.beleg.typ !== "rechnung" || d.beleg.status === "entwurf") return;
     const { blob } = await belegPdfErstellen({
       beleg: d.beleg,
@@ -410,7 +476,7 @@ export function BelegEditor({
       })),
       firma,
       projekt: await projektFuerPdf(),
-      stornoZu,
+      ...verweise,
     });
     if (!(await archivieren(d.beleg.id, blob))) toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen.");
   };
@@ -457,6 +523,7 @@ export function BelegEditor({
       firma,
       projekt: await projektFuerPdf(),
       stornoZu: await stornoZuFuerPdf(),
+      ersetzt: await ersetztFuerPdf(),
     });
     if (original) void archivieren(id, blob);
     if (pc) setVorschau({ url: URL.createObjectURL(blob), blob, dateiname });
@@ -523,7 +590,9 @@ export function BelegEditor({
     const letzterTitel = [...e.positionen].reverse().find((p) => p.art === "titel");
     if (letzterTitel) setAktiverTitel(letzterTitel.id);
     const n = e.positionen.filter((p) => !ohneBetrag(p)).length;
-    toast.success(`${n} ${n === 1 ? "Position" : "Positionen"} übernommen — Speichern markiert Stunden und Material als verrechnet.`);
+    toast.success(n
+      ? `${n} ${n === 1 ? "Position" : "Positionen"} übernommen — Speichern markiert Stunden und Material als verrechnet.`
+      : "Als abgegolten übernommen — Speichern markiert Stunden und Material als verrechnet.");
   };
 
   // ── Kopfzeile ──
@@ -563,7 +632,7 @@ export function BelegEditor({
           <MenuePunkt icon={Undo2} onClick={wiederOffen}>Doch nicht bezahlt</MenuePunkt>
         )}
         {!istAngebot && status === "storniert" && (
-          <MenuePunkt icon={RotateCcw} onClick={() => kopieren(true)}>Korrektur anlegen</MenuePunkt>
+          <MenuePunkt icon={RotateCcw} onClick={korrekturOeffnen}>{korrekturBeleg ? "Korrektur öffnen" : "Korrektur anlegen"}</MenuePunkt>
         )}
         {!neu && !istStorno && <MenuePunkt icon={Copy} onClick={() => kopieren(false)}>Kopieren (neuer Entwurf)</MenuePunkt>}
         <MenuePunkt icon={Download} onClick={pdf}>{pc ? "PDF ansehen" : "PDF teilen / laden"}</MenuePunkt>
@@ -627,7 +696,11 @@ export function BelegEditor({
     if (anzeigeStatus === "ueberfaellig") return `Seit ${ueberfaelligTage} ${ueberfaelligTage === 1 ? "Tag" : "Tagen"} überfällig (fällig am ${datum(beleg.faellig_am)})`;
     if (status === "offen") return beleg.faellig_am ? `Fällig am ${datum(beleg.faellig_am)}` : "Offen";
     if (status === "bezahlt") return beleg.bezahlt_am ? `Bezahlt am ${datum(beleg.bezahlt_am)}` : "Bezahlt";
-    if (status === "storniert") return "Storniert — Stunden, Material und Regieberichte sind wieder frei. Für die neue Rechnung „Korrektur anlegen“.";
+    if (status === "storniert") {
+      return korrekturBeleg
+        ? "Storniert — die Korrektur ersetzt sie."
+        : "Storniert — Stunden, Material und Regieberichte sind wieder frei. Für die neue Rechnung „Korrektur anlegen“.";
+    }
     if (istStorno) return "Hebt die Rechnung in voller Höhe auf — schick sie dem Kunden.";
     return "";
   })();
@@ -652,7 +725,7 @@ export function BelegEditor({
       ]
       : status === "storniert"
         ? [
-          { text: "Korrektur anlegen", icon: RotateCcw, onClick: () => kopieren(true), primaer: true },
+          { text: korrekturBeleg ? "Korrektur öffnen" : "Korrektur anlegen", icon: RotateCcw, onClick: korrekturOeffnen, primaer: true },
           ...(stornoBeleg ? [{ text: "Stornorechnung", icon: Receipt, onClick: () => navigate(`/belege/${stornoBeleg.id}`) }] : []),
           { text: "PDF", icon: FileText, onClick: pdf },
         ]
@@ -683,6 +756,14 @@ export function BelegEditor({
         <p className="mt-2 text-sm">
           Aufgehoben durch{" "}
           <Link to={`/belege/${stornoBeleg.id}`} className="font-medium text-primary hover:underline">Stornorechnung {stornoBeleg.nummer}</Link>
+        </p>
+      )}
+      {korrekturBeleg && (
+        <p className="mt-2 text-sm">
+          Ersetzt durch{" "}
+          <Link to={`/belege/${korrekturBeleg.id}`} className="font-medium text-primary hover:underline">
+            {korrekturBeleg.nummer ? `Rechnung ${korrekturBeleg.nummer}` : "den Korrektur-Entwurf"}
+          </Link>
         </p>
       )}
       {istStorno && stornoQuelle.data && (
@@ -788,7 +869,7 @@ export function BelegEditor({
               ((n) => `${n} ${n === 1 ? "Position" : "Positionen"}`)(gefunden.s.positionen.filter((p) => !ohneBetrag(p)).length),
             ].join(" · ")}
           </p>
-          {!neu && gefunden.s.basis !== start.s && (
+          {!neu && gefunden.s.basis !== basis && (
             <p className="mt-1 text-xs">Der Beleg wurde seitdem anderswo gespeichert — Wiederherstellen ersetzt das beim nächsten Speichern.</p>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
@@ -799,9 +880,13 @@ export function BelegEditor({
       )}
 
       <BelegKopf kopf={kopf} aendern={kopfAendern} bearbeitbar={bearbeitbar} firma={firma} pc={pc} startOffen={neu && !kopf.empf_name} />
-      {angebot && (
+      {(angebot || ersetztQuelle.data) && (
         <p className="-mt-2 px-1 text-sm text-muted-foreground">
-          Aus <Link to={`/belege/${angebot.id}`} className="font-medium text-primary hover:underline">Angebot {angebot.nummer ?? "(Entwurf)"}</Link>
+          {angebot && <>Aus <Link to={`/belege/${angebot.id}`} className="font-medium text-primary hover:underline">Angebot {angebot.nummer ?? "(Entwurf)"}</Link></>}
+          {angebot && ersetztQuelle.data && " · "}
+          {ersetztQuelle.data && (
+            <>Ersetzt <Link to={`/belege/${ersetztQuelle.data.id}`} className="font-medium text-primary hover:underline">Rechnung {ersetztQuelle.data.nummer}</Link></>
+          )}
         </p>
       )}
 
@@ -886,6 +971,7 @@ export function BelegEditor({
           projektId={kopf.projekt_id}
           belegId={neu ? null : id}
           belegt={belegt}
+          angebotId={kopf.angebot_id}
           stundensatzStart={stundensatz}
           firma={firma}
           vorhandeneTitel={positionen.some((p) => p.art === "titel")}
@@ -908,7 +994,12 @@ export function BelegEditor({
                 <p className="font-medium text-foreground">
                   <span className="zahl">{euro(ohneUst ? s.netto : s.brutto)}</span> {ohneUst ? "netto" : "brutto"} · {anzahl} {anzahl === 1 ? "Position" : "Positionen"} · an {kopf.empf_name}
                 </p>
-                {warnungen.map((w) => (
+                {[
+                  ...(konflikte > 0 && !dirty
+                    ? [`${konflikte} ${konflikte === 1 ? "Buchung steckt" : "Buchungen stecken"} schon in einer anderen Rechnung — doppelt verrechnet?`]
+                    : []),
+                  ...warnungen,
+                ].map((w) => (
                   <p key={w} className={cn("rounded-md px-2.5 py-1.5 text-xs font-medium", TON_KLASSE.gelb)}>{w}</p>
                 ))}
               </div>
@@ -979,7 +1070,9 @@ export function BelegEditor({
             <AlertDialogDescription>
               {!istAngebot
                 ? "Der Entwurf wird gelöscht. Übernommene Stunden, Material und Regieberichte sind danach wieder frei."
-                : "Das Angebot wird endgültig gelöscht."}
+                : folge.length
+                  ? `Das Angebot wird endgültig gelöscht — der Rechnungsentwurf daraus verliert den Verweis.`
+                  : "Das Angebot wird endgültig gelöscht."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {loeschen?.projektMoeglich && projekt && (

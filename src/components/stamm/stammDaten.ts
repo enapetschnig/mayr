@@ -99,6 +99,8 @@ export function fehlerText(e: { code?: string; message?: string } | null | undef
     return "Diesen Eintrag gibt es schon.";
   }
   if (e.code === "23503") return "Der Eintrag wird noch verwendet.";
+  if (e.code === "22003") return "Eine Zahl ist zu groß — bitte Menge und Preis prüfen.";
+  if (e.code === "22P02") return "Eine Eingabe ist keine gültige Zahl.";
   if (e.code === "42501") return "Dafür fehlt die Berechtigung.";
   if (/Failed to fetch|NetworkError/i.test(e.message ?? "")) return "Keine Verbindung — bitte später noch einmal versuchen.";
   return e.message ?? "Unbekannter Fehler";
