@@ -223,7 +223,12 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
             unter={stundenOffen > 0 ? `${stunden(stundenOffen)} nicht verrechnet` : stundenGesamt > 0 ? "alles verrechnet" : undefined} />
           <Kennzahl titel="Material (Einkauf)" wert={euro(materialEk)} unter={`${euro(materialVk)} Verkaufswert`} />
           <Kennzahl titel="Angebote" wert={euro(summe(angebote.map((a) => a.netto)))}
-            unter={`${angebote.filter((a) => a.status === "angenommen").length} angenommen · ${angebote.filter((a) => a.status === "offen").length} offen`} />
+            unter={[
+              `${angebote.filter((a) => a.status === "angenommen").length} angenommen`,
+              `${angebote.filter((a) => a.status === "offen").length} offen`,
+              // die Summe enthält auch abgelehnte — dann sagen, wie viele
+              ...((n) => (n ? [`${n} abgelehnt`] : []))(angebote.filter((a) => a.status === "abgelehnt").length),
+            ].join(" · ")} />
         </div>
 
         <Karte titel={`Umsatz ${jahr}`}>
