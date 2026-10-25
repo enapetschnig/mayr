@@ -151,8 +151,9 @@ begin
   join leistungen l on l.nummer = v.lnr join artikel a on a.hersteller_nr = v.anr;
 
   -- Anfangsbestand Hauptlager und Busse
-  insert into material_buchungen (art, artikel_id, menge, lagerort_id, ek_preis, vorgang, notiz, user_id)
-  select 'zugang', a.id, v.menge, v_haupt, a.ek_preis, v_vorgang, 'Anfangsbestand', v_chef from (values
+  insert into material_buchungen (art, artikel_id, menge, lagerort_id, ek_preis, vorgang, notiz, user_id, created_at)
+  select 'zugang', a.id, v.menge, v_haupt, a.ek_preis, v_vorgang, 'Anfangsbestand', v_chef,
+         timestamptz '2026-09-01 08:00 Europe/Vienna' from (values
     ('AM618116', 40),
     ('AM618113', 20),
     ('AM618110', 20),
@@ -231,8 +232,9 @@ begin
     ('540262', 10),
     ('840108', 100)
   ) v(nr, menge) join artikel a on a.hersteller_nr = v.nr;
-  insert into material_buchungen (art, artikel_id, menge, lagerort_id, ek_preis, vorgang, notiz, user_id)
-  select 'zugang', a.id, v.menge, v_bus1, a.ek_preis, v_vorgang, 'Anfangsbestand', v_chef from (values
+  insert into material_buchungen (art, artikel_id, menge, lagerort_id, ek_preis, vorgang, notiz, user_id, created_at)
+  select 'zugang', a.id, v.menge, v_bus1, a.ek_preis, v_vorgang, 'Anfangsbestand', v_chef,
+         timestamptz '2026-09-01 08:00 Europe/Vienna' from (values
     ('XC020104JC', 100),
     ('GTPTXM20', 50),
     ('221-413', 50),
@@ -247,8 +249,9 @@ begin
     ('5TG6201', 6),
     ('TG600AL', 2)
   ) v(nr, menge) join artikel a on a.hersteller_nr = v.nr;
-  insert into material_buchungen (art, artikel_id, menge, lagerort_id, ek_preis, vorgang, notiz, user_id)
-  select 'zugang', a.id, v.menge, v_bus2, a.ek_preis, v_vorgang, 'Anfangsbestand', v_chef from (values
+  insert into material_buchungen (art, artikel_id, menge, lagerort_id, ek_preis, vorgang, notiz, user_id, created_at)
+  select 'zugang', a.id, v.menge, v_bus2, a.ek_preis, v_vorgang, 'Anfangsbestand', v_chef,
+         timestamptz '2026-09-01 08:00 Europe/Vienna' from (values
     ('XC020104JC', 100),
     ('GTPTXM20', 50),
     ('221-413', 50),

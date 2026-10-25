@@ -142,8 +142,10 @@ print("  join leistungen l on l.nummer = v.lnr join artikel a on a.hersteller_nr
 
 def bestand(ort, liste):
     werte = ",\n    ".join(f"({q(nr)}, {menge})" for nr, menge in liste.items())
-    return (f"  insert into material_buchungen (art, artikel_id, menge, lagerort_id, ek_preis, vorgang, notiz, user_id)\n"
-            f"  select 'zugang', a.id, v.menge, {ort}, a.ek_preis, v_vorgang, 'Anfangsbestand', v_chef from (values\n    {werte}\n"
+    # Anfangsbestand liegt vor dem Demo-Verlauf (03-verlauf.sql beginnt im September)
+    return (f"  insert into material_buchungen (art, artikel_id, menge, lagerort_id, ek_preis, vorgang, notiz, user_id, created_at)\n"
+            f"  select 'zugang', a.id, v.menge, {ort}, a.ek_preis, v_vorgang, 'Anfangsbestand', v_chef,\n"
+            f"         timestamptz '2026-09-01 08:00 Europe/Vienna' from (values\n    {werte}\n"
             f"  ) v(nr, menge) join artikel a on a.hersteller_nr = v.nr;")
 
 
