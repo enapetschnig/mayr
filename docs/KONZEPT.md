@@ -87,9 +87,20 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
 | `rueckgabe` | + | − | projekt; lagerort wenn Artikel |
 | `direkt` | | + | projekt, **kein** lagerort |
 
-`menge` ist positiv (außer `korrektur`). Freie Positionen ohne Artikel tragen
+`menge` ist positiv (außer `korrektur`), höchstens 99 999. Freie Positionen ohne Artikel tragen
 `bezeichnung` + `einheit`. `vorgang` (uuid) gruppiert einen Scan-Durchgang.
 `ek_preis` = Momentaufnahme je Einheit.
+
+- **Rückgabe** höchstens, was am Projekt ausgefasst ist — beim Buchen frisch
+  geladen, sonst sperrt die App mit Artikel und Menge. Sonst würde der Verbrauch
+  negativ und die Rechnung bekäme eine Minus-Position.
+- **Inventur** bucht nur Gezähltes: „Bestand laden“ füllt die Liste, gebucht
+  wird erst, was gezählt oder mit „Stimmt“ bestätigt ist; die Vorschau nennt
+  die ungezählten Artikel. Sonst überschriebe sie still Entnahmen, die
+  während des Zählens passiert sind.
+- Verkaufswert einer Buchung überall über `buchungVk` (Projekt, Nachkalkulation,
+  Rechnungsimport) — sonst zeigten Projekt und Rechnung nach einer
+  Preisänderung verschiedene Beträge.
 
 Views (laufen mit den Rechten des Abfragenden):
 - `lagerbestand` — Bestand je `artikel_id` + `lagerort_id`
@@ -217,7 +228,13 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   die Formate kann, sonst @zxing; eintippen geht immer.
 - `lib/strichcode.ts` macht aus einem Code alle Schreibweisen (UPC-A/EAN-13
   mit führender 0, GS1-128 mit „(01)“, Leerzeichen); `artikel_zu_code()` sucht
-  in `artikel.ean` und `artikel_codes` (Karton = `menge` Stück).
+  in `artikel.ean` und `artikel_codes` (Karton = `menge` Stück). Jede Stelle,
+  die scannt (Scan-Seite, Artikelliste, Regiebericht), geht über
+  `artikelZuCode` — alle Schreibweisen. Ein Code führt immer zum selben
+  Artikel: gelernter Code vor Lagerartikel vor dem älteren; stillgelegte
+  Artikel sind nicht buchbar (Migration `20261025200000_material_suche.sql`).
+  Die Suche zeigt die exakte EAN zuerst, dann Lagerartikel; „%“ und „_“ sind
+  Zeichen, keine Platzhalter.
 - Unbekannter Code → `CodeUnbekanntDialog`: vorhandenen Artikel wählen (der
   Code wird gelernt) oder neuen Artikel anlegen.
 - Import (Artikelstamm → „Import“, Chef): **DATANORM 4/5** (eine oder mehrere
@@ -228,6 +245,13 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   zweiter Import aktualisiert die Preise, statt doppelt anzulegen.
   Echte Sonepar-Daten gibt es in der Demo nicht; eine Sonepar-Lieferung
   (Datanorm oder CSV aus dem Webshop) geht über denselben Import.
+- Was der Import nicht lesen kann, steht in einer Problemliste (Datei, Zeile,
+  Grund, Auszug; höchstens 200 plus Gesamtzahl); eine Datanorm-Datei mit
+  einzelnen fremden Zeilen bleibt Datanorm. Bild, PDF oder Excel statt einer
+  Artikelliste → ein verständlicher Satz. EANs werden einheitlich gespeichert,
+  eine EAN, die schon ein anderer Artikel hat, meldet der Import.
+- Nicht gebaut: Zuschläge (Datanorm-Z-Sätze, z. B. Kupferzuschlag) — der
+  Import liest sie nicht, Preise sind ohne Metallzuschlag.
 
 ### Nummern
 
@@ -290,7 +314,9 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
   - `lib/format.ts` (`euro`, `zahl`, `datum`, `isoTag`, `zahlLesen`, …), `lib/preise.ts`
   - `lib/abfrage.ts`: `alleZeilen()` — Supabase liefert je Abfrage höchstens
     1000 Zeilen und schneidet still ab; für Auswertungen immer seitenweise holen.
-    `csvHerunterladen()` — Strichpunkt, Dezimalkomma, BOM (Excel in Österreich)
+    `csvHerunterladen()` — Strichpunkt, Dezimalkomma, BOM (Excel in Österreich);
+    Text, der mit = + - @ beginnt, bekommt ein `'` davor (sonst führte Excel ihn
+    als Formel aus — Monteure legen Artikel an, Tätigkeiten tippt jeder)
 - PostgREST-Sammel-Inserts: **jede Zeile mit denselben Feldern** (sonst NULL statt Default)
 - Zahlen aus Eingaben nur über `dezimalLesen`/`zahlLesen` (Komma oder Punkt,
   Tausenderpunkte; „1,2,3“ ist ein Tippfehler und ergibt `null`)

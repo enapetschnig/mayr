@@ -79,7 +79,7 @@ try {
   await max.goto(`${URL}/projekte?neu=1`);
   // Kunde zuerst — die Wahl füllt den Projektnamen vor, der danach ersetzt wird
   await max.getByRole("button", { name: /Kunde wählen oder neu anlegen/ }).click();
-  await max.getByPlaceholder("Name oder Ort suchen").fill(KUNDE.split(" ").pop());
+  await max.getByPlaceholder(/^Name, Ort/).fill(KUNDE.split(" ").pop());
   await max.getByRole("button", { name: new RegExp(KUNDE) }).click();
   await max.locator("#p-name").fill(NAME);
   await max.getByRole("button", { name: "Projekt anlegen" }).click();
