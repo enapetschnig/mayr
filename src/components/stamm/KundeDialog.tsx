@@ -144,7 +144,7 @@ export function KundeDialog({
       <div className="mx-auto max-w-2xl space-y-7">
         <section className="space-y-3">
           <Gruppentitel className="px-0 pb-0">Kontakt</Gruppentitel>
-          <KundeFelder wert={grund} onChange={setGrund} />
+          <KundeFelder wert={grund} onChange={setGrund} fokus={!kunde} />
           {doppelt && (
             <div className={cn("flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-sm", TON_KLASSE.gelb)}>
               <Info className="mt-0.5 h-4 w-4 shrink-0" />

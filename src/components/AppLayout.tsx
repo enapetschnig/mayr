@@ -31,7 +31,8 @@ export function AppLayout() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="bg-background">
+      {/* min-w-0: breite Tabellen scrollen in sich, statt die Seite neben dem Menü aufzuschieben */}
+      <SidebarInset className="min-w-0 bg-background">
         <Outlet />
       </SidebarInset>
     </SidebarProvider>

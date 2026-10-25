@@ -13,8 +13,11 @@ import { cn } from "@/lib/utils";
 type NeuerKunde = Pick<Kunde, "name" | "strasse" | "plz" | "ort" | "telefon" | "email">;
 const LEER: NeuerKunde = { name: "", strasse: "", plz: "", ort: "", telefon: "", email: "" };
 
-/** Formularfelder eines Kunden — im Dialog „Neuer Kunde“ und auf der Kundenseite. */
-export function KundeFelder({ wert, onChange }: { wert: NeuerKunde; onChange: (k: NeuerKunde) => void }) {
+/**
+ * Formularfelder eines Kunden — im Dialog „Neuer Kunde“ und auf der Kundenseite.
+ * fokus=false beim Bearbeiten: sonst springt am Handy sofort die Tastatur auf.
+ */
+export function KundeFelder({ wert, onChange, fokus = true }: { wert: NeuerKunde; onChange: (k: NeuerKunde) => void; fokus?: boolean }) {
   const feld = (k: keyof NeuerKunde, label: string, props: React.ComponentProps<typeof Input> = {}) => (
     <div className="space-y-1.5">
       <Label htmlFor={`k-${k}`}>{label}</Label>
@@ -23,7 +26,7 @@ export function KundeFelder({ wert, onChange }: { wert: NeuerKunde; onChange: (k
   );
   return (
     <div className="grid gap-3">
-      {feld("name", "Name / Firma", { placeholder: "z. B. Familie Huber", autoFocus: true })}
+      {feld("name", "Name / Firma", { placeholder: "z. B. Familie Huber", autoFocus: fokus })}
       {feld("strasse", "Straße")}
       <div className="grid grid-cols-[6rem_1fr] gap-2">
         {feld("plz", "PLZ", { inputMode: "numeric" })}

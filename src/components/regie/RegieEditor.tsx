@@ -542,15 +542,23 @@ export function RegieEditor({ voll }: { voll: RegieVoll | null }) {
         style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center gap-2 lg:justify-end">
-          <Button
-            variant="outline"
-            className="h-12 shrink-0 gap-1.5 px-4"
-            disabled={speichert || loescht || !entwurf.projektId || (gespeichert && !ungespeichert)}
-            onClick={() => void speichern()}
-          >
-            {speichert ? <Loader2 className="h-4 w-4 animate-spin" /> : gespeichert && !ungespeichert ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-            {gespeichert && !ungespeichert ? "Gespeichert" : "Speichern"}
-          </Button>
+          {/* Gespeichert ist ein Zustand, kein Knopf — schmal, damit „Unterschreiben lassen“ am Handy ganz Platz hat */}
+          {gespeichert && !ungespeichert ? (
+            <span className="flex h-12 shrink-0 items-center gap-1.5 pl-1 pr-2 text-sm text-muted-foreground">
+              <Check className="h-4 w-4 text-status-gruen-fg" />
+              Gespeichert
+            </span>
+          ) : (
+            <Button
+              variant="outline"
+              className="h-12 shrink-0 gap-1.5 px-4"
+              disabled={speichert || loescht || !entwurf.projektId}
+              onClick={() => void speichern()}
+            >
+              {speichert ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Speichern
+            </Button>
+          )}
           <Button className="h-12 min-w-0 flex-1 gap-2 text-base lg:max-w-sm" disabled={speichert || loescht} onClick={() => void unterschreibenStarten()}>
             <PenLine className="h-5 w-5" />
             <span className="truncate">{pdf.pc ? "Vom Kunden unterschreiben lassen" : "Unterschreiben lassen"}</span>
