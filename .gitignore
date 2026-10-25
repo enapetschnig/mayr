@@ -36,3 +36,6 @@ supabase/.temp
 tests/bilder/
 .vercel
 DEMO-ZUGAENGE.txt
+
+# Python
+__pycache__/

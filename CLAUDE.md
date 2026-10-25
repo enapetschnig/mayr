@@ -38,27 +38,31 @@ npm run check        # Absturz-Wächter
 npm test             # vitest (Parser)
 ```
 
-Regeln in der Datenbank prüfen (41 Prüfungen: nicht freigeschaltet, Monteur,
+Regeln in der Datenbank prüfen (43 Prüfungen: nicht freigeschaltet, Monteur,
 Chef, Festschreiben, Storno, Regiebericht) — legt echte Daten und Nummern an,
 danach **immer** aufräumen:
 
 ```bash
-node tests/rls-test.mjs anlegen          # 3 Testkonten, dann die ausgegebenen SQL-Zeilen
+node tests/rls-test.mjs anlegen                  # 3 Testkonten, dann die ausgegebenen SQL-Zeilen
 node tests/rls-test.mjs
-sql.sh -f tests/rls-aufraeumen.sql       # Testdaten, Testkonten, Nummernkreise zurück
+scripts/sql.sh -f tests/rls-aufraeumen.sql       # Testdaten, Testkonten, Nummernkreise zurück
 ```
 
 Demo zurücksetzen (Reihenfolge einhalten; Dateien im Storage vorher über die
 Storage-API löschen):
 
 ```bash
-sql.sh -f supabase/demo/01-stamm.sql     # Betrieb, Kunden, Projekte, Leistungen
-sql.sh -f supabase/demo/02-artikel.sql   # aus artikel_sql.py erzeugt
-sql.sh -f supabase/demo/03-verlauf.sql   # Stunden, Material, Regie, Belege
+scripts/sql.sh -f supabase/demo/01-stamm.sql     # Betrieb, Kunden, Projekte, Leistungen
+scripts/sql.sh -f supabase/demo/02-artikel.sql   # aus artikel_sql.py erzeugt
+scripts/sql.sh -f supabase/demo/03-verlauf.sql   # Stunden, Material, Regie, Belege
 DEMO_CHEF_PASSWORT=… python3 -I supabase/demo/unterschriften.py   # Unterschriftsbilder der Regieberichte
 ```
 
-`sql.sh` liest das DB-Passwort aus `.supabase-db-passwort.txt` (nie ausgeben).
+`scripts/sql.sh` liest das DB-Passwort aus `.supabase-db-passwort.txt` (nie
+ausgeben). **Eine Anweisung je Aufruf** — mehrere mit Strichpunkt laufen still
+nicht; deshalb sind die Demo- und Aufräum-Dateien je ein `do $$ … $$`-Block.
+Neue Migrationen: `scripts/sql.sh push --dry-run`, dann `scripts/sql.sh push`
+(spielt nur ein, was im Verlauf `supabase_migrations.schema_migrations` fehlt).
 Die Rolle `postgres` darf `session_replication_role` nicht setzen — das
 Zurücksetzen schaltet die Festschreib-Trigger per `alter table … disable
 trigger user` nur innerhalb der eigenen Transaktion aus.

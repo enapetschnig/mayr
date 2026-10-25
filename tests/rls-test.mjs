@@ -164,9 +164,19 @@ const { data: rb, error: eRb } = await monteur.from("regieberichte").insert({ pr
 ok(!eRb && /^RB-\d{4}-\d{3}$/.test(rb?.nummer ?? ""), `Monteur schreibt einen Regiebericht: ${rb?.nummer ?? eRb?.message}`);
 if (rb) {
   const { data: zRegie } = await monteur.from("zeiten").insert({ projekt_id: projekt.id, stunden: 3, regiebericht_id: rb.id, taetigkeit: "RLS-Test Regie" }).select("id").single();
-  const { error: eU } = await monteur.from("regieberichte")
-    .update({ status: "unterschrieben", unterschrift_name: "RLS-Test Kunde", unterschrieben_am: new Date().toISOString() }).eq("id", rb.id);
+  const { error: e0 } = await monteur.from("regieberichte")
+    .update({ status: "unterschrieben", unterschrift_name: "RLS-Test Kunde" }).eq("id", rb.id);
+  ok(!!e0, "ohne Unterschriftsbild wird nicht unterschrieben" + abgelehnt(e0));
+  // Nur der Pfad, kein Bild hochladen: der Trigger prüft den Speicher nicht,
+  // und eine hochgeladene Unterschrift ließe sich nicht mehr löschen
+  const { data: rbU, error: eU } = await monteur.from("regieberichte")
+    .update({
+      status: "unterschrieben", unterschrift_name: "RLS-Test Kunde",
+      unterschrift_pfad: `${projekt.id}/unterschriften/${rb.id}.png`, unterschrieben_am: "2000-01-01T00:00:00Z",
+    })
+    .eq("id", rb.id).select("unterschrieben_am").single();
   ok(!eU, "Kunde unterschreibt" + (eU ? abgelehnt(eU) : ""));
+  ok(new Date(rbU?.unterschrieben_am ?? 0).getFullYear() > 2000, "den Zeitpunkt der Unterschrift setzt der Server, nicht die Handyuhr");
   const { error: e1 } = await monteur.from("regieberichte").update({ arbeiten: "nachträglich geändert" }).eq("id", rb.id);
   ok(!!e1, "unterschriebener Bericht ist fest" + abgelehnt(e1));
   const { error: e2 } = await monteur.from("zeiten").update({ stunden: 1 }).eq("id", zRegie.id);
