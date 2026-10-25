@@ -111,6 +111,12 @@ if (!projekt) process.exit(1);
   ok(!a?.length, "kann keine Artikelpreise ändern");
   const { data: d } = await monteur.from("projekte").delete().eq("id", projekt.id).select();
   ok(!d?.length, "kann kein Projekt löschen");
+  const { error: eSatz } = await monteur.from("projekte").update({ stundensatz: 1 }).eq("id", projekt.id);
+  ok(!!eSatz, "kann den Stundensatz eines Projekts nicht festlegen" + abgelehnt(eSatz));
+  const { error: eNr } = await chef.from("projekte").update({ nummer: "1999-0001" }).eq("id", projekt.id);
+  ok(!!eNr, "die Projektnummer bleibt — auch für den Chef" + abgelehnt(eNr));
+  const { error: eNull } = await chef.from("projekte").update({ stundensatz: 0 }).eq("id", projekt.id);
+  ok(!!eNull, "Stundensatz 0 € gibt es nicht (leer = der des Betriebs)" + abgelehnt(eNull));
   const { error: e3 } = await monteur.rpc("beleg_fertigstellen", { p_id: projekt.id });
   ok(!!e3, "kann keine Belege fertigstellen" + abgelehnt(e3));
   const { error: e4 } = await monteur.storage.from("firmen-logos").upload(`rlstest-${Date.now()}.png`, new Blob(["x"]), { contentType: "image/png" });
@@ -135,10 +141,21 @@ const { data: zChef } = await chef.from("zeiten").insert({ projekt_id: projekt.i
   ok(!fremd?.length, "Monteur kann fremde Stunden nicht ändern");
   const { data: korr } = await chef.from("zeiten").update({ stunden: 5 }).eq("id", zMonteur.id).select();
   ok(korr?.length === 1, "Chef kann Stunden des Monteurs korrigieren");
+  const { error: eKollege } = await monteur.from("zeiten").insert({ user_id: chefId, projekt_id: projekt.id, stunden: 1, taetigkeit: "RLS-Test für Kollegen" });
+  ok(!!eKollege, "Monteur bucht Kollegen keine Stunden außerhalb des Regieberichts" + abgelehnt(eKollege));
+  const { data: zE } = await monteur.from("zeiten")
+    .insert({ projekt_id: projekt.id, stunden: 1, taetigkeit: "RLS-Test", erstellt_von: chefId }).select("erstellt_von").single();
+  ok(zE?.erstellt_von === monteurId, "wer eingetragen hat, setzt die Datenbank");
+  const { error: eUm } = await monteur.from("zeiten").update({ user_id: chefId }).eq("id", zMonteur.id);
+  ok(!!eUm, "Monteur schiebt eigene Stunden keinem Kollegen unter" + abgelehnt(eUm));
+  const { error: ePause } = await monteur.from("zeiten").update({ pause_minuten: -60 }).eq("id", zMonteur.id);
+  ok(!!ePause, "die Pause ist nie negativ" + abgelehnt(ePause));
 }
 
 console.log("\n— Rechnung —");
-const { data: re, error: eR } = await chef.from("belege").insert({ typ: "rechnung", projekt_id: projekt.id, empf_name: "RLS-Test Kunde" }).select("id").single();
+const { data: an } = await chef.from("belege").insert({ typ: "angebot", projekt_id: projekt.id, empf_name: "RLS-Test Kunde" }).select("id").single();
+const { data: re, error: eR } = await chef.from("belege")
+  .insert({ typ: "rechnung", projekt_id: projekt.id, angebot_id: an?.id ?? null, empf_name: "RLS-Test Kunde" }).select("id").single();
 ok(!eR, "Chef legt einen Rechnungsentwurf an" + (eR ? abgelehnt(eR) : ""));
 {
   const { error: eArchiv } = await chef.storage.from("beleg-archiv").upload(`${re.id}.pdf`, new Blob(["x"]), { contentType: "application/pdf" });
@@ -149,13 +166,19 @@ ok(!eR, "Chef legt einen Rechnungsentwurf an" + (eR ? abgelehnt(eR) : ""));
     beleg_id: re.id, pos: 1, art: "arbeit", bezeichnung: "Arbeitszeit", menge: 5, einheit: "h", einzelpreis: 72,
     quelle: { zeiten: [zMonteur.id], material: [], regie: [] },
   });
+  const { error: eVerr } = await monteur.from("zeiten").update({ rechnung_id: re.id }).eq("id", zMonteur.id);
+  ok(!!eVerr, "Monteur verrechnet keine Stunden" + abgelehnt(eVerr));
   await chef.from("zeiten").update({ rechnung_id: re.id }).eq("id", zMonteur.id);
   ok(!ePos, "übernimmt die Stunde als Position" + (ePos ? abgelehnt(ePos) : ""));
   const { error: e1 } = await monteur.from("zeiten").update({ stunden: 1 }).eq("id", zMonteur.id);
   ok(!!e1, "verrechnete Stunde ist für den Monteur fest" + abgelehnt(e1));
+  const { error: eLos } = await monteur.from("zeiten").update({ rechnung_id: null }).eq("id", zMonteur.id);
+  ok(!!eLos, "Monteur hebt die Verrechnung nicht auf (sonst doppelt verrechenbar)" + abgelehnt(eLos));
 
   const { data: nr, error: eF } = await chef.rpc("beleg_fertigstellen", { p_id: re.id });
   ok(!eF && /^RE-\d{4}-\d{3}$/.test(nr ?? ""), `Fertigstellen vergibt die Nummer: ${nr ?? eF?.message}`);
+  const { data: anWeg } = await chef.from("belege").delete().eq("id", an?.id).select();
+  ok(!!an && !anWeg?.length, "das Angebot einer fertigen Rechnung bleibt als Nachweis");
   const { data: b } = await chef.from("belege").select("netto, brutto, status").eq("id", re.id).single();
   ok(Number(b.netto) === 360 && Number(b.brutto) === 432 && b.status === "offen", `rechnet aus den Positionen: ${b.netto} netto, ${b.brutto} brutto`);
   const { error: e2 } = await chef.from("beleg_positionen").update({ einzelpreis: 1 }).eq("beleg_id", re.id);
@@ -195,6 +218,16 @@ ok(!eR, "Chef legt einen Rechnungsentwurf an" + (eR ? abgelehnt(eR) : ""));
   ok(!!e9, "zweimal stornieren geht nicht" + abgelehnt(e9));
   const { error: e10 } = await chef.rpc("beleg_stornieren", { p_id: stornoId ?? re.id });
   ok(!!e10, "eine Stornorechnung lässt sich nicht stornieren" + abgelehnt(e10));
+
+  // Korrektur: die neue Rechnung verweist auf die stornierte — nur eine je Rechnung
+  const neueKorrektur = () => chef.from("belege").insert({ typ: "rechnung", projekt_id: projekt.id, korrektur_von: re.id, empf_name: "RLS-Test Kunde" });
+  const { error: eK1 } = await neueKorrektur();
+  const { error: eK2 } = await neueKorrektur();
+  ok(!eK1 && !!eK2, "je stornierter Rechnung nur eine Korrektur" + abgelehnt(eK1 ?? eK2));
+
+  const { data: an2 } = await chef.from("belege").insert({ typ: "angebot", projekt_id: projekt.id, empf_name: "RLS-Test Kunde" }).select("id").single();
+  const { data: an2Weg } = await chef.from("belege").delete().eq("id", an2?.id).select();
+  ok(an2Weg?.length === 1, "ein Angebot ohne fertige Rechnung lässt sich löschen");
 }
 
 console.log("\n— Regiebericht —");
@@ -223,6 +256,23 @@ if (rb) {
   ok(!!e3, "es kommen keine Stunden mehr dazu" + abgelehnt(e3));
   const { error: e4 } = await chef.from("regieberichte").delete().eq("id", rb.id);
   ok(!!e4, "auch der Chef kann ihn nicht löschen" + abgelehnt(e4));
+}
+
+console.log("\n— Material —");
+{
+  const { data: lager } = await chef.from("lagerorte").select("id").limit(1).single();
+  const { data: artikel } = await chef.from("artikel").select("id").limit(1).single();
+  const lagerbuchung = (art, menge) =>
+    monteur.from("material_buchungen").insert({ art, artikel_id: artikel.id, lagerort_id: lager.id, menge, notiz: "RLS-Test" });
+  const { error: e1 } = await lagerbuchung("zugang", 1);
+  ok(!!e1, "Monteur bucht keinen Wareneingang" + abgelehnt(e1));
+  const { error: e2 } = await lagerbuchung("korrektur", 100);
+  ok(!!e2, "und keine Inventur" + abgelehnt(e2));
+  const { data: mb, error: e3 } = await monteur.from("material_buchungen")
+    .insert({ art: "direkt", bezeichnung: "RLS-Test Kabel", einheit: "m", menge: 5, projekt_id: projekt.id }).select("id").single();
+  ok(!e3, "bucht Material direkt aufs Projekt" + (e3 ? abgelehnt(e3) : ""));
+  const { error: e4 } = await monteur.from("material_buchungen").update({ user_id: chefId }).eq("id", mb?.id);
+  ok(!!mb && !!e4, "und schiebt die Buchung keinem Kollegen unter" + abgelehnt(e4));
 }
 
 console.log("\n— Konten —");
