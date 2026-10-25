@@ -1,24 +1,17 @@
-import { useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { Link } from "react-router-dom";
+import { SearchX } from "lucide-react";
+import { Hinweis } from "@/components/ProtectedRoute";
+import { Button } from "@/components/ui/button";
 
-const NotFound = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
-  }, [location.pathname]);
-
+/** Unbekannte Adresse — alter Link, Tippfehler, gelöschter Eintrag */
+export default function NotFound() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-gray-600">Oops! Page not found</p>
-        <a href="/" className="text-blue-500 underline hover:text-blue-700">
-          Return to Home
-        </a>
-      </div>
-    </div>
+    <Hinweis
+      icon={<SearchX className="h-8 w-8 text-amber-600" />}
+      titel="Seite nicht gefunden"
+      text="Diese Adresse gibt es in der App nicht — vielleicht ein alter Link oder ein Tippfehler."
+    >
+      <Button asChild><Link to="/">Zur Startseite</Link></Button>
+    </Hinweis>
   );
-};
-
-export default NotFound;
+}

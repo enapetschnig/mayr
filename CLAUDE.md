@@ -38,8 +38,8 @@ npm run check        # Absturz-Wächter
 npm test             # vitest (Parser)
 ```
 
-Regeln in der Datenbank prüfen (45 Prüfungen: nicht freigeschaltet, Monteur,
-Chef, Festschreiben, Storno, Regiebericht) — legt echte Daten und Nummern an,
+Regeln in der Datenbank prüfen (55 Prüfungen: nicht freigeschaltet, Monteur,
+Chef, Festschreiben, Storno, Regiebericht, Konten) — legt echte Daten und Nummern an,
 danach **immer** aufräumen:
 
 ```bash

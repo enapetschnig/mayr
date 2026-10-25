@@ -4,6 +4,10 @@ import { toast } from "sonner";
 import { Building2, ImagePlus, KeyRound, Loader2, LogOut, Smartphone, Trash2, User, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +20,7 @@ import { useSitzung } from "@/hooks/useSitzung";
 import { useQuery } from "@tanstack/react-query";
 import { logoAdresse } from "@/lib/upload";
 import { zahlLesen } from "@/lib/format";
+import { authFehler, vorlaeufigesPasswort } from "@/lib/konto";
 import { name, type Firma, type Profil, type Rolle } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { KUNDE } from "@/kunde.config";
@@ -207,27 +212,58 @@ function Betrieb() {
   );
 }
 
-/** Freischalten, Rolle, Farbe. Neue Mitarbeiter registrieren sich selbst. */
+/** Neu = registriert, wartet auf Freischaltung; gesperrt = vom Chef ausgesperrt */
+type Zugang = "neu" | "aktiv" | "gesperrt";
+const zugang = (p: Profil): Zugang => (p.aktiv ? "aktiv" : p.gesperrt ? "gesperrt" : "neu");
+const ZUGANG_REIHENFOLGE: Record<Zugang, number> = { neu: 0, aktiv: 1, gesperrt: 2 };
+
+/** Freischalten, Rolle, Farbe, Sperren, vorläufiges Passwort. Neue Mitarbeiter registrieren sich selbst. */
 function Mitarbeiter() {
   const { profil: ich } = useSitzung();
   const neuLaden = useNeuLaden();
+  const [sperren, setSperren] = useState<Profil | null>(null);
+  const [passwort, setPasswort] = useState<{ p: Profil; neu: string | null } | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
   const { data: alle = [], refetch } = useQuery({
     queryKey: ["mitarbeiter", "alle"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").order("aktiv").order("vorname");
+      const { data, error } = await supabase.from("profiles").select("*").order("vorname");
       if (error) throw error;
-      return (data ?? []) as Profil[];
+      return ((data ?? []) as Profil[]).sort((a, b) => ZUGANG_REIHENFOLGE[zugang(a)] - ZUGANG_REIHENFOLGE[zugang(b)]);
     },
   });
 
-  const aendern = async (p: Profil, daten: Partial<Pick<Profil, "aktiv" | "rolle" | "farbe">>) => {
+  const aendern = async (p: Profil, daten: Partial<Pick<Profil, "aktiv" | "gesperrt" | "rolle" | "farbe">>, meldung?: string) => {
     const { error } = await supabase.from("profiles").update(daten).eq("id", p.id);
-    if (error) return toast.error("Nicht geändert", { description: error.message });
-    if (daten.aktiv === true) toast.success(`${name(p)} ist freigeschaltet`);
+    if (error) {
+      toast.error("Nicht geändert", { description: error.message });
+      return false;
+    }
+    if (meldung) toast.success(meldung);
     await Promise.all([refetch(), neuLaden("mitarbeiter")]);
+    return true;
   };
 
-  const wartend = alle.filter((p) => !p.aktiv);
+  const sperrenBestaetigt = async () => {
+    if (!sperren) return;
+    setLaeuft(true);
+    const ok = await aendern(sperren, { aktiv: false, gesperrt: true }, `${name(sperren)} ist gesperrt`);
+    setLaeuft(false);
+    if (ok) setSperren(null);
+  };
+
+  const passwortVergeben = async () => {
+    if (!passwort) return;
+    const neu = vorlaeufigesPasswort();
+    setLaeuft(true);
+    const { error } = await supabase.rpc("passwort_setzen", { p_user: passwort.p.id, p_passwort: neu });
+    setLaeuft(false);
+    if (error) return toast.error("Passwort nicht vergeben", { description: error.message });
+    setPasswort({ ...passwort, neu });
+    await refetch();
+  };
+
+  const wartend = alle.filter((p) => zugang(p) === "neu");
   const adresse = `${window.location.origin}/auth`;
 
   return (
@@ -241,17 +277,27 @@ function Mitarbeiter() {
 
       <div className="space-y-2">
         {alle.map((p) => (
-          <section key={p.id} className={cn("rounded-lg border bg-card p-4", !p.aktiv && "border-status-gelb bg-status-gelb/30")}>
+          <section key={p.id} className={cn("rounded-lg border bg-card p-4",
+            zugang(p) === "neu" && "border-status-gelb bg-status-gelb/30", zugang(p) === "gesperrt" && "bg-muted/40")}>
             <div className="flex items-center gap-3">
-              <Avatar profil={p} className="h-10 w-10 text-sm" />
+              <Avatar profil={p} className={cn("h-10 w-10 text-sm", zugang(p) === "gesperrt" && "opacity-50")} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{name(p)}{p.id === ich?.id && <span className="font-normal text-muted-foreground"> (du)</span>}</p>
                 <p className="truncate text-xs text-muted-foreground">{p.email?.replace(`@${KUNDE.loginDomain}`, "")}</p>
               </div>
-              {!p.aktiv
-                ? <Button size="sm" className="h-10" onClick={() => aendern(p, { aktiv: true })}>Freischalten</Button>
-                : <StatusPille eintrag={{ ton: p.rolle === "chef" ? "blau" : "grau", text: p.rolle === "chef" ? "Chef" : "Monteur" }} />}
+              {zugang(p) === "neu" && (
+                <Button size="sm" className="h-10" onClick={() => aendern(p, { aktiv: true, gesperrt: false }, `${name(p)} ist freigeschaltet`)}>Freischalten</Button>
+              )}
+              {zugang(p) === "gesperrt" && <StatusPille eintrag={{ ton: "rot", text: "Gesperrt" }} />}
+              {zugang(p) === "aktiv" && <StatusPille eintrag={{ ton: p.rolle === "chef" ? "blau" : "grau", text: p.rolle === "chef" ? "Chef" : "Monteur" }} />}
             </div>
+            {zugang(p) === "gesperrt" && (
+              <div className="mt-3 flex justify-end border-t pt-3">
+                <Button variant="outline" size="sm" className="h-10" onClick={() => aendern(p, { aktiv: true, gesperrt: false }, `${name(p)} ist wieder freigeschaltet`)}>
+                  Wieder freischalten
+                </Button>
+              </div>
+            )}
             {p.aktiv && (
               <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3 border-t pt-3">
                 <div className="flex h-9 overflow-hidden rounded-md border text-sm">
@@ -270,7 +316,12 @@ function Mitarbeiter() {
                   ))}
                 </div>
                 {p.id !== ich?.id && (
-                  <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={() => aendern(p, { aktiv: false })}>Sperren</Button>
+                  <div className="ml-auto flex gap-1">
+                    <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => setPasswort({ p, neu: null })}>
+                      <KeyRound className="h-4 w-4" /> Passwort vergeben
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSperren(p)}>Sperren</Button>
+                  </div>
                 )}
               </div>
             )}
@@ -278,6 +329,65 @@ function Mitarbeiter() {
         ))}
       </div>
       {wartend.length === 0 && <p className="px-1 text-xs text-muted-foreground">Niemand wartet auf Freischaltung.</p>}
+
+      <AlertDialog open={!!sperren} onOpenChange={(o) => { if (!o && !laeuft) setSperren(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{sperren && name(sperren)} sperren?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Beim Anmelden steht dann nur noch „Zugang gesperrt“ — buchen und ansehen geht nicht mehr.
+              Stunden, Material und Berichte bleiben erhalten. Du kannst den Zugang jederzeit wieder freischalten.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-11" disabled={laeuft}>Abbrechen</AlertDialogCancel>
+            <Button variant="destructive" className="h-11" onClick={() => void sperrenBestaetigt()} disabled={laeuft}>
+              {laeuft && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sperren
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!passwort} onOpenChange={(o) => { if (!o && !laeuft) setPasswort(null); }}>
+        <AlertDialogContent>
+          {passwort?.neu ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Passwort für {name(passwort.p)}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {passwort.p.vorname ? `Gib es ${passwort.p.vorname} weiter.` : "Gib es weiter."} Beim Anmelden fragt die App gleich nach einem eigenen Passwort.
+                  Hier wird es nicht gespeichert — nach „Fertig“ ist es weg.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2 rounded-lg border bg-muted/40 p-4 text-center">
+                <p className="text-xs text-muted-foreground">Benutzername</p>
+                <p className="font-mono text-lg font-semibold">{passwort.p.email?.replace(`@${KUNDE.loginDomain}`, "")}</p>
+                <p className="pt-2 text-xs text-muted-foreground">Vorläufiges Passwort</p>
+                <p className="select-all font-mono text-2xl font-bold tracking-wide">{passwort.neu}</p>
+              </div>
+              <AlertDialogFooter>
+                <Button className="h-11" onClick={() => setPasswort(null)}>Fertig</Button>
+              </AlertDialogFooter>
+            </>
+          ) : (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Vorläufiges Passwort für {passwort && name(passwort.p)}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Für den Fall, dass das Passwort vergessen ist: Die App erzeugt ein neues, du sagst es weiter.
+                  Das bisherige Passwort gilt danach nicht mehr.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="h-11" disabled={laeuft}>Abbrechen</AlertDialogCancel>
+                <Button className="h-11" onClick={() => void passwortVergeben()} disabled={laeuft}>
+                  {laeuft && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Passwort vergeben
+                </Button>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -294,6 +404,7 @@ function Konto() {
 
   const datenSpeichern = async () => {
     if (!profil) return;
+    if (!vorname.trim() || !nachname.trim()) return toast.error("Vor- und Nachname brauchen wir — sie stehen auf Stunden und Berichten");
     setLaeuft("daten");
     const { error } = await supabase.from("profiles").update({
       vorname: vorname.trim(), nachname: nachname.trim(), telefon: telefon.trim() || null,
@@ -310,7 +421,7 @@ function Konto() {
     setLaeuft("passwort");
     const { error } = await supabase.auth.updateUser({ password: passwort });
     setLaeuft(null);
-    if (error) return toast.error("Nicht geändert", { description: error.message });
+    if (error) return toast.error("Nicht geändert", { description: authFehler(error.message) });
     setPasswort("");
     setWiederholt("");
     toast.success("Passwort geändert");

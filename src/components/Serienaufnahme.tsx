@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Camera, X, Check, Image as ImageIcon, Loader2, Maximize2, Minimize2, ZoomIn, ZoomOut } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 /**
@@ -108,10 +108,8 @@ export function Serienaufnahme({
       }
     } catch (err) {
       console.error("Camera error:", err);
-      toast({
-        variant: "destructive",
-        title: "Kamera-Fehler",
-        description: "Zugriff auf Kamera verweigert oder nicht verfuegbar. Du kannst Fotos aus der Galerie wählen.",
+      toast.error("Kamera nicht verfügbar", {
+        description: "Zugriff verweigert oder keine Kamera gefunden. Du kannst Fotos aus der Galerie wählen.",
       });
       setStreamReady(false);
     }
@@ -158,7 +156,7 @@ export function Serienaufnahme({
   const capturePhoto = () => {
     const video = videoRef.current;
     if (!video || !streamRef.current || !streamReady) {
-      toast({ variant: "destructive", title: "Fehler", description: "Kamera nicht aktiv." });
+      toast.error("Kamera nicht aktiv");
       return;
     }
     const canvas = document.createElement("canvas");
@@ -166,7 +164,7 @@ export function Serienaufnahme({
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
     if (!ctx) {
-      toast({ variant: "destructive", title: "Fehler", description: "Foto konnte nicht erstellt werden." });
+      toast.error("Foto konnte nicht erstellt werden");
       return;
     }
 

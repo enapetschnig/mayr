@@ -7,21 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSitzung } from "@/hooks/useSitzung";
+import { authFehler, benutzerFehler, benutzername, zuEmail } from "@/lib/konto";
 import { KUNDE } from "@/kunde.config";
 
 type Modus = "login" | "register" | "reset" | "registriert";
-
-/** "max" → max@elektro.handwerkapp.at, echte E-Mail-Adressen bleiben, wie sie sind */
-const zuEmail = (eingabe: string) => {
-  const e = eingabe.trim().toLowerCase();
-  return e.includes("@") ? e : `${e}@${KUNDE.loginDomain}`;
-};
 
 export default function Auth() {
   const navigate = useNavigate();
   const { session, laden: sitzungLaedt } = useSitzung();
   const [laden, setLaden] = useState(false);
   const [modus, setModus] = useState<Modus>("login");
+  const [neuerName, setNeuerName] = useState("");
 
   if (!sitzungLaedt && session && modus === "login") return <Navigate to="/" replace />;
 
@@ -30,14 +26,12 @@ export default function Auth() {
     const fd = new FormData(e.currentTarget);
     setLaden(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: zuEmail(String(fd.get("benutzer"))),
+      email: zuEmail(String(fd.get("benutzer")), KUNDE.loginDomain),
       password: String(fd.get("password")),
     });
     setLaden(false);
     if (error) {
-      toast.error("Anmeldung fehlgeschlagen", {
-        description: error.message === "Invalid login credentials" ? "Benutzername oder Passwort falsch." : error.message,
-      });
+      toast.error("Anmeldung fehlgeschlagen", { description: authFehler(error.message) });
       return;
     }
     navigate("/");
@@ -46,23 +40,28 @@ export default function Auth() {
   const registrieren = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const benutzer = String(fd.get("benutzer"));
+    const vorname = String(fd.get("vorname")).trim();
+    const nachname = String(fd.get("nachname")).trim();
+    if (!vorname || !nachname) return toast.error("Bitte Vor- und Nachnamen eintragen.");
+    const falsch = benutzerFehler(benutzer);
+    if (falsch) return toast.error("Benutzername geht so nicht", { description: falsch });
     setLaden(true);
     const { error } = await supabase.auth.signUp({
-      email: zuEmail(String(fd.get("benutzer"))),
+      email: zuEmail(benutzer, KUNDE.loginDomain),
       password: String(fd.get("password")),
       options: {
         emailRedirectTo: `${window.location.origin}/`,
-        data: { vorname: String(fd.get("vorname")).trim(), nachname: String(fd.get("nachname")).trim() },
+        data: { vorname, nachname },
       },
     });
     if (error) {
       setLaden(false);
-      return toast.error("Registrierung fehlgeschlagen", {
-        description: error.message.includes("already registered") ? "Diesen Benutzer gibt es schon." : error.message,
-      });
+      return toast.error("Registrierung fehlgeschlagen", { description: authFehler(error.message) });
     }
     await supabase.auth.signOut({ scope: "local" });
     setLaden(false);
+    setNeuerName(benutzer.includes("@") ? benutzer.trim().toLowerCase() : benutzername(benutzer));
     setModus("registriert");
   };
 
@@ -87,6 +86,9 @@ export default function Auth() {
               <div>
                 <h2 className="text-lg font-semibold">Registrierung eingegangen</h2>
                 <p className="mt-2 text-sm text-muted-foreground">Der Chef schaltet dein Konto frei — danach meldest du dich mit Benutzername und Passwort an.</p>
+                {neuerName && (
+                  <p className="mt-3 text-sm">Dein Benutzername: <span className="font-mono font-semibold">{neuerName}</span></p>
+                )}
               </div>
               <Button className="h-12 w-full" onClick={() => setModus("login")}>Zur Anmeldung</Button>
             </div>
@@ -95,7 +97,10 @@ export default function Auth() {
           {modus === "reset" && (
             <div className="space-y-4">
               <h2 className="text-lg font-semibold">Passwort vergessen</h2>
-              <p className="text-sm text-muted-foreground">Melde dich beim Chef — er setzt dir in den Einstellungen ein neues Passwort.</p>
+              <p className="text-sm text-muted-foreground">
+                Melde dich beim Chef: Unter Einstellungen → Mitarbeiter gibt es für dich ein vorläufiges Passwort.
+                Damit meldest du dich an und legst gleich ein eigenes fest.
+              </p>
               <Button className="h-12 w-full" onClick={() => setModus("login")}>Zurück zur Anmeldung</Button>
             </div>
           )}

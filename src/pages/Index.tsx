@@ -82,7 +82,7 @@ export default function Index() {
     queryFn: async () => {
       const [{ data: belege }, { count: wartend }] = await Promise.all([
         supabase.from("belege").select("id, typ, status, brutto, faellig_am").in("status", ["entwurf", "offen"]),
-        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("aktiv", false),
+        supabase.from("profiles").select("id", { count: "exact", head: true }).eq("aktiv", false).eq("gesperrt", false),
       ]);
       const liste = belege ?? [];
       const rechnungen = liste.filter((b) => b.typ === "rechnung" && b.status === "offen");

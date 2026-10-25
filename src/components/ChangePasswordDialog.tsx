@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -6,59 +7,44 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Key } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { authFehler } from "@/lib/konto";
 
 interface ChangePasswordDialogProps {
-  /** Erzwungener Modus: nicht abbrechbar, kein Dropdown-Trigger, setzt
-   *  profiles.must_change_password nach Erfolg auf false. */
+  /** Erzwungener Modus (nach einem vorläufigen Passwort vom Chef): nicht
+   *  abbrechbar, kein Menü-Eintrag; onSuccess setzt profiles.passwort_neu zurück. */
   forced?: boolean;
-  onSuccess?: () => void;
+  onSuccess?: () => void | Promise<void>;
 }
 
 export default function ChangePasswordDialog({ forced = false, onSuccess }: ChangePasswordDialogProps = {}) {
   const [open, setOpen] = useState(forced);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
 
   const handleChangePassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
     setError(null);
-    setLoading(true);
 
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     const newPassword = formData.get("new-password") as string;
     const confirmPassword = formData.get("confirm-password") as string;
 
-    if (newPassword !== confirmPassword) {
-      setError("Die Passwörter stimmen nicht überein.");
-      setLoading(false);
-      return;
-    }
+    if (newPassword !== confirmPassword) return setError("Die Passwörter stimmen nicht überein.");
+    if (newPassword.length < 6) return setError("Das Passwort braucht mindestens 6 Zeichen.");
 
-    if (newPassword.length < 6) {
-      setError("Das Passwort muss mindestens 6 Zeichen lang sein.");
-      setLoading(false);
-      return;
-    }
-
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
-      setError(error.message);
-    } else {
-      toast({
-        title: "Passwort geändert",
-        description: "Ihr Passwort wurde erfolgreich aktualisiert.",
-      });
-      setOpen(false);
-      setError(null);
-      (e.target as HTMLFormElement).reset();
-      onSuccess?.();
+      setError(authFehler(error.message));
+      setLoading(false);
+      return;
     }
+    await onSuccess?.();
     setLoading(false);
+    toast.success(forced ? "Eigenes Passwort festgelegt" : "Passwort geändert");
+    setOpen(false);
+    form.reset();
   };
 
   return (
@@ -76,11 +62,11 @@ export default function ChangePasswordDialog({ forced = false, onSuccess }: Chan
       )}
       <DialogContent className="sm:max-w-[425px]" onPointerDownOutside={(e) => forced && e.preventDefault()} onEscapeKeyDown={(e) => forced && e.preventDefault()} ohneSchliessen={forced}>
         <DialogHeader>
-          <DialogTitle>{forced ? "Passwort festlegen" : "Passwort ändern"}</DialogTitle>
+          <DialogTitle>{forced ? "Eigenes Passwort festlegen" : "Passwort ändern"}</DialogTitle>
           <DialogDescription>
             {forced
-              ? "Bitte vergib zunächst ein eigenes Passwort, um fortzufahren. Mindestens 6 Zeichen."
-              : "Geben Sie Ihr neues Passwort ein. Es muss mindestens 6 Zeichen lang sein."}
+              ? "Du hast dich mit einem vorläufigen Passwort vom Chef angemeldet. Leg jetzt dein eigenes fest — mindestens 6 Zeichen."
+              : "Gib dein neues Passwort ein — mindestens 6 Zeichen."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleChangePassword} className="space-y-4">
@@ -95,17 +81,19 @@ export default function ChangePasswordDialog({ forced = false, onSuccess }: Chan
               id="new-password"
               name="new-password"
               type="password"
+              autoComplete="new-password"
               required
               minLength={6}
               placeholder="Mindestens 6 Zeichen"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirm-password">Passwort bestätigen</Label>
+            <Label htmlFor="confirm-password">Passwort wiederholen</Label>
             <Input
               id="confirm-password"
               name="confirm-password"
               type="password"
+              autoComplete="new-password"
               required
               minLength={6}
               placeholder="Passwort wiederholen"
@@ -113,7 +101,7 @@ export default function ChangePasswordDialog({ forced = false, onSuccess }: Chan
           </div>
           <div className="flex gap-2 pt-2">
             <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? "Lädt..." : forced ? "Passwort festlegen" : "Passwort ändern"}
+              {loading ? "Speichert …" : forced ? "Passwort festlegen" : "Passwort ändern"}
             </Button>
             {!forced && (
               <Button

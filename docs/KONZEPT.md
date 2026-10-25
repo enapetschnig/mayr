@@ -29,9 +29,25 @@ Software für Elektriker — am Handy auf der Baustelle bedienbar.
 | Angebote, Rechnungen | ✓ | – (Tabelle per RLS gesperrt) |
 | Artikelstamm pflegen, Datanorm-Import, Leistungskatalog | ✓ | nur neuen Artikel anlegen (unbekannter Strichcode) |
 | Lager: Wareneingang, Inventur, Lagerorte | ✓ | Bestand sehen |
-| Einstellungen Betrieb, Mitarbeiter freischalten | ✓ | – |
+| Einstellungen Betrieb, Mitarbeiter freischalten / sperren, vorläufiges Passwort | ✓ | – |
 
 `useSitzung().istChef` im Frontend, `public.ist_chef()` in der Datenbank.
+
+**Konten** (`lib/konto.ts`, Migration `20261025150000_konten.sql`):
+- Anmelden mit Benutzername: „Jürgen Maier“ → `juergen.maier@<loginDomain>`;
+  Anmelden und Registrieren rechnen gleich (`zuEmail`). Meldungen von
+  Supabase Auth übersetzt `authFehler`.
+- Mitarbeiter registrieren sich selbst und warten (`aktiv = false`), bis der
+  Chef freischaltet. **Sperren** setzt `gesperrt = true` (der Trigger nimmt
+  `aktiv` weg); Freischalten hebt die Sperre auf. Gesperrte sehen „Zugang
+  gesperrt“, nicht „Wartet auf Freischaltung“, und zählen auf der Startseite
+  nicht als wartend.
+- **Passwort vergessen** gibt es ohne E-Mail: der Chef vergibt unter
+  Einstellungen → Mitarbeiter ein vorläufiges Passwort
+  (`passwort_setzen()`, bcrypt wie Supabase Auth) und sagt es weiter;
+  `passwort_neu` lässt die App beim nächsten Anmelden ein eigenes verlangen
+  (`ProtectedRoute` → `ChangePasswordDialog forced`). Das vorläufige Passwort
+  wird nirgends gespeichert.
 
 ## Datenmodell (supabase/migrations/20261025100000_elektriker_grundschema.sql)
 

@@ -772,8 +772,10 @@ export type Database = {
           created_at: string
           email: string | null
           farbe: string | null
+          gesperrt: boolean
           id: string
           nachname: string
+          passwort_neu: boolean
           rolle: string
           telefon: string | null
           vorname: string
@@ -783,8 +785,10 @@ export type Database = {
           created_at?: string
           email?: string | null
           farbe?: string | null
+          gesperrt?: boolean
           id: string
           nachname?: string
+          passwort_neu?: boolean
           rolle?: string
           telefon?: string | null
           vorname?: string
@@ -794,8 +798,10 @@ export type Database = {
           created_at?: string
           email?: string | null
           farbe?: string | null
+          gesperrt?: boolean
           id?: string
           nachname?: string
+          passwort_neu?: boolean
           rolle?: string
           telefon?: string | null
           vorname?: string
@@ -1226,6 +1232,10 @@ export type Database = {
       naechste_nummer: {
         Args: { p_datum: string; p_typ: string }
         Returns: string
+      }
+      passwort_setzen: {
+        Args: { p_passwort: string; p_user: string }
+        Returns: undefined
       }
       regie_unterschrieben: { Args: { p_id: string }; Returns: boolean }
       regie_zeiten_zuordnen: {

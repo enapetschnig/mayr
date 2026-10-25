@@ -199,6 +199,37 @@ if (rb) {
   ok(!!e4, "auch der Chef kann ihn nicht löschen" + abgelehnt(e4));
 }
 
+console.log("\n— Konten —");
+{
+  const { error: e1 } = await monteur.rpc("passwort_setzen", { p_user: neuId, p_passwort: "Monteur-1234" });
+  ok(!!e1, "Monteur kann keine Passwörter vergeben" + abgelehnt(e1));
+  const { error: e2 } = await monteur.from("profiles").update({ passwort_neu: true }).eq("id", monteurId);
+  ok(!!e2, "Monteur kann kein vorläufiges Passwort vortäuschen" + abgelehnt(e2));
+  const { error: e3 } = await monteur.from("profiles").update({ gesperrt: true }).eq("id", monteurId);
+  ok(!!e3, "sperren kann nur der Chef" + abgelehnt(e3));
+
+  // Vergessenes Passwort: Chef vergibt ein vorläufiges, danach wieder das Testpasswort
+  const vorlaeufig = `Test-${crypto.randomInt(1000, 10000)}`;
+  const { error: e4 } = await chef.rpc("passwort_setzen", { p_user: neuId, p_passwort: vorlaeufig });
+  ok(!e4, "Chef vergibt ein vorläufiges Passwort" + (e4 ? abgelehnt(e4) : ""));
+  const probe = neuerClient();
+  const { error: e5 } = await probe.auth.signInWithPassword({ email: mail("neu"), password: vorlaeufig });
+  ok(!e5, "damit klappt die Anmeldung" + (e5 ? abgelehnt(e5) : ""));
+  const { data: pn } = await probe.from("profiles").select("passwort_neu").eq("id", neuId).single();
+  ok(pn?.passwort_neu === true, "und die App verlangt gleich ein eigenes");
+  const { error: e6 } = await probe.auth.updateUser({ password: PW });
+  const { error: e7 } = await probe.from("profiles").update({ passwort_neu: false }).eq("id", neuId);
+  ok(!e6 && !e7, "eigenes Passwort festlegen geht ohne Chef" + (e6 || e7 ? abgelehnt(e6 ?? e7) : ""));
+
+  // Sperren am Monteur — und gleich wieder freischalten, damit der nächste Lauf passt
+  const { data: gs, error: e8 } = await chef.from("profiles").update({ gesperrt: true }).eq("id", monteurId).select("aktiv, gesperrt").single();
+  ok(!e8 && gs?.gesperrt === true && gs?.aktiv === false, "Sperren nimmt die Freischaltung weg" + (e8 ? abgelehnt(e8) : ""));
+  const { data: pr } = await monteur.from("projekte").select("id");
+  ok(pr?.length === 0, "Gesperrte sehen nichts mehr");
+  const { data: fr } = await chef.from("profiles").update({ aktiv: true }).eq("id", monteurId).select("aktiv, gesperrt").single();
+  ok(fr?.aktiv === true && fr?.gesperrt === false, "Freischalten hebt die Sperre auf");
+}
+
 console.log(fehlgeschlagen ? `\n✗ ${fehlgeschlagen} Prüfung(en) fehlgeschlagen` : "\n✓ Alle Prüfungen bestanden");
 console.log("Jetzt tests/rls-aufraeumen.sql ausführen.");
 process.exit(fehlgeschlagen ? 1 : 0);
