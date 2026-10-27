@@ -27,6 +27,9 @@ begin
   alter table regieberichte disable trigger user;
   alter table zeiten disable trigger user;
   alter table material_buchungen disable trigger user;
+  alter table eingang_anteile disable trigger user;
+  delete from eingang_anteile;
+  delete from eingangsrechnungen;
   delete from beleg_positionen;
   delete from material_buchungen;
   delete from zeiten;
@@ -46,6 +49,7 @@ begin
   alter table regieberichte enable trigger user;
   alter table zeiten enable trigger user;
   alter table material_buchungen enable trigger user;
+  alter table eingang_anteile enable trigger user;
   perform setval(pg_get_serial_sequence('kunden', 'nummer'), 1001, false);
 
   -- ── Betrieb ──────────────────────────────────────────────────────────────

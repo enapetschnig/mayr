@@ -17,6 +17,8 @@ export type Lagerbestand = Tables<"lagerbestand">;
 export type Regiebericht = Tables<"regieberichte">;
 export type Beleg = Tables<"belege">;
 export type Position = Tables<"beleg_positionen">;
+export type Eingangsrechnung = Tables<"eingangsrechnungen">;
+export type EingangAnteil = Tables<"eingang_anteile">;
 export type Datei = Tables<"dateien">;
 export type Termin = Tables<"termine">;
 
@@ -68,6 +70,15 @@ export const REGIE_STATUS: Record<string, StatusEintrag> = {
   entwurf: { ton: "cyan", text: "Entwurf" },
   unterschrieben: { ton: "gruen", text: "Unterschrieben" },
   verrechnet: { ton: "lila", text: "Verrechnet" },
+};
+
+// ── Eingangsrechnungen ────────────────────────────────────────────────
+export const EINGANG_STATUS: Record<string, StatusEintrag> = {
+  zuzuordnen: { ton: "gelb", text: "Zuzuordnen" },
+  teilweise: { ton: "gelb", text: "Teilweise zugeordnet" },
+  offen: { ton: "grau", text: "Nicht bezahlt" },
+  ueberfaellig: { ton: "rot", text: "Überfällig" },
+  bezahlt: { ton: "gruen", text: "Bezahlt" },
 };
 
 /** Offene Rechnung nach dem Fälligkeitstag zeigt „Überfällig“ */

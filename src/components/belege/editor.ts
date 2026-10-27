@@ -25,7 +25,8 @@ export const ART_NAME: Record<PositionsArt, string> = {
 };
 
 /** Herkunft einer Position — beim Löschen gibt der Trigger diese Buchungen frei */
-export type Quelle = { zeiten: string[]; material: string[]; regie: string[] };
+/** Herkunft einer Position. `eingang`: weiterverrechnete Anteile von Eingangsrechnungen */
+export type Quelle = { zeiten: string[]; material: string[]; regie: string[]; eingang?: string[] };
 
 /** Eine Zeile im Editor. Menge und Preis als Text, damit „2,“ beim Tippen stehen bleibt. */
 export type EditorPosition = {
@@ -89,14 +90,16 @@ export function summen(positionen: EditorPosition[], ustSatz: number, ohneUst: b
 
 // ── Quelle ──────────────────────────────────────────────────────────────
 
-const LEERE_QUELLE = (): Quelle => ({ zeiten: [], material: [], regie: [] });
+const LEERE_QUELLE = (): Quelle => ({ zeiten: [], material: [], regie: [], eingang: [] });
 
 export function quelleLesen(j: Json | null | undefined): Quelle | null {
   if (!j || typeof j !== "object" || Array.isArray(j)) return null;
   const o = j as Record<string, unknown>;
   const liste = (x: unknown) => (Array.isArray(x) ? x.filter((v): v is string => typeof v === "string") : []);
-  const q = { zeiten: liste(o.zeiten), material: liste(o.material), regie: liste(o.regie) };
-  return q.zeiten.length || q.material.length || q.regie.length ? q : null;
+  const q: Quelle = { zeiten: liste(o.zeiten), material: liste(o.material), regie: liste(o.regie) };
+  const eingang = liste(o.eingang);
+  if (eingang.length) q.eingang = eingang;
+  return q.zeiten.length || q.material.length || q.regie.length || eingang.length ? q : null;
 }
 
 /** Nur befüllte Listen schreiben — `{"zeiten":[…]}` wie im Bestand */
@@ -106,6 +109,7 @@ export function quelleJson(q: Quelle | null | undefined): Json | null {
   if (q.zeiten.length) o.zeiten = q.zeiten;
   if (q.material.length) o.material = q.material;
   if (q.regie.length) o.regie = q.regie;
+  if (q.eingang?.length) o.eingang = q.eingang;
   return Object.keys(o).length ? o : null;
 }
 
@@ -117,8 +121,11 @@ export function quellenIds(positionen: Pick<EditorPosition, "quelle">[]): Quelle
     q.zeiten.push(...p.quelle.zeiten);
     q.material.push(...p.quelle.material);
     q.regie.push(...p.quelle.regie);
+    q.eingang!.push(...(p.quelle.eingang ?? []));
   });
-  return { zeiten: [...new Set(q.zeiten)], material: [...new Set(q.material)], regie: [...new Set(q.regie)] };
+  return {
+    zeiten: [...new Set(q.zeiten)], material: [...new Set(q.material)], regie: [...new Set(q.regie)], eingang: [...new Set(q.eingang)],
+  };
 }
 
 // ── Umwandeln: Datenbank ↔ Editor ──────────────────────────────────────

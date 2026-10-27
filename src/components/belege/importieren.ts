@@ -54,6 +54,17 @@ export type ImportAngebot = {
   positionen: Position[];
 };
 
+/** Anteil einer Eingangsrechnung am Projekt (netto, Einkauf) */
+export type ImportEingang = {
+  id: string;
+  betrag: number;
+  text: string | null;
+  lieferant: string;
+  nummer: string | null;
+  datum: string;
+  kategorie: string;
+};
+
 export type ImportDaten = {
   angebote: ImportAngebot[];
   regie: ImportRegie[];
@@ -65,6 +76,8 @@ export type ImportDaten = {
   unsigniert: { id: string; nummer: string | null; datum: string }[];
   /** Angebot, das schon in diesem Entwurf steckt — wird nicht noch einmal angeboten */
   angebotImEntwurf: { id: string; nummer: string | null } | null;
+  /** Zugeordnete Eingangsrechnungen, noch nicht weiterverrechnet */
+  eingang?: ImportEingang[];
 };
 
 export type ImportAuswahl = {
@@ -73,6 +86,8 @@ export type ImportAuswahl = {
   zeiten: string[];
   /** Schlüssel der Materialgruppen (ohne Regiebericht) */
   material: string[];
+  /** Anteile von Eingangsrechnungen */
+  eingang?: string[];
 };
 
 export type ImportOptionen = {
@@ -85,6 +100,8 @@ export type ImportOptionen = {
    * (gelten als verrechnet, ohne Betrag). Sonst blieben sie für immer „offen“.
    */
   abgegolten?: boolean;
+  /** Aufschlag in % auf weiterverrechnete Eingangsrechnungen */
+  eingangAufschlag?: number;
 };
 
 export const ABGEGOLTEN_TEXT = "Arbeitszeit und Material sind im Angebotspreis enthalten.";
@@ -111,7 +128,7 @@ export async function importDatenLaden(projektId: string, belegId: string | null
   // frei = noch nicht verrechnet, oder an genau diesem Entwurf
   const frei = belegId ? `rechnung_id.is.null,rechnung_id.eq.${belegId}` : "rechnung_id.is.null";
 
-  const [rb, zt, mt, an] = await Promise.all([
+  const [rb, zt, mt, an, ea] = await Promise.all([
     supabase.from("regieberichte").select("id, nummer, datum, arbeiten, status, rechnung_id").eq("projekt_id", projektId).order("datum"),
     supabase.from("zeiten")
       .select("id, datum, stunden, taetigkeit, user_id, regiebericht_id, profiles(vorname, nachname)")
@@ -121,8 +138,11 @@ export async function importDatenLaden(projektId: string, belegId: string | null
       .eq("projekt_id", projektId).in("art", ["ausfassung", "rueckgabe", "direkt"]).or(frei).order("created_at"),
     supabase.from("belege").select("id, nummer, betreff, status, netto").eq("projekt_id", projektId).eq("typ", "angebot")
       .in("status", ["offen", "angenommen"]).order("datum"),
+    supabase.from("eingang_anteile")
+      .select("id, betrag, text, eingangsrechnungen(lieferant, nummer, datum, kategorie)")
+      .eq("projekt_id", projektId).or(frei).order("created_at"),
   ]);
-  for (const r of [rb, zt, mt, an]) if (r.error) throw new Error(r.error.message);
+  for (const r of [rb, zt, mt, an, ea]) if (r.error) throw new Error(r.error.message);
   const zeitZeilen = (zt.data ?? []) as unknown as ZeitZeile[];
   const materialZeilen = (mt.data ?? []) as unknown as MaterialZeile[];
 
@@ -197,6 +217,18 @@ export async function importDatenLaden(projektId: string, belegId: string | null
     material: material.filter((m) => !m.regiebericht_id),
     unsigniert: berichte.filter((r) => r.status !== "unterschrieben").map((r) => ({ id: r.id, nummer: r.nummer, datum: r.datum })),
     angebotImEntwurf: angebotDrin ? { id: angebotDrin, nummer: (an.data ?? []).find((a) => a.id === angebotDrin)?.nummer ?? null } : null,
+    eingang: (ea.data ?? [])
+      .filter((a) => !(belegt.eingang ?? []).includes(a.id))
+      .map((a) => ({
+        id: a.id,
+        betrag: Number(a.betrag),
+        text: a.text,
+        lieferant: a.eingangsrechnungen?.lieferant ?? "",
+        nummer: a.eingangsrechnungen?.nummer ?? null,
+        datum: a.eingangsrechnungen?.datum ?? "",
+        kategorie: a.eingangsrechnungen?.kategorie ?? "material",
+      }))
+      .sort((a, b) => a.datum.localeCompare(b.datum)),
   };
 }
 
@@ -311,6 +343,23 @@ export function materialPositionen(gruppen: MaterialGruppe[], opt: ImportOptione
 }
 
 /**
+ * Weiterverrechnete Eingangsrechnungen: je Anteil eine Zeile, Einkauf +
+ * Aufschlag. Material als Material, alles andere (Subunternehmer, Miete …)
+ * als Pauschale. Der Text des Anteils ist die Bezeichnung — sonst Lieferant.
+ */
+export function eingangPositionen(anteile: ImportEingang[], aufschlag: number): EditorPosition[] {
+  return anteile.map((a) => leerePosition(a.kategorie === "material" ? "material" : "pauschale", {
+    bezeichnung: a.text?.trim() || (a.kategorie === "fremdleistung" ? `Fremdleistung ${a.lieferant}` : `Material ${a.lieferant}`).trim(),
+    langtext: a.nummer ? `laut Rechnung ${a.nummer}${a.datum ? ` vom ${datumText(a.datum)}` : ""}` : "",
+    menge: "1",
+    einheit: "Psch",
+    einzelpreis: preisText(runden2(a.betrag * (1 + aufschlag / 100))),
+    ek_preis: a.betrag,
+    quelle: q({ eingang: [a.id] }),
+  }));
+}
+
+/**
  * Aus der Auswahl Positionen bauen. Reihenfolge: Angebot (der Auftrag),
  * Regieberichte (je ein Titel), dann Stunden und Material ohne Bericht.
  * Ein Titel trennt die Blöcke, damit nichts in die Gruppe davor rutscht.
@@ -329,6 +378,7 @@ export function importPositionen(
   const alleGruppen = materialGruppen(daten.material, firma);
   const gruppen = alleGruppen.filter((g) => auswahl.material.includes(g.schluessel));
   const restDa = zeiten.length > 0 || gruppen.length > 0;
+  const eingang = (daten.eingang ?? []).filter((a) => (auswahl.eingang ?? []).includes(a.id));
 
   // Mit dem Angebot abgegolten: was nicht angehakt ist (Regieberichte nie — die sind Zusatzarbeit)
   const mitAngebot = angebote.length > 0 || !!daten.angebotImEntwurf;
@@ -341,7 +391,7 @@ export function importPositionen(
   const abgegoltenZeile = abgegolten && (abgegolten.zeiten.length || abgegolten.material.length)
     ? leerePosition("text", { bezeichnung: ABGEGOLTEN_TEXT, quelle: abgegolten })
     : null;
-  const bloeckeGesamt = angebote.length + berichte.length + (restDa ? 1 : 0);
+  const bloeckeGesamt = angebote.length + berichte.length + (restDa ? 1 : 0) + (eingang.length ? 1 : 0);
 
   const aus: EditorPosition[] = [];
   let titelDavor = vorhandeneTitel;
@@ -375,6 +425,11 @@ export function importPositionen(
     }
     aus.push(...arbeitszeitPositionen(zeiten, opt, true));
     aus.push(...materialPositionen(gruppen, opt));
+  }
+
+  if (eingang.length) {
+    if (titelDavor || bloeckeGesamt > 1) aus.push(titelPosition("Fremdleistungen und Zukauf"));
+    aus.push(...eingangPositionen(eingang, opt.eingangAufschlag ?? 0));
   }
 
   if (abgegoltenZeile && !angebote.length) aus.push(abgegoltenZeile);

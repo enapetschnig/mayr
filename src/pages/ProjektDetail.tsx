@@ -26,6 +26,7 @@ import { ZeitenListe, useZeitenListe, type ZeitMitInfo } from "@/components/zeit
 import { ProjektMaterial } from "@/components/material/ProjektMaterial";
 import { ProjektRegie } from "@/components/regie/ProjektRegie";
 import { ProjektBelege } from "@/components/belege/ProjektBelege";
+import { useProjektEingang } from "@/components/eingang/eingangDaten";
 import { mailLink, telLink } from "@/components/stamm/KundeDetail";
 import { fehlerText } from "@/components/stamm/stammDaten";
 import { useNeuLaden, useProjekt, useProjektZahlen } from "@/hooks/useDaten";
@@ -321,6 +322,10 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
     },
   });
 
+  // Zugeordnete Eingangsrechnungen (Einkauf, nur Chef)
+  const { data: eingang = [] } = useProjektEingang(projektId, istChef);
+  const einkauf = runden2(eingang.reduce((s, a) => s + Number(a.betrag), 0));
+
   const { data: naechste = [] } = useQuery({
     queryKey: ["termine", "projekt-naechste", projektId, heute],
     queryFn: async () => {
@@ -362,7 +367,7 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
           : <Kennzahl titel="Personen" wert={String(personen.length)} unter="auf dem Projekt" />}
       </div>
 
-      {istChef && (angebot > 0 || geleistet > 0) && (
+      {istChef && (angebot > 0 || geleistet > 0 || einkauf !== 0) && (
         <Karte titel="Nachkalkulation">
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Angebot (netto)</span><span className="zahl font-medium">{angebot > 0 ? euro(angebot) : "—"}</span></div>
@@ -371,6 +376,12 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
               <span className="zahl font-medium">{euro(geleistet)}</span>
             </div>
             <p className="text-xs text-muted-foreground">{stunden(stundenGesamt)} × {euro(satz)} + Material {euro(materialVk)}</p>
+            {einkauf !== 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Eingangsrechnungen (Einkauf)</span>
+                <span className="zahl font-medium">{euro(einkauf)}</span>
+              </div>
+            )}
             {angebot > 0 && (
               <div className="pt-1">
                 <div className="h-2.5 overflow-hidden rounded-full bg-muted">

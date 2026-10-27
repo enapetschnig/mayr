@@ -230,6 +230,50 @@ ok(!eR, "Chef legt einen Rechnungsentwurf an" + (eR ? abgelehnt(eR) : ""));
   ok(an2Weg?.length === 1, "ein Angebot ohne fertige Rechnung lässt sich löschen");
 }
 
+console.log("\n— Eingangsrechnungen —");
+{
+  const { data: er, error: eEr } = await chef.from("eingangsrechnungen")
+    .insert({ lieferant: "RLS-Test Lieferant", netto: 100, ust: 20, brutto: 120 }).select("id").single();
+  ok(!eEr, "Chef erfasst eine Eingangsrechnung" + (eEr ? abgelehnt(eEr) : ""));
+  const { data: mSieht } = await monteur.from("eingangsrechnungen").select("id");
+  ok(mSieht?.length === 0, "Monteur sieht keine Eingangsrechnungen (Einkaufspreise)");
+  const { error: mNeu } = await monteur.from("eingangsrechnungen").insert({ lieferant: "RLS-Test Monteur", netto: 1 });
+  ok(!!mNeu, "Monteur erfasst keine Eingangsrechnung" + abgelehnt(mNeu));
+  const { error: mDatei } = await monteur.storage.from("eingangsrechnungen").upload(`${er.id}/x.pdf`, new Blob(["x"]), { contentType: "application/pdf" });
+  ok(!!mDatei, "Monteur lädt keine Belege in den Eingangsspeicher" + abgelehnt(mDatei));
+
+  const { data: ant, error: eAnt } = await chef.from("eingang_anteile")
+    .insert({ eingangsrechnung_id: er.id, projekt_id: projekt.id, betrag: 100, text: "RLS-Test Anteil" }).select("id").single();
+  ok(!eAnt, "Chef ordnet sie dem Projekt zu" + (eAnt ? abgelehnt(eAnt) : ""));
+  const { data: mAnt } = await monteur.from("eingang_anteile").select("id");
+  ok(mAnt?.length === 0, "Monteur sieht die Zuordnung nicht");
+
+  // Weiterverrechnen: Position mit quelle.eingang, Anteil an die Rechnung binden
+  const { data: re2 } = await chef.from("belege").insert({ typ: "rechnung", projekt_id: projekt.id, empf_name: "RLS-Test Kunde" }).select("id").single();
+  const position = () => chef.from("beleg_positionen").insert({
+    beleg_id: re2.id, pos: 1, art: "pauschale", bezeichnung: "RLS-Test Fremdleistung", menge: 1, einheit: "Psch", einzelpreis: 135, ek_preis: 100,
+    quelle: { eingang: [ant.id] },
+  }).select("id").single();
+  const { data: pos } = await position();
+  await chef.from("eingang_anteile").update({ rechnung_id: re2.id }).eq("id", ant.id);
+  const { error: eFest } = await chef.from("eingang_anteile").update({ betrag: 50 }).eq("id", ant.id);
+  ok(!!eFest, "verrechneter Anteil ist fest" + abgelehnt(eFest));
+  const { data: erWeg } = await chef.from("eingangsrechnungen").delete().eq("id", er.id).select();
+  ok(!erWeg?.length, "Eingangsrechnung mit verrechnetem Anteil bleibt");
+  await chef.from("beleg_positionen").delete().eq("id", pos.id);
+  const { data: f1 } = await chef.from("eingang_anteile").select("rechnung_id").eq("id", ant.id).single();
+  ok(f1?.rechnung_id === null, "Position gelöscht → Anteil wieder frei");
+
+  await position();
+  await chef.from("eingang_anteile").update({ rechnung_id: re2.id }).eq("id", ant.id);
+  await chef.rpc("beleg_fertigstellen", { p_id: re2.id });
+  const { error: eSt } = await chef.rpc("beleg_stornieren", { p_id: re2.id });
+  const { data: f2 } = await chef.from("eingang_anteile").select("rechnung_id").eq("id", ant.id).single();
+  ok(!eSt && f2?.rechnung_id === null, "Storno gibt den Anteil wieder frei" + (eSt ? abgelehnt(eSt) : ""));
+  const { data: erWeg2, error: eWeg2 } = await chef.from("eingangsrechnungen").delete().eq("id", er.id).select();
+  ok(erWeg2?.length === 1, "freie Eingangsrechnung lässt sich löschen" + (eWeg2 ? abgelehnt(eWeg2) : ""));
+}
+
 console.log("\n— Regiebericht —");
 const { data: rb, error: eRb } = await monteur.from("regieberichte").insert({ projekt_id: projekt.id, arbeiten: "RLS-Test Arbeiten" }).select("id, nummer").single();
 ok(!eRb && /^RB-\d{4}-\d{3}$/.test(rb?.nummer ?? ""), `Monteur schreibt einen Regiebericht: ${rb?.nummer ?? eRb?.message}`);

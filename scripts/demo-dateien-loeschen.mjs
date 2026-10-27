@@ -50,7 +50,7 @@ async function allePfade(bucket, ordner = "") {
 }
 
 let fehler = 0;
-const BUCKETS = process.argv.includes("--archiv") ? ["beleg-archiv"] : ["projekt-dateien", "firmen-logos"];
+const BUCKETS = process.argv.includes("--archiv") ? ["beleg-archiv"] : ["projekt-dateien", "firmen-logos", "eingangsrechnungen"];
 for (const bucket of BUCKETS) {
   const alle = await allePfade(bucket);
   const pfade = alle.filter((p) => !p.includes("/unterschriften/"));

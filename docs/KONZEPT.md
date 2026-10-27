@@ -27,6 +27,7 @@ Software für Elektriker — am Handy auf der Baustelle bedienbar.
 | Material ausfassen / zurückgeben / direkt aufs Projekt | ✓ | ✓ |
 | Regieberichte schreiben + unterschreiben lassen | ✓ | ✓ |
 | Angebote, Rechnungen, verrechnen | ✓ | – (Tabelle per RLS gesperrt) |
+| Eingangsrechnungen erfassen, zuordnen, weiterverrechnen | ✓ | – (Einkaufspreise; Tabellen und Speicher per RLS gesperrt) |
 | Artikelstamm pflegen, Datanorm-Import, Leistungskatalog | ✓ | nur neuen Artikel anlegen (unbekannter Strichcode) |
 | Lager: Wareneingang, Inventur, Lagerorte | ✓ | Bestand sehen |
 | Einstellungen Betrieb, Mitarbeiter freischalten / sperren, vorläufiges Passwort | ✓ | – |
@@ -115,6 +116,8 @@ Verrechnet wird **an der Quelle**: `zeiten.rechnung_id`,
 `material_buchungen.rechnung_id`, `regieberichte.rechnung_id`. Beim Übernehmen in
 eine Rechnung setzt die App diese Spalte und schreibt die IDs in
 `beleg_positionen.quelle` = `{"zeiten":[…],"material":[…],"regie":[…]}`.
+Weiterverrechnete Eingangsrechnungen genauso: `eingang_anteile.rechnung_id`,
+`quelle.eingang` (Storno und gelöschte Positionen geben per Trigger frei).
 
 - Rechnung nach Angebot: Schalter „mit dem Angebot abgegolten“ — was nicht
   angehakt ist (Stunden, Material; Regieberichte nie, die sind Zusatzarbeit),
@@ -133,6 +136,25 @@ eine Rechnung setzt die App diese Spalte und schreibt die IDs in
   Empfängers; Projekt, Kunde und Angebot nur auf leer (wenn eines davon
   gelöscht wird). Storniert bleibt storniert, eine Stornorechnung bleibt eine
   Stornorechnung. Migrationen `20261025140000`, `20261025180000`.
+
+### Eingangsrechnungen (`components/eingang/`, Seite `/eingang`)
+
+Rechnungen von Großhändlern und Subunternehmern, nur der Chef
+(Migration `20261027100000_eingangsrechnungen.sql`):
+- `eingangsrechnungen`: Lieferant, Nummer, Datum, fällig, netto/USt/brutto,
+  Art (Material, Fremdleistung, Werkzeug, Fahrzeug, Büro, Sonstiges),
+  `bezahlt_am`, Foto/PDF im privaten Bucket `eingangsrechnungen`.
+- **Zuordnen** = `eingang_anteile` (Projekt, Betrag netto, Text). Eine
+  Rechnung ganz auf ein Projekt oder aufgeteilt; `betrieb = true` heißt: der
+  Rest gehört dem Betrieb (Lager, Werkzeug). „Zuzuordnen“ ist, was weder
+  verteilt noch Betrieb ist (`eingangLogik.zuordnung`) — steht auf der
+  Startseite unter „Zu erledigen“.
+- Im Projekt → Belege und in der Nachkalkulation als Einkauf.
+- **Weiterverrechnen**: „Aus dem Projekt übernehmen“ zeigt freie Anteile,
+  nie vorgewählt (Material daraus ist oft schon ausgefasst). Je Anteil eine
+  Zeile: Einkauf + Aufschlag (Vorgabe Materialaufschlag), Material als
+  Material, sonst Pauschale. Verrechnete Anteile sind fest
+  (`eingang_anteil_schutz`), die Rechnung dazu lässt sich nicht löschen.
 
 ### Angebote und Rechnungen (`components/belege/`)
 
@@ -289,7 +311,10 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
    alles Offene: unterschriebene Regieberichte, Stunden ohne Regiebericht,
    verbrauchtes Material, angenommenes Angebot → anhaken → Editor → Fertigstellen → PDF.
 6. **Auswertung (Chef)**: Monat/Jahr → Umsatz je Monat, Stunden je Mitarbeiter
-   und Projekt, **Stundenliste als CSV** für die Lohnverrechnung. Nachkalkulation
+   und Projekt. **„Monat herunterladen“** = Stundennachweis als PDF mit einem
+   Klick (`lib/stundenPdf.ts`: Summen je Mitarbeiter, dann je Mitarbeiter eine
+   Seite mit allen Tagen und Unterschriftszeilen) für die Lohnverrechnung,
+   daneben dieselben Zeilen als CSV. Nachkalkulation
    je Projekt: geleistet (Stunden × Satz + Material-VK) gegen Angebot und
    Verrechnetes, sortiert nach „noch nicht verrechnet“.
 7. **Neuer Mitarbeiter**: registriert sich selbst unter `/auth` → Chef schaltet

@@ -321,6 +321,26 @@ begin
   insert into nummernkreise (typ, jahr, letzte) values ('angebot', 2026, 1), ('rechnung', 2026, 2)
   on conflict (typ, jahr) do update set letzte = excluded.letzte;
 
+
+  -- ── Eingangsrechnungen (Lieferanten erfunden, ohne Foto) ─────────────────
+  -- Sammelrechnung aufgeteilt (Rest Lager), Subunternehmer zum Weiterverrechnen,
+  -- Tankrechnung Betrieb, eine überfällige und eine noch nicht zugeordnete.
+  declare
+    e1 uuid := gen_random_uuid(); e2 uuid := gen_random_uuid(); e3 uuid := gen_random_uuid();
+    e4 uuid := gen_random_uuid(); e5 uuid := gen_random_uuid();
+  begin
+    insert into eingangsrechnungen (id, lieferant, nummer, datum, faellig_am, netto, ust_satz, ust, brutto, kategorie, betrieb, bezahlt_am, notiz, erstellt_von, created_at) values
+      (e1, 'Elektrogroßhandel Muster (Demo)', 'GH-2026-10871', '2026-10-09', '2026-10-23', 1240.00, 20, 248.00, 1488.00, 'material', true, '2026-10-20', 'Sammelrechnung Oktober', v_chef, '2026-10-12 08:10+02'),
+      (e2, 'Kernbohrung Beispiel GmbH (Demo)', 'KB-0417', '2026-10-16', '2026-10-30', 320.00, 20, 64.00, 384.00, 'fremdleistung', false, null, null, v_chef, '2026-10-17 07:40+02'),
+      (e3, 'Tankstelle Muster (Demo)', null, '2026-10-19', null, 77.08, 20, 15.42, 92.50, 'fahrzeug', true, '2026-10-19', 'Bus 1', v_chef, '2026-10-19 17:05+02'),
+      (e4, 'Werkzeughandel Beispiel (Demo)', 'WZ-55120', '2026-10-01', '2026-10-15', 159.00, 20, 31.80, 190.80, 'werkzeug', true, null, 'Akku-Bohrhammer Ersatzakku', v_chef, '2026-10-02 09:30+02'),
+      (e5, 'Elektrogroßhandel Muster (Demo)', 'GH-2026-11024', '2026-10-22', '2026-11-05', 214.90, 20, 42.98, 257.88, 'material', false, null, null, v_chef, '2026-10-23 07:15+02');
+    insert into eingang_anteile (eingangsrechnung_id, projekt_id, betrag, text, created_at) values
+      (e1, p1, 820.00, 'Kabel und Dosen OG', '2026-10-12 08:12+02'),
+      (e1, p2, 300.00, 'LED-Panels Backstube', '2026-10-12 08:12+02'),
+      (e2, p2, 320.00, 'Kernbohrungen Backstube', '2026-10-17 07:41+02');
+  end;
+
   -- ── Kalender ─────────────────────────────────────────────────────────────
   insert into termine (titel, beschreibung, ort, datum, bis_datum, von, bis, ganztags, projekt_id, mitarbeiter, user_id) values
     ('Kirchenwirt – Gastgarten', null, 'Kirchenplatz 1, 4320 Perg', '2026-10-21', null, '08:00', '13:30', false, p5, array[v_max, v_lisa], v_chef),

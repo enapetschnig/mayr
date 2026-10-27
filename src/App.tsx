@@ -29,6 +29,7 @@ const Leistungen = lazy(() => import("./pages/Leistungen"));
 const Auswertung = lazy(() => import("./pages/Auswertung"));
 const Einstellungen = lazy(() => import("./pages/Einstellungen"));
 const Handyansicht = lazy(() => import("./pages/Handyansicht"));
+const Eingang = lazy(() => import("./pages/Eingang"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: true, retry: 1 } },
@@ -72,6 +73,7 @@ const App = () => (
                 <Route path="/belege" element={<S chef><Belege /></S>} />
                 <Route path="/belege/neu" element={<S chef><BelegSeite /></S>} />
                 <Route path="/belege/:id" element={<S chef><BelegSeite /></S>} />
+                <Route path="/eingang" element={<S chef><Eingang /></S>} />
                 <Route path="/kunden" element={<S><Kunden /></S>} />
                 <Route path="/artikel" element={<S><ArtikelSeite /></S>} />
                 <Route path="/leistungen" element={<S chef><Leistungen /></S>} />

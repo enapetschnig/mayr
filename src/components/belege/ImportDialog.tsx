@@ -38,7 +38,7 @@ export function ImportDialog({
   vorhandeneTitel: boolean;
   onUebernehmen: (e: ImportErgebnis) => void;
 }) {
-  const belegtSchluessel = [...belegt.zeiten, ...belegt.material, ...belegt.regie].sort().join(",");
+  const belegtSchluessel = [...belegt.zeiten, ...belegt.material, ...belegt.regie, ...(belegt.eingang ?? [])].sort().join(",");
   const { data, isLoading, error } = useQuery({
     queryKey: ["belege", "import", projektId, belegId, belegtSchluessel, angebotId],
     enabled: open && !!projektId,
@@ -49,11 +49,12 @@ export function ImportDialog({
     queryFn: () => importDatenLaden(projektId!, belegId, belegt, angebotId),
   });
 
-  const [auswahl, setAuswahl] = useState<ImportAuswahl>({ angebote: [], regie: [], zeiten: [], material: [] });
+  const [auswahl, setAuswahl] = useState<Required<ImportAuswahl>>({ angebote: [], regie: [], zeiten: [], material: [], eingang: [] });
   const [jeMitarbeiter, setJeMitarbeiter] = useState(true);
   const [pauschale, setPauschale] = useState(false);
   const [abgegolten, setAbgegolten] = useState(true);
   const [satz, setSatz] = useState(String(stundensatzStart).replace(".", ","));
+  const [aufschlag, setAufschlag] = useState(String(firma?.material_aufschlag ?? 0).replace(".", ","));
 
   const gruppen = useMemo(() => (data ? materialGruppen(data.material, firma) : []), [data, firma]);
 
@@ -66,33 +67,38 @@ export function ImportDialog({
       regie: data.regie.map((r) => r.id),
       zeiten: mitAngebot ? [] : data.zeiten.map((z) => z.id),
       material: mitAngebot ? [] : gruppen.map((g) => g.schluessel),
+      // Eingangsrechnungen nie vorgewählt: Material daraus ist oft schon ausgefasst und gebucht
+      eingang: [],
     });
   }, [data, gruppen, open]);
   useEffect(() => {
     if (!open) return;
     setSatz(String(stundensatzStart).replace(".", ","));
     setAbgegolten(true);
-  }, [open, stundensatzStart]);
+    setAufschlag(String(firma?.material_aufschlag ?? 0).replace(".", ","));
+  }, [open, stundensatzStart, firma?.material_aufschlag]);
 
   const vorschau = useMemo(
     () => (data
       ? importPositionen(data, auswahl, {
         stundenJeMitarbeiter: jeMitarbeiter, materialPauschale: pauschale, stundensatz: zahlLesen(satz), abgegolten,
+        eingangAufschlag: zahlLesen(aufschlag),
       }, firma, vorhandeneTitel)
       : null),
-    [data, auswahl, jeMitarbeiter, pauschale, satz, abgegolten, firma, vorhandeneTitel],
+    [data, auswahl, jeMitarbeiter, pauschale, satz, abgegolten, aufschlag, firma, vorhandeneTitel],
   );
   const netto = vorschau ? summen(vorschau.positionen, 20, true).netto : 0;
   // Gezählt wird, was einen Betrag hat — wie auf der Angebotskarte
   const anzahl = vorschau?.positionen.filter((p) => !ohneBetrag(p)).length ?? 0;
   const nurAbgegolten = !!vorschau && anzahl === 0 && vorschau.positionen.some((p) => p.art === "text" && p.quelle);
 
+  const eingang = data?.eingang ?? [];
   const umschalten = (feld: keyof ImportAuswahl, id: string, an: boolean) =>
     setAuswahl((a) => ({ ...a, [feld]: an ? [...new Set([...a[feld], id])] : a[feld].filter((x) => x !== id) }));
   const alle = (feld: keyof ImportAuswahl, ids: string[], an: boolean) =>
     setAuswahl((a) => ({ ...a, [feld]: an ? ids : [] }));
 
-  const leer = data && !data.angebote.length && !data.regie.length && !data.zeiten.length && !gruppen.length;
+  const leer = data && !data.angebote.length && !data.regie.length && !data.zeiten.length && !gruppen.length && !eingang.length;
   const mitAngebot = !!data?.angebote.length || !!data?.angebotImEntwurf;
   // Abgegolten-Schalter nur, wenn ein Angebot dabei ist und Stunden oder Material übrig bleiben
   const restOffen = !!data && (data.zeiten.some((z) => !auswahl.zeiten.includes(z.id)) || gruppen.some((g) => !auswahl.material.includes(g.schluessel)));
@@ -212,6 +218,26 @@ export function ImportDialog({
         </Bereich>
       )}
 
+      {eingang.length > 0 && (
+        <Bereich
+          titel="Eingangsrechnungen weiterverrechnen"
+          alle={{ an: auswahl.eingang.length === eingang.length, onAn: (v) => alle("eingang", eingang.map((a) => a.id), v) }}
+          hinweis="Zugeordnet, noch nicht verrechnet. Material daraus schon ausgefasst oder gebucht? Dann nicht noch einmal anhaken."
+        >
+          {eingang.map((a) => (
+            <Zeile key={a.id} an={auswahl.eingang.includes(a.id)} onAn={(v) => umschalten("eingang", a.id, v)} dicht>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate font-medium">{a.text?.trim() || a.lieferant}</span>
+                <span className="zahl shrink-0 text-sm">{euro(a.betrag)}</span>
+              </div>
+              <p className="truncate text-xs text-muted-foreground">
+                {[a.lieferant, a.nummer, a.datum && datum(a.datum)].filter(Boolean).join(" · ")} · Einkauf netto
+              </p>
+            </Zeile>
+          ))}
+        </Bereich>
+      )}
+
       {data && !leer && (
         <section className="space-y-3 rounded-lg border bg-card p-3.5">
           <h3 className="text-sm font-semibold">So übernehmen</h3>
@@ -232,6 +258,12 @@ export function ImportDialog({
             <Label htmlFor="imp-satz" className="text-sm">Stundensatz netto €</Label>
             <Input id="imp-satz" value={satz} onChange={(e) => setSatz(e.target.value)} inputMode="decimal" className="zahl h-11 w-28 text-right" />
           </div>
+          {eingang.length > 0 && (
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="imp-aufschlag" className="text-sm">Aufschlag auf Eingangsrechnungen %</Label>
+              <Input id="imp-aufschlag" value={aufschlag} onChange={(e) => setAufschlag(e.target.value)} inputMode="decimal" className="zahl h-11 w-28 text-right" />
+            </div>
+          )}
         </section>
       )}
     </FormularDialog>

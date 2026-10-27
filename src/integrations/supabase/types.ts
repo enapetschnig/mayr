@@ -207,8 +207,8 @@ export type Database = {
           fertig_am: string | null
           gueltig_bis: string | null
           id: string
-          kunde_id: string | null
           korrektur_von: string | null
+          kunde_id: string | null
           kv_verbindlich: boolean
           leistung_bis: string | null
           leistung_von: string | null
@@ -244,8 +244,8 @@ export type Database = {
           fertig_am?: string | null
           gueltig_bis?: string | null
           id?: string
-          kunde_id?: string | null
           korrektur_von?: string | null
+          kunde_id?: string | null
           kv_verbindlich?: boolean
           leistung_bis?: string | null
           leistung_von?: string | null
@@ -281,8 +281,8 @@ export type Database = {
           fertig_am?: string | null
           gueltig_bis?: string | null
           id?: string
-          kunde_id?: string | null
           korrektur_von?: string | null
+          kunde_id?: string | null
           kv_verbindlich?: boolean
           leistung_bis?: string | null
           leistung_von?: string | null
@@ -307,6 +307,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "belege_korrektur_von_fkey"
+            columns: ["korrektur_von"]
+            isOneToOne: false
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "belege_kunde_id_fkey"
             columns: ["kunde_id"]
             isOneToOne: false
@@ -325,6 +332,13 @@ export type Database = {
             columns: ["projekt_id"]
             isOneToOne: false
             referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "belege_storno_von_fkey"
+            columns: ["storno_von"]
+            isOneToOne: false
+            referencedRelation: "belege"
             referencedColumns: ["id"]
           },
         ]
@@ -384,6 +398,139 @@ export type Database = {
           {
             foreignKeyName: "dateien_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eingang_anteile: {
+        Row: {
+          betrag: number
+          created_at: string
+          eingangsrechnung_id: string
+          id: string
+          projekt_id: string
+          rechnung_id: string | null
+          text: string | null
+        }
+        Insert: {
+          betrag: number
+          created_at?: string
+          eingangsrechnung_id: string
+          id?: string
+          projekt_id: string
+          rechnung_id?: string | null
+          text?: string | null
+        }
+        Update: {
+          betrag?: number
+          created_at?: string
+          eingangsrechnung_id?: string
+          id?: string
+          projekt_id?: string
+          rechnung_id?: string | null
+          text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eingang_anteile_eingangsrechnung_id_fkey"
+            columns: ["eingangsrechnung_id"]
+            isOneToOne: false
+            referencedRelation: "eingangsrechnungen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eingang_anteile_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
+          },
+          {
+            foreignKeyName: "eingang_anteile_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eingang_anteile_rechnung_id_fkey"
+            columns: ["rechnung_id"]
+            isOneToOne: false
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eingangsrechnungen: {
+        Row: {
+          betrieb: boolean
+          bezahlt_am: string | null
+          brutto: number
+          created_at: string
+          datei_mime: string | null
+          datei_name: string | null
+          datei_pfad: string | null
+          datum: string
+          erstellt_von: string | null
+          faellig_am: string | null
+          id: string
+          kategorie: string
+          lieferant: string
+          netto: number
+          notiz: string | null
+          nummer: string | null
+          updated_at: string
+          ust: number
+          ust_satz: number
+        }
+        Insert: {
+          betrieb?: boolean
+          bezahlt_am?: string | null
+          brutto?: number
+          created_at?: string
+          datei_mime?: string | null
+          datei_name?: string | null
+          datei_pfad?: string | null
+          datum?: string
+          erstellt_von?: string | null
+          faellig_am?: string | null
+          id?: string
+          kategorie?: string
+          lieferant: string
+          netto?: number
+          notiz?: string | null
+          nummer?: string | null
+          updated_at?: string
+          ust?: number
+          ust_satz?: number
+        }
+        Update: {
+          betrieb?: boolean
+          bezahlt_am?: string | null
+          brutto?: number
+          created_at?: string
+          datei_mime?: string | null
+          datei_name?: string | null
+          datei_pfad?: string | null
+          datum?: string
+          erstellt_von?: string | null
+          faellig_am?: string | null
+          id?: string
+          kategorie?: string
+          lieferant?: string
+          netto?: number
+          notiz?: string | null
+          nummer?: string | null
+          updated_at?: string
+          ust?: number
+          ust_satz?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eingangsrechnungen_erstellt_von_fkey"
+            columns: ["erstellt_von"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1195,6 +1342,7 @@ export type Database = {
       }
     }
     Functions: {
+      angebot_verrechnet: { Args: { p_id: string }; Returns: boolean }
       artikel_suchen: {
         Args: { p_anzahl?: number; p_q: string }
         Returns: {
@@ -1227,7 +1375,6 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      angebot_verrechnet: { Args: { p_id: string }; Returns: boolean }
       artikel_zu_code: {
         Args: { p_code: string }
         Returns: {

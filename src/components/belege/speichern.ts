@@ -131,17 +131,19 @@ export async function belegSpeichern({
 }
 
 /**
- * Stunden, Materialbuchungen und Regieberichte an die Rechnung hängen —
+ * Stunden, Materialbuchungen, Regieberichte und Eingangs-Anteile an die Rechnung hängen —
  * nur, wenn sie noch frei sind. Gibt zurück, wie viele schon an einer
  * anderen Rechnung hängen (oder nicht mehr existieren).
  */
 export async function quellenBinden(belegId: string, q: Quelle): Promise<number> {
-  const teile: [string, string[]][] = [["zeiten", q.zeiten], ["material_buchungen", q.material], ["regieberichte", q.regie]];
+  const teile: [string, string[]][] = [
+    ["zeiten", q.zeiten], ["material_buchungen", q.material], ["regieberichte", q.regie], ["eingang_anteile", q.eingang ?? []],
+  ];
   let konflikte = 0;
   for (const [tabelle, ids] of teile) {
     for (let i = 0; i < ids.length; i += 100) {
       const stueck = ids.slice(i, i + 100);
-      // Alle drei Tabellen haben `id` und `rechnung_id` — derselbe Aufruf passt
+      // Alle vier Tabellen haben `id` und `rechnung_id` — derselbe Aufruf passt
       const t = tabelle as "zeiten";
       const { error } = await supabase.from(t).update({ rechnung_id: belegId }).in("id", stueck).is("rechnung_id", null);
       if (error) throw fehler("Stunden und Material konnten nicht als verrechnet markiert werden", error);

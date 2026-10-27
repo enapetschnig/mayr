@@ -14,7 +14,10 @@ begin
   alter table public.regieberichte disable trigger user;
   alter table public.belege disable trigger user;
   alter table public.beleg_positionen disable trigger user;
+  alter table public.eingang_anteile disable trigger user;
 
+  delete from public.eingangsrechnungen where lieferant like 'RLS-Test%' or erstellt_von = any(v_user);
+  delete from public.eingang_anteile where projekt_id = any(v_projekte);
   delete from public.belege where projekt_id = any(v_projekte) or erstellt_von = any(v_user);
   delete from public.zeiten where projekt_id = any(v_projekte) or user_id = any(v_user) or erstellt_von = any(v_user);
   delete from public.material_buchungen where projekt_id = any(v_projekte) or user_id = any(v_user);
@@ -29,6 +32,7 @@ begin
   alter table public.regieberichte enable trigger user;
   alter table public.belege enable trigger user;
   alter table public.beleg_positionen enable trigger user;
+  alter table public.eingang_anteile enable trigger user;
 
   -- Nummernkreise zurück auf die höchste Nummer, die es noch gibt
   update public.nummernkreise n set letzte = coalesce((
