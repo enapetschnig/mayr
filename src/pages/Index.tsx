@@ -43,7 +43,7 @@ const START_GRUPPEN: { titel: string; gruppen: NavEintrag["gruppe"][] }[] = [
 
 /**
  * Startseite: Am Handy IST sie das Menü. Oben die
- * häufigsten Handgriffe als große Knöpfe, darunter „Weiter, wo du warst“
+ * häufigsten Handgriffe als große Knöpfe, darunter (Chef) „Zu erledigen“
  * und die großen Menü-Karten. Am PC steht das Menü links, hier dafür die
  * Übersicht (offene Punkte, aktive Projekte).
  */
@@ -106,7 +106,7 @@ export default function Index() {
     (woche ?? []).forEach((z) => { if (z.projekt_id && !ids.includes(z.projekt_id)) ids.push(z.projekt_id); });
     const gebucht = ids.map((id) => projekte.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
     const rest = laufend.filter((p) => !ids.includes(p.id));
-    return [...gebucht, ...rest].slice(0, pc ? 6 : 3);
+    return [...gebucht, ...rest].slice(0, 6);
   })();
 
   const regieOffen = Object.values(zahlen).reduce((s, z) => s + Number(z.regie_offen ?? 0), 0);
@@ -179,9 +179,12 @@ export default function Index() {
         </section>
 
         {/* minmax(0,…): sonst macht eine lange, abgeschnittene Zeile die Spalte breiter als das Handy */}
+        {/* Am Handy nur „Zu erledigen“ (Chef) — laufende Projekte und zuletzt
+            Gebuchtes stehen in Projekte und Stunden, die Startseite bleibt das Menü */}
+        {(pc || istChef) && (
         <div className={cn("grid gap-6", pc ? "grid-cols-[minmax(0,1fr)_22rem] items-start" : "grid-cols-1")}>
-          {/* Weiter, wo du warst */}
-          <Karte titel={pc ? "Laufende Projekte" : "Weiter, wo du warst"} alle={{ to: "/projekte", text: "Alle Projekte" }} ohnePolster>
+          {pc && (
+          <Karte titel="Laufende Projekte" alle={{ to: "/projekte", text: "Alle Projekte" }} ohnePolster>
             {zuletzt.length === 0 ? (
               <div className="px-4 pb-4 text-sm text-muted-foreground">
                 Noch kein laufendes Projekt.{" "}
@@ -213,8 +216,9 @@ export default function Index() {
               </ul>
             )}
           </Karte>
+          )}
 
-          {/* Chef: was im Büro liegt. Monteur: zuletzt gebucht. */}
+          {/* Chef: was im Büro liegt. Monteur am PC: zuletzt gebucht. */}
           {istChef ? (
             <Karte titel="Zu erledigen">
               {offenePunkte.length === 0 ? (
@@ -254,6 +258,7 @@ export default function Index() {
             </Karte>
           )}
         </div>
+        )}
 
         {/* Am Handy und Tablet ist die Startseite das Menü — große Karten */}
         {!pc && START_GRUPPEN.map((g) => {
