@@ -561,6 +561,7 @@ export type Database = {
           rechnung_einleitung: string | null
           rechnung_schluss: string | null
           strasse: string | null
+          stundensaetze: Json
           stundensatz: number
           telefon: string | null
           uid: string | null
@@ -592,6 +593,7 @@ export type Database = {
           rechnung_einleitung?: string | null
           rechnung_schluss?: string | null
           strasse?: string | null
+          stundensaetze?: Json
           stundensatz?: number
           telefon?: string | null
           uid?: string | null
@@ -623,6 +625,7 @@ export type Database = {
           rechnung_einleitung?: string | null
           rechnung_schluss?: string | null
           strasse?: string | null
+          stundensaetze?: Json
           stundensatz?: number
           telefon?: string | null
           uid?: string | null

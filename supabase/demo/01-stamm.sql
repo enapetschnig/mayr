@@ -71,6 +71,7 @@ begin
     bic = 'DEMOATW1',
     farbe = '#1D4ED8',
     stundensatz = 72,
+    stundensaetze = '[{"name": "Meister", "satz": 85}, {"name": "Lehrling", "satz": 42}]'::jsonb,
     material_aufschlag = 35,
     zahlungsziel_tage = 14,
     angebot_gueltig_tage = 30,

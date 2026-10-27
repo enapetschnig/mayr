@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Building2, ImagePlus, KeyRound, Loader2, LogOut, Smartphone, Trash2, User, Users } from "lucide-react";
+import { Building2, ImagePlus, KeyRound, Loader2, LogOut, Plus, Smartphone, Trash2, User, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
 import {
@@ -38,6 +38,15 @@ const BEREICHE: { wert: Bereich; text: string; icon: typeof User; nurChef?: bool
 
 /** Farben für die Kürzel der Mitarbeiter — kräftig genug für weiße Schrift */
 const PERSONENFARBEN = ["#1D4ED8", "#059669", "#EA580C", "#7C3AED", "#BE123C", "#4D7C0F", "#0369A1", "#525252"];
+
+/** Stundensätze im Formular: Satz bleibt Text, bis gespeichert wird */
+type SatzZeile = { name: string; satz: string | number };
+const saetzeRoh = (j: Firma["stundensaetze"]): SatzZeile[] =>
+  Array.isArray(j) ? j.map((x) => (x && typeof x === "object" && !Array.isArray(x)
+    ? { name: String(x.name ?? ""), satz: (x.satz as string | number | null) ?? "" }
+    : { name: "", satz: "" })) : [];
+const saetzeAendern = (j: Firma["stundensaetze"], i: number, teil: Partial<SatzZeile>): Firma["stundensaetze"] =>
+  saetzeRoh(j).map((z, k) => (k === i ? { ...z, ...teil } : z));
 
 export default function Einstellungen() {
   const { istChef } = useSitzung();
@@ -130,6 +139,16 @@ function Betrieb() {
     if (ziel === null || ziel < 0 || ziel > 365) return toast.error("Zahlungsziel: ganze Tage von 0 (sofort) bis 365.");
     const gueltig = ganzzahl(f.angebot_gueltig_tage);
     if (gueltig === null || gueltig < 1 || gueltig > 365) return toast.error("Angebot gültig: ganze Tage von 1 bis 365.");
+    // Weitere Stundensätze: leere Zeilen fallen weg, der Rest braucht Name und Satz über 0 €
+    const saetze: { name: string; satz: number }[] = [];
+    for (const z of saetzeRoh(f.stundensaetze)) {
+      const n = z.name.trim();
+      if (!n && !String(z.satz).trim()) continue;
+      const satz = dezimalLesen(String(z.satz));
+      if (!n || satz === null || satz <= 0 || satz >= 10000) return toast.error(`Stundensatz „${n || "ohne Namen"}“ bitte prüfen — Name und Satz über 0 €.`);
+      if (saetze.some((x) => x.name.toLowerCase() === n.toLowerCase())) return toast.error(`Den Stundensatz „${n}“ gibt es zweimal.`);
+      saetze.push({ name: n, satz });
+    }
 
     const leer = (s: string | null) => (s && s.trim() ? s.trim() : null);
     let iban = leer(f.iban), bic = leer(f.bic), uid = leer(f.uid);
@@ -154,7 +173,7 @@ function Betrieb() {
       name: f.name.trim(), zusatz: leer(f.zusatz), inhaber: leer(f.inhaber), strasse: leer(f.strasse), plz: leer(f.plz),
       ort: leer(f.ort), land: f.land || "Österreich", telefon: leer(f.telefon), email: leer(f.email), website: leer(f.website),
       uid, firmenbuch: leer(f.firmenbuch), bank_name: leer(f.bank_name), iban, bic,
-      farbe: f.farbe, stundensatz, material_aufschlag: aufschlag,
+      farbe: f.farbe, stundensatz, stundensaetze: saetze, material_aufschlag: aufschlag,
       zahlungsziel_tage: ziel, angebot_gueltig_tage: gueltig,
       kleinunternehmer: f.kleinunternehmer, angebot_einleitung: leer(f.angebot_einleitung), angebot_schluss: leer(f.angebot_schluss),
       rechnung_einleitung: leer(f.rechnung_einleitung), rechnung_schluss: leer(f.rechnung_schluss), fusszeile: leer(f.fusszeile),
@@ -250,6 +269,24 @@ function Betrieb() {
           <Feld label="Materialaufschlag %"><Input className="h-11" inputMode="decimal" value={String(f.material_aufschlag).replace(".", ",")} onChange={(e) => setF({ ...f, material_aufschlag: e.target.value as unknown as number })} /></Feld>
           <Feld label="Zahlungsziel Tage"><Input className="h-11" inputMode="numeric" value={String(f.zahlungsziel_tage)} onChange={(e) => setF({ ...f, zahlungsziel_tage: e.target.value as unknown as number })} /></Feld>
           <Feld label="Angebot gültig Tage"><Input className="h-11" inputMode="numeric" value={String(f.angebot_gueltig_tage)} onChange={(e) => setF({ ...f, angebot_gueltig_tage: e.target.value as unknown as number })} /></Feld>
+        </div>
+        <div className="mt-4 space-y-2">
+          <p className="text-sm font-medium">Weitere Stundensätze <span className="font-normal text-muted-foreground">— z. B. Meister, Lehrling; im Angebot unter „Arbeitszeit“</span></p>
+          {saetzeRoh(f.stundensaetze).map((z, i) => (
+            <div key={i} className="grid grid-cols-[1fr_8rem_2.75rem] gap-2">
+              <Input className="h-11" placeholder="Name, z. B. Meister" aria-label="Name des Stundensatzes" value={z.name}
+                onChange={(e) => setF({ ...f, stundensaetze: saetzeAendern(f.stundensaetze, i, { name: e.target.value }) })} />
+              <Input className="h-11 text-right" inputMode="decimal" placeholder="€/h" aria-label="Stundensatz € netto" value={String(z.satz).replace(".", ",")}
+                onChange={(e) => setF({ ...f, stundensaetze: saetzeAendern(f.stundensaetze, i, { satz: e.target.value }) })} />
+              <Button variant="ghost" size="icon" aria-label="Stundensatz entfernen"
+                onClick={() => setF({ ...f, stundensaetze: saetzeRoh(f.stundensaetze).filter((_, j) => j !== i) })}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button variant="outline" className="gap-1.5" onClick={() => setF({ ...f, stundensaetze: [...saetzeRoh(f.stundensaetze), { name: "", satz: "" }] })}>
+            <Plus className="h-4 w-4" /> Stundensatz
+          </Button>
         </div>
         <div className="mt-4 flex items-start gap-3">
           <Switch id="klein" checked={f.kleinunternehmer} onCheckedChange={(v) => setF({ ...f, kleinunternehmer: v })} />

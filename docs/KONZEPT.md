@@ -156,6 +156,23 @@ Rechnungen von Großhändlern und Subunternehmern, nur der Chef
   Material, sonst Pauschale. Verrechnete Anteile sind fest
   (`eingang_anteil_schutz`), die Rechnung dazu lässt sich nicht löschen.
 
+### Kalkulieren im Angebot (`lib/kalkulation.ts`)
+
+Bewusst einfach, kein eigenes Kalkulationsblatt:
+- **Mehrere Stundensätze**: `firma.stundensaetze` (jsonb-Liste
+  `{name, satz}`, Migration `20261027120000_stundensaetze.sql`), in
+  Einstellungen → Kalkulation; „Standard“ ist immer der Projekt- bzw.
+  Betriebssatz.
+- **Arbeitszeit** (`ArbeitszeitDialog`): Stunden je Satz eintragen, jeder
+  Satz wird eine Position „Arbeitszeit Meister“ usw.
+- **Preis kalkulieren** in der Position: Einkauf + Aufschlag % + Minuten ×
+  Stundensatz → „Als Einzelpreis übernehmen“. EK und Minuten bleiben an der
+  Position (`ek_preis`, `minuten`), nie auf dem PDF.
+- **Kalkulationskasten** unter den Summen (nur am Bildschirm): Stunden,
+  Material-Einkauf, was nach Material bleibt und je Arbeitsstunde
+  (`rohertrag`). „Alle Preise ändern“ ± % für Aufschlag oder Rabatt
+  (`umProzent`).
+
 ### Angebote und Rechnungen (`components/belege/`)
 
 - Ein Editor für beide (`BelegEditor`): Titel als Räume/Abschnitte, Positionen
@@ -214,7 +231,8 @@ Rechnungen von Großhändlern und Subunternehmern, nur der Chef
 
 ### Betrieb (Einstellungen)
 
-- Stundensatz über 0 €, Aufschlag 0–1000 %, Zahlungsziel und Angebotsfrist in
+- Stundensatz über 0 €, weitere Stundensätze mit Namen (ohne doppelte),
+  Aufschlag 0–1000 %, Zahlungsziel und Angebotsfrist in
   ganzen Tagen — leer oder unlesbar wird abgewiesen, nicht still 0.
 - Bankdaten (`lib/bank.ts`): IBAN mit Prüfziffer und Länge je Land, BIC, UID
   (Österreich `ATU` + 8 Ziffern); gespeichert einheitlich (IBAN in

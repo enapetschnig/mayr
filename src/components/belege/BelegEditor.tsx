@@ -3,8 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Ban, Check, Copy, Download, FileText, FolderInput, LockOpen, Mic, MoreVertical, Package, PenLine, Plus, Receipt,
-  RotateCcw, Rows3, Save, ThumbsDown, ThumbsUp, Trash2, Undo2, Wallet,
+  Ban, Calculator, Check, Clock, Copy, Download, FileText, FolderInput, LockOpen, Mic, MoreVertical, Package, PenLine, Percent, Plus,
+  Receipt, RotateCcw, Rows3, Save, ThumbsDown, ThumbsUp, Trash2, Undo2, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,15 +26,17 @@ import { archivieren, archivLaden } from "@/lib/belegArchiv";
 import { belegPdfErstellen } from "@/lib/belegPdf";
 import { datum, euro, isoTag, zahl } from "@/lib/format";
 import { pdfDateiname, pdfTeilenOderLaden } from "@/lib/pdfBasis";
+import { lohnarten as lohnartenFuer, rohertrag, umProzent } from "@/lib/kalkulation";
 import { stundensatzFuer } from "@/lib/preise";
 import { belegStatus, TON_KLASSE, type Artikel, type Beleg, type Firma } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ArbeitszeitDialog } from "./ArbeitszeitDialog";
 import { ArtikelDialog } from "./ArtikelDialog";
 import { BelegKopf, BelegTexte } from "./BelegKopf";
 import { belegLaden, useBelegKurz, useFolgeRechnungen, useLeistungsKatalog, useNachfolger, type BelegMitPositionen } from "./daten";
 import {
   artikelPosition, fertigHinweise, hinzufuegen, kopfAusBeleg, leerePosition, leistungPosition, leistungWeniger, mengeVon,
-  ohneBetrag, ohneUstFuer, positionAusDb, preisVon, quellenIds, summen, titelMitNamen, titelPosition, zahlText,
+  ohneBetrag, ohneUstFuer, positionAusDb, preisText, preisVon, quellenIds, summen, titelMitNamen, titelPosition, zahlText,
   type EditorPosition, type KatalogLeistung, type Kopf,
 } from "./editor";
 import { ImportDialog, type ImportErgebnis } from "./ImportDialog";
@@ -57,7 +59,7 @@ const DETAIL = (id: string) => ["belege", "detail", id];
 const NACH_AENDERUNG = ["belege", "projekte", "projekt_zahlen", "zeiten", "material", "regieberichte"];
 
 type Frage = "fertig" | "storno" | "entsperren" | null;
-type Dialog = "leistung" | "artikel" | "sprache" | "import" | null;
+type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | null;
 type Icon = ComponentType<{ className?: string }>;
 
 /**
@@ -562,6 +564,11 @@ export function BelegEditor({
     setPositionen((alt) => [...alt, t]);
     setAktiverTitel(t.id);
   };
+  const arbeitszeitHinzufuegen = (neue: EditorPosition[]) =>
+    setPositionen((alt) => neue.reduce((liste, p) => hinzufuegen(liste, p, aktiverTitel).liste, alt));
+  // Alle Preise um ± % — Aufschlag oder Rabatt aufs ganze Angebot (Zeilen ohne Betrag bleiben)
+  const preiseUmProzent = (prozent: number) =>
+    setPositionen((alt) => alt.map((p) => (ohneBetrag(p) ? p : { ...p, einzelpreis: preisText(umProzent(preisVon(p), prozent)) })));
   const freieHinzufuegen = (p: EditorPosition) => {
     setPositionen((alt) => hinzufuegen(alt, p, aktiverTitel).liste);
     setFreie(null);
@@ -817,6 +824,7 @@ export function BelegEditor({
     ...(!istAngebot ? [{ key: "import", text: kopf.projekt_id ? "Aus dem Projekt übernehmen" : "Aus dem Projekt (erst Projekt wählen)", icon: FolderInput, onClick: () => setDialog("import"), primaer: true, aus: !kopf.projekt_id }] : []),
     { key: "leistung", text: istAngebot ? "Leistung hinzufügen" : "Leistung", icon: Plus, onClick: () => setDialog("leistung"), primaer: istAngebot },
     { key: "sprache", text: "Diktieren", icon: Mic, onClick: () => setDialog("sprache") },
+    { key: "arbeitszeit", text: "Arbeitszeit", icon: Clock, onClick: () => setDialog("arbeitszeit") },
     { key: "titel", text: "Raum / Titel", icon: Rows3, onClick: () => setTitelOffen(true) },
     { key: "artikel", text: "Artikel", icon: Package, onClick: () => setDialog("artikel") },
     { key: "frei", text: "Freie Position", icon: PenLine, onClick: () => setFreie(leerePosition("leistung")) },
@@ -840,7 +848,7 @@ export function BelegEditor({
             <k.icon className="h-5 w-5" /> {k.text}
           </Button>
         ))}
-        <div className={cn("grid gap-2", nebenKnoepfe.length === 5 ? "grid-cols-5" : "grid-cols-4")}>
+        <div className={cn("grid gap-2", nebenKnoepfe.length === 5 ? "grid-cols-5" : nebenKnoepfe.length === 6 ? "grid-cols-3" : "grid-cols-4")}>
           {nebenKnoepfe.map((k) => (
             <button
               key={k.key}
@@ -919,13 +927,15 @@ export function BelegEditor({
           pc={pc}
           aktiverTitel={aktiverTitel}
           setAktiverTitel={setAktiverTitel}
+          stundensatz={stundensatz}
         />
         {hinzufuegenLeiste}
       </section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
         <BelegTexte kopf={kopf} aendern={kopfAendern} bearbeitbar={bearbeitbar} pc={pc} />
-        <Summen netto={s.netto} ust={s.ust} brutto={s.brutto} ustSatz={kopf.ust_satz} ohneUst={ohneUst} firma={firma} kalk={kalk} />
+        <Summen netto={s.netto} ust={s.ust} brutto={s.brutto} ustSatz={kopf.ust_satz} ohneUst={ohneUst} firma={firma} kalk={kalk}
+          onProzent={bearbeitbar && anzahl > 0 ? preiseUmProzent : undefined} />
       </div>
 
       {entwurf && !pc && (
@@ -973,6 +983,12 @@ export function BelegEditor({
         stundensatz={stundensatz}
       />
       <ArtikelDialog open={dialog === "artikel"} onOpenChange={(o) => setDialog(o ? "artikel" : null)} ziel={titelName} onArtikel={artikelPlus} />
+      <ArbeitszeitDialog
+        open={dialog === "arbeitszeit"}
+        onOpenChange={(o) => setDialog(o ? "arbeitszeit" : null)}
+        lohnarten={lohnartenFuer(firma, stundensatz)}
+        onUebernehmen={arbeitszeitHinzufuegen}
+      />
       <TitelDialog open={titelOffen} onOpenChange={setTitelOffen} positionen={positionen} onAnlegen={titelAnlegen} />
       <SpracheDialog
         open={dialog === "sprache"}
@@ -995,7 +1011,7 @@ export function BelegEditor({
           onUebernehmen={importUebernehmen}
         />
       )}
-      <PositionDialog position={freie} neu onOpenChange={(o) => { if (!o) setFreie(null); }} onUebernehmen={freieHinzufuegen} />
+      <PositionDialog position={freie} neu stundensatz={stundensatz} onOpenChange={(o) => { if (!o) setFreie(null); }} onUebernehmen={freieHinzufuegen} />
 
       <AlertDialog open={frage === "fertig"} onOpenChange={(o) => { if (!o) setFrage(null); }}>
         <AlertDialogContent>
@@ -1155,7 +1171,7 @@ function MenuePunkt({ icon: I, onClick, children, gefahr }: { icon: Icon; onClic
 }
 
 function Summen({
-  netto, ust, brutto, ustSatz, ohneUst, firma, kalk,
+  netto, ust, brutto, ustSatz, ohneUst, firma, kalk, onProzent,
 }: {
   netto: number;
   ust: number;
@@ -1164,7 +1180,16 @@ function Summen({
   ohneUst: boolean;
   firma: Firma | null;
   kalk: { stunden: number; ek: number };
+  /** Alle Preise um ± % ändern (nur bearbeitbar) */
+  onProzent?: (prozent: number) => void;
 }) {
+  const [prozentOffen, setProzentOffen] = useState(false);
+  const [prozent, setProzent] = useState("");
+  const r = rohertrag(netto, kalk.ek, kalk.stunden);
+  const p = Number(prozent.replace(",", "."));
+  const prozentOk = prozent.trim() !== "" && Number.isFinite(p) && p !== 0 && p > -100 && p <= 1000;
+  const mitKalk = kalk.stunden > 0 || kalk.ek > 0;
+
   return (
     <section className="rounded-lg border bg-card p-4">
       <dl className="space-y-1.5 text-sm">
@@ -1183,12 +1208,69 @@ function Summen({
           <dd className="zahl">{euro(brutto)}</dd>
         </div>
       </dl>
-      {(kalk.stunden > 0 || kalk.ek > 0) && (
-        <p className="mt-3 border-t pt-2 text-xs text-muted-foreground">
-          Intern: {kalk.stunden > 0 && <>{zahl(Math.round(kalk.stunden * 10) / 10)} h Arbeit</>}
-          {kalk.stunden > 0 && kalk.ek > 0 && " · "}
-          {kalk.ek > 0 && <>Material-EK {euro(kalk.ek)}</>}
-        </p>
+
+      {(mitKalk || onProzent) && (
+        <div className="mt-3 space-y-1.5 border-t pt-3 text-sm">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Calculator className="h-3.5 w-3.5" /> Kalkulation <span className="font-normal normal-case tracking-normal">— nur für dich, nicht auf dem PDF</span>
+          </p>
+          {mitKalk && (
+            <dl className="space-y-1">
+              {kalk.stunden > 0 && (
+                <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Arbeitszeit</dt><dd className="zahl">{zahl(Math.round(kalk.stunden * 10) / 10)} h</dd></div>
+              )}
+              <div className="flex justify-between gap-3"><dt className="text-muted-foreground">Material-Einkauf</dt><dd className="zahl">{euro(kalk.ek)}</dd></div>
+              <div className="flex justify-between gap-3 font-medium">
+                <dt>Bleibt nach Material</dt>
+                <dd className="zahl">{euro(r.bleibt)}{r.anteil != null && <span className="ml-1 font-normal text-muted-foreground">({Math.round(r.anteil * 100)} %)</span>}</dd>
+              </div>
+              {r.jeStunde != null && (
+                <div className="flex justify-between gap-3"><dt className="text-muted-foreground">je Arbeitsstunde</dt><dd className="zahl">{euro(r.jeStunde)}</dd></div>
+              )}
+            </dl>
+          )}
+          {onProzent && (
+            <Button variant="outline" className="mt-1 w-full gap-1.5" onClick={() => { setProzent(""); setProzentOffen(true); }}>
+              <Percent className="h-4 w-4" /> Alle Preise ändern (Aufschlag / Rabatt)
+            </Button>
+          )}
+        </div>
+      )}
+
+      {onProzent && (
+        <AlertDialog open={prozentOffen} onOpenChange={setProzentOffen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Alle Preise ändern</AlertDialogTitle>
+              <AlertDialogDescription>Plus für Aufschlag, Minus für Rabatt — gilt für jeden Einzelpreis in diesem Beleg.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {[-5, -3, 3, 5, 10].map((x) => (
+                  <Button key={x} variant={p === x ? "default" : "outline"} className="min-w-16" onClick={() => setProzent(String(x))}>
+                    {x > 0 ? `+${x}` : x} %
+                  </Button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="preis-prozent" className="shrink-0">Prozent</Label>
+                <Input id="preis-prozent" inputMode="decimal" className="zahl h-11 w-28 text-right" placeholder="z. B. 8 oder -3"
+                  value={prozent} onChange={(e) => setProzent(e.target.value)} />
+              </div>
+              {prozentOk && (
+                <p className="text-sm text-muted-foreground">
+                  Netto danach etwa <span className="zahl font-medium text-foreground">{euro(umProzent(netto, p))}</span> statt {euro(netto)}
+                </p>
+              )}
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="h-11">Abbrechen</AlertDialogCancel>
+              <Button className="h-11" disabled={!prozentOk} onClick={() => { onProzent(p); setProzentOffen(false); }}>
+                {prozentOk ? `Preise ${p > 0 ? "+" : ""}${zahl(p)} %` : "Ändern"}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </section>
   );

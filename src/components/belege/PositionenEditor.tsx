@@ -33,7 +33,7 @@ const langtextZeilen = (t: string) =>
  * „aktive“ — neue Leistungen landen darunter.
  */
 export function PositionenEditor({
-  positionen, setPositionen, bearbeitbar, pc, aktiverTitel, setAktiverTitel,
+  positionen, setPositionen, bearbeitbar, pc, aktiverTitel, setAktiverTitel, stundensatz,
 }: {
   positionen: EditorPosition[];
   setPositionen: Setzen;
@@ -41,6 +41,8 @@ export function PositionenEditor({
   pc: boolean;
   aktiverTitel: string | null;
   setAktiverTitel: (id: string | null) => void;
+  /** Standard-Stundensatz für „Preis kalkulieren“ */
+  stundensatz?: number;
 }) {
   const [bearbeiten, setBearbeiten] = useState<EditorPosition | null>(null);
   const [titelLoeschen, setTitelLoeschen] = useState<EditorPosition | null>(null);
@@ -83,6 +85,7 @@ export function PositionenEditor({
     <>
       <PositionDialog
         position={bearbeiten}
+        stundensatz={stundensatz}
         onOpenChange={(o) => { if (!o) setBearbeiten(null); }}
         onUebernehmen={(p) => { aendern(p.id, p); setBearbeiten(null); }}
         onLoeschen={(id) => {
