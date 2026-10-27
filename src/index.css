@@ -189,3 +189,11 @@ td, th, tfoot, .zahl, [data-zahl] {
     cursor: default;
   }
 }
+
+/* Handyansicht am PC (Rahmen): Scrollbalken weg, die volle Handybreite bleibt */
+html.handyrahmen, html.handyrahmen * {
+  scrollbar-width: none;
+}
+html.handyrahmen ::-webkit-scrollbar {
+  display: none;
+}

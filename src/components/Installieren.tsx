@@ -7,6 +7,7 @@ import {
   schonEinmalInstalliert,
 } from "@/lib/installieren";
 import { useSitzung } from "@/hooks/useSitzung";
+import { imHandyRahmen } from "@/lib/handyansicht";
 import { KUNDE } from "@/kunde.config";
 
 /** Merker je Gerät: Wurde der Hinweis hier schon gezeigt? */
@@ -68,7 +69,7 @@ export function InstallHinweis() {
     if (!session || !firma) return;
     let gezeigt = false;
     try { gezeigt = localStorage.getItem(GEZEIGT) !== null; } catch { /* egal */ }
-    if (gezeigt || laeuftAlsApp() || schonEinmalInstalliert()) return;
+    if (gezeigt || laeuftAlsApp() || schonEinmalInstalliert() || imHandyRahmen()) return;
     // kurz warten — Chrome liefert sein Installationsangebot erst nach dem Laden
     const t = window.setTimeout(() => setOffen(true), 1200);
     return () => window.clearTimeout(t);

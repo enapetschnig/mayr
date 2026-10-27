@@ -17,7 +17,7 @@ export function AppSidebar() {
   const { profil, firma, istChef } = useSitzung();
 
   const gruppen = (Object.keys(GRUPPEN_TITEL) as NavEintrag["gruppe"][])
-    .map((g) => ({ g, eintraege: sichtbareNavigation(istChef).filter((n) => n.gruppe === g) }))
+    .map((g) => ({ g, eintraege: sichtbareNavigation(istChef, true).filter((n) => n.gruppe === g) }))
     .filter((x) => x.eintraege.length > 0);
 
   return (

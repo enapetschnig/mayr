@@ -27,6 +27,9 @@ Schema samt RLS und Triggern: `supabase/migrations/20261025100000_elektriker_gru
   **Blau ist die einzige Aktionsfarbe.** Status nur als Pille aus einer
   Tabelle (`lib/types.ts`): Entwurf cyan, verrechnet lila, grün = erledigt.
 - Formulare als Vollbild (`FormularDialog`), Eingaben 16 px am Handy.
+- **Handyansicht** (`/handyansicht`, nur PC): die App in einem 390-px-Rahmen
+  mit eigener Anmeldung (`lib/handyansicht.ts`, erkannt an `window.name`) —
+  der Chef zeigt so, was ein Monteur am Handy sieht, ohne sich abzumelden.
 
 ## Befehle
 

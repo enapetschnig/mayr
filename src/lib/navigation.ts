@@ -1,6 +1,6 @@
 import {
   BarChart3, CalendarDays, ClipboardSignature, Clock, FolderKanban, Home, ListChecks, Package,
-  Receipt, ScanBarcode, Settings, Users, Warehouse, type LucideIcon,
+  Receipt, ScanBarcode, Settings, Smartphone, Users, Warehouse, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -19,6 +19,8 @@ export type NavEintrag = {
   icon: LucideIcon;
   gruppe: "haupt" | "baustelle" | "buero" | "system";
   nurChef?: boolean;
+  /** Nur im Seitenmenü am PC */
+  nurPc?: boolean;
 };
 
 export const NAVIGATION: NavEintrag[] = [
@@ -38,6 +40,7 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Auswertung", text: "Stunden, Umsatz, Nachkalkulation", pfad: "/auswertung", icon: BarChart3, gruppe: "buero", nurChef: true },
 
   { titel: "Einstellungen", text: "Betrieb, Mitarbeiter, Konto, App", textMonteur: "Mein Konto, Passwort, App aufs Handy", pfad: "/einstellungen", icon: Settings, gruppe: "system" },
+  { titel: "Handyansicht", text: "So sieht die App am Handy aus", pfad: "/handyansicht", icon: Smartphone, gruppe: "system", nurPc: true },
 ];
 
 export const GRUPPEN_TITEL: Record<NavEintrag["gruppe"], string> = {
@@ -47,7 +50,8 @@ export const GRUPPEN_TITEL: Record<NavEintrag["gruppe"], string> = {
   system: "System",
 };
 
-export const sichtbareNavigation = (istChef: boolean) => NAVIGATION.filter((n) => istChef || !n.nurChef);
+export const sichtbareNavigation = (istChef: boolean, pc = false) =>
+  NAVIGATION.filter((n) => (istChef || !n.nurChef) && (pc || !n.nurPc));
 
 /** Ist dieser Menüpunkt für die aktuelle Adresse aktiv? */
 export const istAktiv = (pfad: string, jetzt: string) =>
