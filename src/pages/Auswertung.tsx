@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Clock, Download, FolderKanban } from "lucide-react";
+import { toast } from "sonner";
+import { ChevronLeft, ChevronRight, Clock, Download, FileDown, FolderKanban, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ import { useSitzung } from "@/hooks/useSitzung";
 import { alleZeilen, csvHerunterladen } from "@/lib/abfrage";
 import { datum, euro, isoTag, stunden, uhrzeit, zahl } from "@/lib/format";
 import { buchungVk, runden2, stundensatzFuer } from "@/lib/preise";
+import { pdfDateiname, pdfTeilenOderLaden } from "@/lib/pdfBasis";
+import { stundenPdf } from "@/lib/stundenPdf";
 import { name } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -186,6 +189,31 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
     csvHerunterladen(`stunden-${monat == null ? jahr : `${jahr}-${String(monat + 1).padStart(2, "0")}`}.csv`, zeilen);
   };
 
+  // Ein Klick: der ganze Monat (bzw. das Jahr) als Stundennachweis für die Lohnverrechnung
+  const [pdfLaeuft, setPdfLaeuft] = useState(false);
+  const stundenPdfLaden = async () => {
+    if (!firma) return;
+    setPdfLaeuft(true);
+    try {
+      const je = new Map<string, { name: string; zeilen: Parameters<typeof stundenPdf>[2][number]["zeilen"] }>();
+      zeiten.forEach((z) => {
+        const e = je.get(z.user_id) ?? { name: name(z.profiles), zeilen: [] };
+        e.zeilen.push({
+          datum: z.datum, von: z.von, bis: z.bis, pause_minuten: z.pause_minuten, stunden: Number(z.stunden), taetigkeit: z.taetigkeit,
+          projekt: z.projekte ? `${z.projekte.nummer} ${z.projekte.name}` : "", regiebericht: z.regieberichte?.nummer ?? "",
+        });
+        je.set(z.user_id, e);
+      });
+      const liste = [...je.values()].sort((a, b) => a.name.localeCompare(b.name, "de"));
+      const blob = await stundenPdf(firma, zeitraumText(zeitraum), liste);
+      await pdfTeilenOderLaden(blob, pdfDateiname("Stundennachweis", monat == null ? String(jahr) : `${jahr}-${String(monat + 1).padStart(2, "0")}`));
+    } catch (e) {
+      toast.error("PDF nicht erstellt", { description: (e as Error).message });
+    } finally {
+      setPdfLaeuft(false);
+    }
+  };
+
   const maxPerson = Math.max(1, ...personen.map((p) => p.h));
   const maxProjekt = Math.max(1, ...jeProjekt.map((p) => p.h));
 
@@ -210,9 +238,15 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
           <span className="min-w-36 text-center text-sm font-semibold">{zeitraumText(zeitraum)}</span>
           <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => schritt(1)} disabled={weiterGesperrt} aria-label="Weiter"><ChevronRight className="h-4 w-4" /></Button>
         </div>
-        <Button variant="outline" className="ml-auto h-10 gap-1.5" onClick={stundenlisteLaden} disabled={zeiten.length === 0}>
-          <Download className="h-4 w-4" /> Stundenliste <span className="hidden sm:inline">(CSV)</span>
-        </Button>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" className="h-10 gap-1.5" onClick={stundenlisteLaden} disabled={zeiten.length === 0 || altesBild}>
+            <Download className="h-4 w-4" /> CSV
+          </Button>
+          <Button className="h-10 gap-1.5" onClick={stundenPdfLaden} disabled={zeiten.length === 0 || altesBild || pdfLaeuft}>
+            {pdfLaeuft ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+            {monat == null ? "Jahr" : "Monat"} herunterladen
+          </Button>
+        </div>
       </div>
 
       <div className={cn("space-y-4 transition-opacity", altesBild && "opacity-60")}>
