@@ -11,7 +11,7 @@
 --    2026-0004 Berger       Angebot AN-2026-001 nach Räumen, wartet auf Antwort
 --    2026-0005 Kirchenwirt  Regie: RB-001 verrechnet (RE-001 bezahlt),
 --                           RB-002 unterschrieben und offen, RB-003 Entwurf
---    2026-0006 Sonnenhof    abgeschlossen, RE-2026-002 überfällig
+--    2026-0006 Sonnenhof    abgeschlossen, RE-2026-002 überfällig, Erinnerung draußen
 -- ============================================================================
 do $$
 declare
@@ -233,6 +233,9 @@ begin
          ust = round(v_netto * 0.2, 2), brutto = v_netto + round(v_netto * 0.2, 2),
          faellig_am = '2026-10-21', bezahlt_am = '2026-10-15', fertig_am = timestamptz '2026-10-07 18:05 Europe/Vienna'
    where id = re1;
+  -- bezahlt = Zahlung über den ganzen Betrag (der Trigger lässt den Status, wie er ist)
+  insert into zahlungen (beleg_id, datum, betrag, art, erstellt_von, created_at)
+  select re1, '2026-10-15', brutto, 'zahlung', v_chef, timestamptz '2026-10-15 09:12 Europe/Vienna' from belege where id = re1;
   update regieberichte set rechnung_id = re1 where id = rb1;
   update zeiten set rechnung_id = re1 where regiebericht_id = rb1;
   update material_buchungen set rechnung_id = re1 where regiebericht_id = rb1;
@@ -264,6 +267,9 @@ begin
          ust = round(v_netto * 0.2, 2), brutto = v_netto + round(v_netto * 0.2, 2),
          faellig_am = '2026-10-08', fertig_am = timestamptz '2026-09-24 17:05 Europe/Vienna'
    where id = re2;
+  -- Zahlungserinnerung ist draußen, die Frist ist vorbei → als Nächstes die 1. Mahnung
+  insert into mahnungen (beleg_id, stufe, datum, frist_bis, offen, spesen, zinsen, erstellt_von, created_at)
+  select re2, 1, '2026-10-16', '2026-10-26', brutto, 0, 0, v_chef, timestamptz '2026-10-16 08:30 Europe/Vienna' from belege where id = re2;
   update zeiten set rechnung_id = re2 where projekt_id = p6;
   update material_buchungen set rechnung_id = re2 where projekt_id = p6;
 

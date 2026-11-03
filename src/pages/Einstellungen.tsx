@@ -101,6 +101,13 @@ const ohneLeer = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, "")
 
 const gleich = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** Mahnspesen je Stufe: immer drei Felder (Erinnerung, 1. Mahnung, letzte Mahnung) */
+const STUFEN = ["Erinnerung", "1. Mahnung", "letzte Mahnung"];
+const spesenRoh = (j: Firma["mahn_spesen"]): (string | number)[] => {
+  const l = Array.isArray(j) ? (j as (string | number)[]) : [];
+  return [0, 1, 2].map((i) => l[i] ?? 0);
+};
+
 /** Briefkopf, Bank, Kalkulation und Texte — alles, was auf Angeboten und Rechnungen steht. */
 function Betrieb() {
   const { firma, neuLaden } = useSitzung();
@@ -139,6 +146,16 @@ function Betrieb() {
     if (ziel === null || ziel < 0 || ziel > 365) return toast.error("Zahlungsziel: ganze Tage von 0 (sofort) bis 365.");
     const gueltig = ganzzahl(f.angebot_gueltig_tage);
     if (gueltig === null || gueltig < 1 || gueltig > 365) return toast.error("Angebot gültig: ganze Tage von 1 bis 365.");
+    const frist = ganzzahl(f.mahn_frist_tage);
+    if (frist === null || frist < 1 || frist > 90) return toast.error("Mahnfrist: ganze Tage von 1 bis 90.");
+    const zinsen = String(f.verzugszinsen).trim() === "" ? 0 : dezimalLesen(String(f.verzugszinsen));
+    if (zinsen === null || zinsen < 0 || zinsen > 30) return toast.error("Verzugszinsen bitte prüfen — 0 bis 30 % im Jahr.");
+    const spesen: number[] = [];
+    for (const [i, roh] of spesenRoh(f.mahn_spesen).entries()) {
+      const wert = String(roh).trim() === "" ? 0 : dezimalLesen(String(roh));
+      if (wert === null || wert < 0 || wert > 1000) return toast.error(`Spesen für „${STUFEN[i]}“ bitte prüfen — 0 bis 1000 €.`);
+      spesen.push(wert);
+    }
     // Weitere Stundensätze: leere Zeilen fallen weg, der Rest braucht Name und Satz über 0 €
     const saetze: { name: string; satz: number }[] = [];
     for (const z of saetzeRoh(f.stundensaetze)) {
@@ -175,6 +192,7 @@ function Betrieb() {
       uid, firmenbuch: leer(f.firmenbuch), bank_name: leer(f.bank_name), iban, bic,
       farbe: f.farbe, stundensatz, stundensaetze: saetze, material_aufschlag: aufschlag,
       zahlungsziel_tage: ziel, angebot_gueltig_tage: gueltig,
+      mahn_frist_tage: frist, mahn_spesen: spesen, verzugszinsen: zinsen,
       kleinunternehmer: f.kleinunternehmer, angebot_einleitung: leer(f.angebot_einleitung), angebot_schluss: leer(f.angebot_schluss),
       rechnung_einleitung: leer(f.rechnung_einleitung), rechnung_schluss: leer(f.rechnung_schluss), fusszeile: leer(f.fusszeile),
     }).eq("id", 1);
@@ -294,6 +312,22 @@ function Betrieb() {
             Kleinunternehmer <span className="block text-xs font-normal text-muted-foreground">Rechnungen ohne Umsatzsteuer, mit Hinweis nach § 6 Abs. 1 Z 27 UStG</span>
           </Label>
         </div>
+      </Karte>
+
+      <Karte titel="Mahnen">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <Feld label="Neue Frist Tage"><Input className="h-11" inputMode="numeric" value={String(f.mahn_frist_tage)} onChange={(e) => setF({ ...f, mahn_frist_tage: e.target.value as unknown as number })} /></Feld>
+          <Feld label="Verzugszinsen % p. a." hinweis="ab der 1. Mahnung"><Input className="h-11" inputMode="decimal" value={String(f.verzugszinsen).replace(".", ",")} onChange={(e) => setF({ ...f, verzugszinsen: e.target.value as unknown as number })} /></Feld>
+          {spesenRoh(f.mahn_spesen).map((wert, i) => (
+            <Feld key={i} label={`Spesen ${STUFEN[i]} €`}>
+              <Input className="h-11" inputMode="decimal" value={String(wert).replace(".", ",")}
+                onChange={(e) => { const neu = spesenRoh(f.mahn_spesen); neu[i] = e.target.value; setF({ ...f, mahn_spesen: neu }); }} />
+            </Feld>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Verzugszinsen: bei Privatkunden 4 % (§ 1000 ABGB), bei Firmen 9,2 % über dem Basiszinssatz (§ 456 UGB). Mahnspesen müssen angemessen sein.
+        </p>
       </Karte>
 
       <Karte titel="Texte auf Angeboten und Rechnungen">

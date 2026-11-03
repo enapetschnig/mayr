@@ -554,6 +554,8 @@ export type Database = {
           kleinunternehmer: boolean
           land: string
           logo_pfad: string | null
+          mahn_frist_tage: number
+          mahn_spesen: Json
           material_aufschlag: number
           name: string
           ort: string | null
@@ -566,6 +568,7 @@ export type Database = {
           telefon: string | null
           uid: string | null
           updated_at: string
+          verzugszinsen: number
           website: string | null
           zahlungsziel_tage: number
           zusatz: string | null
@@ -586,6 +589,8 @@ export type Database = {
           kleinunternehmer?: boolean
           land?: string
           logo_pfad?: string | null
+          mahn_frist_tage?: number
+          mahn_spesen?: Json
           material_aufschlag?: number
           name: string
           ort?: string | null
@@ -598,6 +603,7 @@ export type Database = {
           telefon?: string | null
           uid?: string | null
           updated_at?: string
+          verzugszinsen?: number
           website?: string | null
           zahlungsziel_tage?: number
           zusatz?: string | null
@@ -618,6 +624,8 @@ export type Database = {
           kleinunternehmer?: boolean
           land?: string
           logo_pfad?: string | null
+          mahn_frist_tage?: number
+          mahn_spesen?: Json
           material_aufschlag?: number
           name?: string
           ort?: string | null
@@ -630,6 +638,7 @@ export type Database = {
           telefon?: string | null
           uid?: string | null
           updated_at?: string
+          verzugszinsen?: number
           website?: string | null
           zahlungsziel_tage?: number
           zusatz?: string | null
@@ -802,6 +811,60 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      mahnungen: {
+        Row: {
+          beleg_id: string
+          created_at: string
+          datum: string
+          erstellt_von: string | null
+          frist_bis: string
+          id: string
+          offen: number
+          spesen: number
+          stufe: number
+          zinsen: number
+        }
+        Insert: {
+          beleg_id: string
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          frist_bis: string
+          id?: string
+          offen: number
+          spesen?: number
+          stufe: number
+          zinsen?: number
+        }
+        Update: {
+          beleg_id?: string
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          frist_bis?: string
+          id?: string
+          offen?: number
+          spesen?: number
+          stufe?: number
+          zinsen?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mahnungen_beleg_id_fkey"
+            columns: ["beleg_id"]
+            isOneToOne: false
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mahnungen_erstellt_von_fkey"
+            columns: ["erstellt_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       material_buchungen: {
         Row: {
@@ -1164,6 +1227,54 @@ export type Database = {
           {
             foreignKeyName: "termine_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zahlungen: {
+        Row: {
+          art: string
+          beleg_id: string
+          betrag: number
+          created_at: string
+          datum: string
+          erstellt_von: string | null
+          id: string
+          notiz: string | null
+        }
+        Insert: {
+          art?: string
+          beleg_id: string
+          betrag: number
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          id?: string
+          notiz?: string | null
+        }
+        Update: {
+          art?: string
+          beleg_id?: string
+          betrag?: number
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          id?: string
+          notiz?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zahlungen_beleg_id_fkey"
+            columns: ["beleg_id"]
+            isOneToOne: false
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zahlungen_erstellt_von_fkey"
+            columns: ["erstellt_von"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
+  BellRing, AlertTriangle, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
   ScanBarcode, UserCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,8 @@ import { datumKurz, euro, isoTag, stunden, tageDazu } from "@/lib/format";
 import { sichtbareNavigation, type NavEintrag } from "@/lib/navigation";
 import { useEingangsrechnungen } from "@/components/eingang/eingangDaten";
 import { zuordnung } from "@/components/eingang/eingangLogik";
+import { useOffenePosten } from "@/components/op/opDaten";
+import { mahnFristAbgelaufen, mahnVorschlag } from "@/components/op/opLogik";
 import { belegStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { KUNDE } from "@/kunde.config";
@@ -121,11 +123,16 @@ export default function Index() {
   // Eingangsrechnungen: noch keinem Projekt (oder dem Betrieb) zugeordnet
   const { data: eingang = [] } = useEingangsrechnungen(istChef);
   const eingangZuordnen = eingang.filter((r) => zuordnung(r, r.eingang_anteile) !== "zugeordnet").length;
+  // Offene Posten: überfällig, und die Frist der letzten Mahnung ist vorbei
+  const { data: op = [] } = useOffenePosten(istChef);
+  const heuteIso = isoTag();
+  const zuMahnen = firma ? op.filter((b) => mahnVorschlag(b, b.zahlungen, b.mahnungen, firma, heuteIso) && mahnFristAbgelaufen(b.mahnungen, heuteIso)).length : 0;
 
   const offenePunkte: Punkt[] = istChef && buero ? ([
     buero.wartend > 0 && { icon: UserCheck, text: `${buero.wartend} ${buero.wartend === 1 ? "Mitarbeiter wartet" : "Mitarbeiter warten"} auf Freischaltung`, to: "/einstellungen?bereich=mitarbeiter", warn: true },
-    buero.ueberfaellig > 0 && { icon: AlertTriangle, text: `${buero.ueberfaellig} ${buero.ueberfaellig === 1 ? "Rechnung ist" : "Rechnungen sind"} überfällig`, to: "/belege?filter=ueberfaellig", warn: true },
-    buero.offen > 0 && { icon: Receipt, text: `${buero.offen} offene ${buero.offen === 1 ? "Rechnung" : "Rechnungen"} · ${euro(buero.offenSumme)}`, to: "/belege?filter=offen" },
+    buero.ueberfaellig > 0 && { icon: AlertTriangle, text: `${buero.ueberfaellig} ${buero.ueberfaellig === 1 ? "Rechnung ist" : "Rechnungen sind"} überfällig`, to: "/offene-posten?filter=ueberfaellig", warn: true },
+    zuMahnen > 0 && { icon: BellRing, text: `${zuMahnen} ${zuMahnen === 1 ? "Rechnung" : "Rechnungen"} zu mahnen`, to: "/offene-posten", warn: true },
+    buero.offen > 0 && { icon: Receipt, text: `${buero.offen} offene ${buero.offen === 1 ? "Rechnung" : "Rechnungen"} · ${euro(buero.offenSumme)}`, to: "/offene-posten?filter=alle" },
     regieOffen > 0 && { icon: ClipboardSignature, text: `${regieOffen} ${regieOffen === 1 ? "Regiebericht" : "Regieberichte"} unterschrieben, nicht verrechnet`, to: "/regie?filter=offen" },
     eingangZuordnen > 0 && { icon: Inbox, text: `${eingangZuordnen} ${eingangZuordnen === 1 ? "Eingangsrechnung" : "Eingangsrechnungen"} zuordnen`, to: "/eingang?filter=zuzuordnen" },
     zuVerrechnen > 0 && { icon: FolderKanban, text: `${zuVerrechnen} ${zuVerrechnen === 1 ? "Projekt hat" : "Projekte haben"} offene Stunden oder Material`, to: "/projekte?filter=offen" },

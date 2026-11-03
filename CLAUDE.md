@@ -16,6 +16,7 @@ steht im Git-Verlauf bis Commit `769f917`, die Datensicherung unter
 `~/Developer/_baukasten/sicherungen/mayr/2026-10-25-vor-umbau/`.
 
 **Konzept, Rollen, Datenmodell, Abläufe, Code-Konventionen: `docs/KONZEPT.md`.**
+Ausbau nach dem Vorbild e-projekt (was fehlt, Reihenfolge, Stand): `docs/AUSBAU-E-PROJEKT.md`.
 Schema samt RLS und Triggern: `supabase/migrations/20261025100000_elektriker_grundschema.sql`.
 
 ## Design „Werkbank“
@@ -41,8 +42,8 @@ npm run check        # Absturz-Wächter
 npm test             # vitest (Parser)
 ```
 
-Regeln in der Datenbank prüfen (93 Prüfungen: nicht freigeschaltet, Monteur,
-Chef, Festschreiben, Stornorechnung, Korrektur, Eingangsrechnungen,
+Regeln in der Datenbank prüfen (100 Prüfungen: nicht freigeschaltet, Monteur,
+Chef, Festschreiben, Offene Posten, Stornorechnung, Korrektur, Eingangsrechnungen,
 Regiebericht, Material, Konten, Rechnungsarchiv) — legt echte Daten und Nummern an, danach **immer** aufräumen:
 
 ```bash

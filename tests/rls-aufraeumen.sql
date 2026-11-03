@@ -18,6 +18,7 @@ begin
 
   delete from public.eingangsrechnungen where lieferant like 'RLS-Test%' or erstellt_von = any(v_user);
   delete from public.eingang_anteile where projekt_id = any(v_projekte);
+  delete from public.zahlungen where beleg_id in (select id from public.belege where projekt_id = any(v_projekte) or erstellt_von = any(v_user));
   delete from public.belege where projekt_id = any(v_projekte) or erstellt_von = any(v_user);
   delete from public.zeiten where projekt_id = any(v_projekte) or user_id = any(v_user) or erstellt_von = any(v_user);
   delete from public.material_buchungen where projekt_id = any(v_projekte) or user_id = any(v_user);

@@ -156,6 +156,26 @@ Rechnungen von Großhändlern und Subunternehmern, nur der Chef
   Material, sonst Pauschale. Verrechnete Anteile sind fest
   (`eingang_anteil_schutz`), die Rechnung dazu lässt sich nicht löschen.
 
+### Offene Posten und Mahnen (`components/op/`, Seite `/offene-posten`)
+
+Nur der Chef (Migration `20261103100000_offene_posten.sql`):
+- **Zahlungen** (`zahlungen`): je Rechnung beliebig viele — Zahlung, Skonto,
+  Ausbuchen. „Bezahlt“ setzt nur die Datenbank: Trigger `zahlungen_status`
+  rechnet die Summe; erreicht sie den Bruttobetrag, wird die Rechnung
+  `bezahlt` (Zahldatum = letzte Zahlung), sonst bleibt/wird sie `offen`.
+  Zahlung löschen macht sie wieder offen. Mehr als offen geht im Dialog
+  nicht (Überzahlung = Gutschrift). Ältere „als bezahlt markierte“
+  Rechnungen bekamen beim Umstieg eine Zahlung über den ganzen Betrag.
+- **Mahnen** (`mahnungen`, je Rechnung und Stufe eine): 1 Zahlungserinnerung
+  (ohne Zinsen) → 2 1. Mahnung → 3 letzte Mahnung (kündigt Eintreibung an).
+  Die nächste Stufe gibt es erst, wenn die Frist der letzten vorbei ist.
+  Spesen je Stufe, neue Frist und Verzugszinsen p. a. in Einstellungen →
+  Mahnen (`firma.mahn_*`, `verzugszinsen`); Zinsen ab Fälligkeit tageweise
+  (`opLogik.verzugszinsen`). Die Mahnung hält fest, was draufstand; das PDF
+  (`lib/mahnPdf.ts`, Bezahl-QR über den Gesamtbetrag) entsteht daraus
+  jederzeit gleich neu. Nur die höchste Stufe lässt sich zurücknehmen.
+- Startseite: „… zu mahnen“, „… überfällig“ führen auf `/offene-posten`.
+
 ### Kalkulieren im Angebot (`lib/kalkulation.ts`)
 
 Bewusst einfach, kein eigenes Kalkulationsblatt:

@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Ban, Calculator, Check, Clock, Copy, Download, FileText, FolderInput, LockOpen, Mic, MoreVertical, Package, PenLine, Percent, Plus,
-  Receipt, RotateCcw, Rows3, Save, ThumbsDown, ThumbsUp, Trash2, Undo2, Wallet,
+  Receipt, RotateCcw, Rows3, Save, ThumbsDown, ThumbsUp, Trash2, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +19,7 @@ import {
 import { Seite } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/Bausteine";
 import { FormularDialog } from "@/components/FormularDialog";
+import { OpKarte } from "@/components/op/OpKarte";
 import { useIstPc } from "@/components/AppLayout";
 import { useNeuLaden, useProjekt } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
@@ -100,7 +101,6 @@ export function BelegEditor({
   const [entsperrt, setEntsperrt] = useState(false);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [frage, setFrage] = useState<Frage>(null);
-  const [bezahltAm, setBezahltAm] = useState<string | null>(null);
   const [loeschen, setLoeschen] = useState<{ projektMoeglich: boolean; projektAuch: boolean } | null>(null);
   const [vorschau, setVorschau] = useState<{ url: string; blob: Blob; dateiname: string } | null>(null);
   const [dialog, setDialog] = useState<Dialog>(autoSprache ? "sprache" : autoImport ? "import" : null);
@@ -388,12 +388,6 @@ export function BelegEditor({
     await neuHolen();
     if (zurueck) toast.success("Wieder offen — das Projekt steht wieder auf „Angebot“.");
   });
-  const bezahltSetzen = (am: string) => ausfuehren("status", async () => {
-    setBezahltAm(null);
-    await statusSetzen(id, "bezahlt", am || heute);
-    await neuHolen();
-    toast.success("Als bezahlt markiert");
-  });
   const stornoAusfuehren = () => ausfuehren("storno", async () => {
     setFrage(null);
     const rechnungNr = beleg?.nummer ?? null;
@@ -652,9 +646,6 @@ export function BelegEditor({
         {istAngebot && (status === "angenommen" || status === "abgelehnt") && (
           <MenuePunkt icon={Undo2} onClick={wiederOffen}>Wieder auf „offen“</MenuePunkt>
         )}
-        {!istAngebot && status === "bezahlt" && (
-          <MenuePunkt icon={Undo2} onClick={wiederOffen}>Doch nicht bezahlt</MenuePunkt>
-        )}
         {!istAngebot && status === "storniert" && (
           <MenuePunkt icon={RotateCcw} onClick={korrekturOeffnen}>{korrekturBeleg ? "Korrektur öffnen" : "Korrektur anlegen"}</MenuePunkt>
         )}
@@ -743,10 +734,7 @@ export function BelegEditor({
         ]
         : [{ text: "PDF", icon: FileText, onClick: pdf }, { text: "Wieder offen", icon: Undo2, onClick: wiederOffen }]
     : status === "offen"
-      ? [
-        { text: pc ? "PDF" : "PDF teilen", icon: FileText, onClick: pdf, primaer: true },
-        { text: "Bezahlt", icon: Wallet, onClick: () => setBezahltAm(heute) },
-      ]
+      ? [{ text: pc ? "PDF" : "PDF teilen", icon: FileText, onClick: pdf, primaer: true }]
       : status === "storniert"
         ? [
           { text: korrekturBeleg ? "Korrektur öffnen" : "Korrektur anlegen", icon: RotateCcw, onClick: korrekturOeffnen, primaer: true },
@@ -883,6 +871,7 @@ export function BelegEditor({
   return (
     <Seite titel={titel} untertitel={untertitel} aktionen={aktionen} breit={pc}>
       {statusKarte}
+      {beleg && !istAngebot && !entwurf && !istStorno && <OpKarte rechnung={beleg} onGeaendert={() => void neuHolen()} />}
 
       {gefunden && bearbeitbar && (
         <section className={cn("rounded-lg border p-4", TON_KLASSE.gelb)}>
@@ -1079,22 +1068,6 @@ export function BelegEditor({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={bezahltAm != null} onOpenChange={(o) => { if (!o) setBezahltAm(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Als bezahlt markieren</AlertDialogTitle>
-            <AlertDialogDescription>Wann ist das Geld eingegangen?</AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="bezahlt-am">Zahlungseingang</Label>
-            <Input id="bezahlt-am" type="date" className="h-12" value={bezahltAm ?? ""} onChange={(e) => setBezahltAm(e.target.value)} />
-          </div>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="h-11">Abbrechen</AlertDialogCancel>
-            <Button className="h-11" onClick={() => bezahltSetzen(bezahltAm ?? heute)} disabled={!bezahltAm}>Bezahlt</Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={!!loeschen} onOpenChange={(o) => { if (!o) setLoeschen(null); }}>
         <AlertDialogContent>

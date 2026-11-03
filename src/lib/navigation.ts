@@ -1,5 +1,5 @@
 import {
-  BarChart3, CalendarDays, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
+  BarChart3, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
   Receipt, ScanBarcode, Settings, Smartphone, Users, Warehouse, type LucideIcon,
 } from "lucide-react";
 
@@ -34,6 +34,7 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Lager", text: "Bestand, Busse, was nachbestellen", pfad: "/lager", icon: Warehouse, gruppe: "baustelle" },
 
   { titel: "Angebote & Rechnungen", text: "Vor Ort per Sprache, PDF mit Bezahl-QR", pfad: "/belege", icon: Receipt, gruppe: "buero", nurChef: true },
+  { titel: "Offene Posten", text: "Wer noch zahlen muss, mahnen mit einem Tipp", pfad: "/offene-posten", icon: HandCoins, gruppe: "buero", nurChef: true },
   { titel: "Eingangsrechnungen", text: "Rechnungen vom Großhändler zuordnen", pfad: "/eingang", icon: Inbox, gruppe: "buero", nurChef: true },
   { titel: "Kunden", text: "Adressen und Kontakte", pfad: "/kunden", icon: Users, gruppe: "buero" },
   { titel: "Artikel", text: "Artikelstamm, Datanorm, Strichcodes", pfad: "/artikel", icon: Package, gruppe: "buero" },

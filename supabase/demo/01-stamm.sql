@@ -28,6 +28,8 @@ begin
   alter table zeiten disable trigger user;
   alter table material_buchungen disable trigger user;
   alter table eingang_anteile disable trigger user;
+  delete from mahnungen;
+  delete from zahlungen;
   delete from eingang_anteile;
   delete from eingangsrechnungen;
   delete from beleg_positionen;

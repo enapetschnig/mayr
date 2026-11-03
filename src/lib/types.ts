@@ -21,6 +21,8 @@ export type Eingangsrechnung = Tables<"eingangsrechnungen">;
 export type EingangAnteil = Tables<"eingang_anteile">;
 export type Datei = Tables<"dateien">;
 export type Termin = Tables<"termine">;
+export type Zahlung = Tables<"zahlungen">;
+export type Mahnung = Tables<"mahnungen">;
 
 export type Rolle = "chef" | "monteur";
 
