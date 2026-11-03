@@ -18,6 +18,9 @@ const ProjektDetail = lazy(() => import("./pages/ProjektDetail"));
 const Zeiten = lazy(() => import("./pages/Zeiten"));
 const Kalender = lazy(() => import("./pages/Kalender"));
 const Scan = lazy(() => import("./pages/Scan"));
+const Anlagen = lazy(() => import("./pages/Anlagen"));
+const AnlageDetail = lazy(() => import("./pages/AnlageDetail"));
+const PruefungSeite = lazy(() => import("./pages/PruefungSeite"));
 const Lager = lazy(() => import("./pages/Lager"));
 const Regieberichte = lazy(() => import("./pages/Regieberichte"));
 const RegieDetail = lazy(() => import("./pages/RegieDetail"));
@@ -68,6 +71,9 @@ const App = () => (
                 <Route path="/kalender" element={<S><Kalender /></S>} />
                 <Route path="/scan" element={<S><Scan /></S>} />
                 <Route path="/lager" element={<S><Lager /></S>} />
+                <Route path="/anlagen" element={<S><Anlagen /></S>} />
+                <Route path="/anlagen/:id" element={<S><AnlageDetail /></S>} />
+                <Route path="/pruefungen/:id" element={<S><PruefungSeite /></S>} />
                 <Route path="/regie" element={<S><Regieberichte /></S>} />
                 <Route path="/regie/neu" element={<S><RegieSeite /></S>} />
                 <Route path="/regie/:id" element={<S><RegieSeite /></S>} />

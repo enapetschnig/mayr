@@ -28,6 +28,9 @@ begin
   alter table zeiten disable trigger user;
   alter table material_buchungen disable trigger user;
   alter table eingang_anteile disable trigger user;
+  alter table pruefungen disable trigger user;
+  delete from pruefungen;
+  delete from anlagen;
   delete from mahnungen;
   delete from zahlungen;
   delete from eingang_anteile;
@@ -52,7 +55,9 @@ begin
   alter table zeiten enable trigger user;
   alter table material_buchungen enable trigger user;
   alter table eingang_anteile enable trigger user;
+  alter table pruefungen enable trigger user;
   perform setval(pg_get_serial_sequence('kunden', 'nummer'), 1001, false);
+  perform setval(pg_get_serial_sequence('anlagen', 'nummer'), 1, false);
 
   -- ── Betrieb ──────────────────────────────────────────────────────────────
   update firma set
@@ -108,6 +113,14 @@ begin
   insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
     values ('Gasthaus Zum Kirchenwirt', 'Josef Kern', 'Kirchenplatz 1', '4320', 'Perg', '+43 000 0000105', 'kirchenwirt@beispiel.demo', 'ATU00000003', 'Ruhetag Montag')
     returning id into k_kirchenwirt;
+
+  -- ── Anlagen mit Prüfintervall (eine überfällig, eine bald fällig) ─────────
+  insert into anlagen (kunde_id, bezeichnung, art, standort, hersteller, typ, baujahr, intervall_monate, letzte_pruefung, naechste_pruefung, preis, notiz, erstellt_von) values
+    (k_gruber, 'Elektroanlage Backstube', 'elektroanlage', 'Backstube und Verkaufsraum', null, null, 2009, 12, '2025-11-10', '2026-11-10', 240, 'Prüfung vor 6 Uhr früh oder nach 14 Uhr', v_chef),
+    (k_sonnenhof, 'Notbeleuchtung Stiegenhaus', 'notlicht', 'Stiegenhaus 1–3, Keller', 'Demo-Licht', 'Zentralbatterie ZB 24', 2016, 12, '2025-10-20', '2026-10-20', 120, null, v_chef),
+    (k_sonnenhof, 'Blitzschutz Wohnanlage', 'blitzschutz', 'Dach Haus 1–3', null, null, 2016, 36, '2024-05-15', '2027-05-15', 380, 'Schlüssel Dachboden beim Hausmeister', v_chef),
+    (k_kirchenwirt, 'E-Check Gasthaus', 'elektroanlage', 'Küche, Gastraum, Keller', null, null, 1998, 12, '2026-03-02', '2027-03-02', 290, 'Ruhetag Montag — dann prüfen', v_chef),
+    (k_huber, 'Hauptverteiler', 'verteiler', 'Technikraum EG', 'Demo-Verteiler', 'UV 4x12', 2026, 48, null, null, null, 'Neubau — Erstprüfung bei Fertigstellung', v_chef);
 
   -- ── Projekte (Nummer vergibt der Trigger: 2026-0001 …) ────────────────────
   insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von) values

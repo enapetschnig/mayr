@@ -9,6 +9,103 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      anlagen: {
+        Row: {
+          aktiv: boolean
+          art: string
+          baujahr: number | null
+          bezeichnung: string
+          created_at: string
+          erstellt_von: string | null
+          hersteller: string | null
+          id: string
+          intervall_monate: number | null
+          kunde_id: string | null
+          letzte_pruefung: string | null
+          naechste_pruefung: string | null
+          notiz: string | null
+          nummer: number
+          ort: string | null
+          plz: string | null
+          preis: number | null
+          projekt_id: string | null
+          standort: string | null
+          strasse: string | null
+          typ: string | null
+          updated_at: string
+        }
+        Insert: {
+          aktiv?: boolean
+          art?: string
+          baujahr?: number | null
+          bezeichnung: string
+          created_at?: string
+          erstellt_von?: string | null
+          hersteller?: string | null
+          id?: string
+          intervall_monate?: number | null
+          kunde_id?: string | null
+          letzte_pruefung?: string | null
+          naechste_pruefung?: string | null
+          notiz?: string | null
+          nummer?: number
+          ort?: string | null
+          plz?: string | null
+          preis?: number | null
+          projekt_id?: string | null
+          standort?: string | null
+          strasse?: string | null
+          typ?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aktiv?: boolean
+          art?: string
+          baujahr?: number | null
+          bezeichnung?: string
+          created_at?: string
+          erstellt_von?: string | null
+          hersteller?: string | null
+          id?: string
+          intervall_monate?: number | null
+          kunde_id?: string | null
+          letzte_pruefung?: string | null
+          naechste_pruefung?: string | null
+          notiz?: string | null
+          nummer?: number
+          ort?: string | null
+          plz?: string | null
+          preis?: number | null
+          projekt_id?: string | null
+          standort?: string | null
+          strasse?: string | null
+          typ?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anlagen_kunde_id_fkey"
+            columns: ["kunde_id"]
+            isOneToOne: false
+            referencedRelation: "kunden"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anlagen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
+          },
+          {
+            foreignKeyName: "anlagen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       artikel: {
         Row: {
           aktiv: boolean
@@ -1095,6 +1192,100 @@ export type Database = {
             columns: ["kunde_id"]
             isOneToOne: false
             referencedRelation: "kunden"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pruefungen: {
+        Row: {
+          anlage_id: string
+          art: string
+          bemerkung: string | null
+          besichtigung: Json
+          created_at: string
+          datum: string
+          erder_ohm: number | null
+          ergebnis: string | null
+          erstellt_von: string | null
+          id: string
+          maengel: string | null
+          messgeraet: string | null
+          messungen: Json
+          netz: string | null
+          nummer: string | null
+          rechnung_id: string | null
+          status: string
+          unterschrieben_am: string | null
+          unterschrift_name: string | null
+          unterschrift_pfad: string | null
+          updated_at: string
+        }
+        Insert: {
+          anlage_id: string
+          art?: string
+          bemerkung?: string | null
+          besichtigung?: Json
+          created_at?: string
+          datum?: string
+          erder_ohm?: number | null
+          ergebnis?: string | null
+          erstellt_von?: string | null
+          id?: string
+          maengel?: string | null
+          messgeraet?: string | null
+          messungen?: Json
+          netz?: string | null
+          nummer?: string | null
+          rechnung_id?: string | null
+          status?: string
+          unterschrieben_am?: string | null
+          unterschrift_name?: string | null
+          unterschrift_pfad?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anlage_id?: string
+          art?: string
+          bemerkung?: string | null
+          besichtigung?: Json
+          created_at?: string
+          datum?: string
+          erder_ohm?: number | null
+          ergebnis?: string | null
+          erstellt_von?: string | null
+          id?: string
+          maengel?: string | null
+          messgeraet?: string | null
+          messungen?: Json
+          netz?: string | null
+          nummer?: string | null
+          rechnung_id?: string | null
+          status?: string
+          unterschrieben_am?: string | null
+          unterschrift_name?: string | null
+          unterschrift_pfad?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pruefungen_anlage_id_fkey"
+            columns: ["anlage_id"]
+            isOneToOne: false
+            referencedRelation: "anlagen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pruefungen_erstellt_von_fkey"
+            columns: ["erstellt_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pruefungen_rechnung_id_fkey"
+            columns: ["rechnung_id"]
+            isOneToOne: false
+            referencedRelation: "belege"
             referencedColumns: ["id"]
           },
         ]

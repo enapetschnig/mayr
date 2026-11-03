@@ -140,6 +140,7 @@ export async function belegSpeichern({
 export async function quellenBinden(belegId: string, q: Quelle): Promise<number> {
   const teile: [string, string[]][] = [
     ["zeiten", q.zeiten], ["material_buchungen", q.material], ["regieberichte", q.regie], ["eingang_anteile", q.eingang ?? []],
+    ["pruefungen", q.pruefung ?? []],
   ];
   let konflikte = 0;
   // Teilrechnungen: an der Teilrechnung steht, in welcher Schlussrechnung sie abgezogen ist
@@ -154,7 +155,7 @@ export async function quellenBinden(belegId: string, q: Quelle): Promise<number>
   for (const [tabelle, ids] of teile) {
     for (let i = 0; i < ids.length; i += 100) {
       const stueck = ids.slice(i, i + 100);
-      // Alle vier Tabellen haben `id` und `rechnung_id` — derselbe Aufruf passt
+      // Alle fünf Tabellen haben `id` und `rechnung_id` — derselbe Aufruf passt
       const t = tabelle as "zeiten";
       const { error } = await supabase.from(t).update({ rechnung_id: belegId }).in("id", stueck).is("rechnung_id", null);
       if (error) throw fehler("Stunden und Material konnten nicht als verrechnet markiert werden", error);
@@ -340,7 +341,7 @@ export async function belegKopieren({
 function quelleAusJson(j: Position["quelle"]): Quelle | null {
   const o = (j && typeof j === "object" && !Array.isArray(j) ? j : {}) as Record<string, unknown>;
   const liste = (x: unknown) => (Array.isArray(x) ? x.filter((v): v is string => typeof v === "string") : []);
-  const q = { zeiten: liste(o.zeiten), material: liste(o.material), regie: liste(o.regie), eingang: liste(o.eingang), teil: liste(o.teil) };
+  const q = { zeiten: liste(o.zeiten), material: liste(o.material), regie: liste(o.regie), eingang: liste(o.eingang), teil: liste(o.teil), pruefung: liste(o.pruefung) };
   return quelleJson(q) ? q : null;
 }
 

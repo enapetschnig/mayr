@@ -15,7 +15,10 @@ begin
   alter table public.belege disable trigger user;
   alter table public.beleg_positionen disable trigger user;
   alter table public.eingang_anteile disable trigger user;
+  alter table public.pruefungen disable trigger user;
 
+  delete from public.pruefungen where anlage_id in (select id from public.anlagen where bezeichnung like 'RLS-Test%') or erstellt_von = any(v_user);
+  delete from public.anlagen where bezeichnung like 'RLS-Test%' or erstellt_von = any(v_user);
   delete from public.eingangsrechnungen where lieferant like 'RLS-Test%' or erstellt_von = any(v_user);
   delete from public.eingang_anteile where projekt_id = any(v_projekte);
   delete from public.zahlungen where beleg_id in (select id from public.belege where projekt_id = any(v_projekte) or erstellt_von = any(v_user));
@@ -34,6 +37,7 @@ begin
   alter table public.belege enable trigger user;
   alter table public.beleg_positionen enable trigger user;
   alter table public.eingang_anteile enable trigger user;
+  alter table public.pruefungen enable trigger user;
 
   -- Nummernkreise zurück auf die höchste Nummer, die es noch gibt
   update public.nummernkreise n set letzte = coalesce((
@@ -42,5 +46,6 @@ begin
       union all select nummer from public.belege where n.typ = 'angebot' and nummer like 'AN-' || n.jahr || '-%'
       union all select nummer from public.belege where n.typ = 'rechnung' and nummer like 'RE-' || n.jahr || '-%'
       union all select nummer from public.regieberichte where n.typ = 'regie' and nummer like 'RB-' || n.jahr || '-%'
+      union all select nummer from public.pruefungen where n.typ = 'pruefung' and nummer like 'PR-' || n.jahr || '-%'
     ) x), 0);
 end $$;

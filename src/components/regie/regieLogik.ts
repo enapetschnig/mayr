@@ -245,7 +245,7 @@ export function kurzText(text: string | null | undefined, max = 90): string {
 const PDF_ERSATZ: Record<string, string> = {
   "→": "->", "←": "<-", "⇒": "=>", "≤": "<=", "≥": ">=", "≈": "~", "‑": "-", "−": "-",
   "\u00A0": " ", "\u202F": " ", "\u2009": " ", "\u2028": "\n", "\u2029": "\n", "\t": " ",
-  "✓": "x", "✔": "x",
+  "✓": "x", "✔": "x", "Ω": "Ohm", "Δ": "d",
 };
 /** Zeichen, die Helvetica im PDF zusätzlich zu Latin-1 kennt (WinAnsi) */
 const WIN_ANSI = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";

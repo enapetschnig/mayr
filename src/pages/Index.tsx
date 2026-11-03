@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   BellRing, AlertTriangle, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
-  ScanBarcode, UserCheck,
+  ScanBarcode, ShieldCheck, UserCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KontoMenue } from "@/components/KontoMenue";
@@ -19,6 +19,8 @@ import { sichtbareNavigation, type NavEintrag } from "@/lib/navigation";
 import { useEingangsrechnungen } from "@/components/eingang/eingangDaten";
 import { zuordnung } from "@/components/eingang/eingangLogik";
 import { useOffenePosten } from "@/components/op/opDaten";
+import { useAnlagen } from "@/components/anlagen/anlagenDaten";
+import { faelligkeit } from "@/components/anlagen/pruefLogik";
 import { mahnFristAbgelaufen, mahnVorschlag } from "@/components/op/opLogik";
 import { belegStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -128,11 +130,22 @@ export default function Index() {
   const heuteIso = isoTag();
   const zuMahnen = firma ? op.filter((b) => mahnVorschlag(b, b.zahlungen, b.mahnungen, firma, heuteIso) && mahnFristAbgelaufen(b.mahnungen, heuteIso)).length : 0;
 
+  // Anlagen: überfällig oder in den nächsten 30 Tagen zu prüfen
+  const { data: anlagen = [] } = useAnlagen();
+  const pruefFaellig = anlagen.filter((a) => a.aktiv && ["ueberfaellig", "bald"].includes(faelligkeit(a.naechste_pruefung, heuteIso).stufe));
+  const pruefUeber = pruefFaellig.filter((a) => faelligkeit(a.naechste_pruefung, heuteIso).stufe === "ueberfaellig").length;
+
   const offenePunkte: Punkt[] = istChef && buero ? ([
     buero.wartend > 0 && { icon: UserCheck, text: `${buero.wartend} ${buero.wartend === 1 ? "Mitarbeiter wartet" : "Mitarbeiter warten"} auf Freischaltung`, to: "/einstellungen?bereich=mitarbeiter", warn: true },
     buero.ueberfaellig > 0 && { icon: AlertTriangle, text: `${buero.ueberfaellig} ${buero.ueberfaellig === 1 ? "Rechnung ist" : "Rechnungen sind"} überfällig`, to: "/offene-posten?filter=ueberfaellig", warn: true },
     zuMahnen > 0 && { icon: BellRing, text: `${zuMahnen} ${zuMahnen === 1 ? "Rechnung" : "Rechnungen"} zu mahnen`, to: "/offene-posten", warn: true },
     buero.offen > 0 && { icon: Receipt, text: `${buero.offen} offene ${buero.offen === 1 ? "Rechnung" : "Rechnungen"} · ${euro(buero.offenSumme)}`, to: "/offene-posten?filter=alle" },
+    pruefFaellig.length > 0 && {
+      icon: ShieldCheck,
+      text: `${pruefFaellig.length} ${pruefFaellig.length === 1 ? "Anlage" : "Anlagen"} zu prüfen${pruefUeber ? ` · ${pruefUeber} überfällig` : ""}`,
+      to: "/anlagen",
+      warn: pruefUeber > 0,
+    },
     regieOffen > 0 && { icon: ClipboardSignature, text: `${regieOffen} ${regieOffen === 1 ? "Regiebericht" : "Regieberichte"} unterschrieben, nicht verrechnet`, to: "/regie?filter=offen" },
     eingangZuordnen > 0 && { icon: Inbox, text: `${eingangZuordnen} ${eingangZuordnen === 1 ? "Eingangsrechnung" : "Eingangsrechnungen"} zuordnen`, to: "/eingang?filter=zuzuordnen" },
     zuVerrechnen > 0 && { icon: FolderKanban, text: `${zuVerrechnen} ${zuVerrechnen === 1 ? "Projekt hat" : "Projekte haben"} offene Stunden oder Material`, to: "/projekte?filter=offen" },

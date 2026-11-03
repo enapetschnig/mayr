@@ -26,8 +26,8 @@ export const ART_NAME: Record<PositionsArt, string> = {
 };
 
 /** Herkunft einer Position — beim Löschen gibt der Trigger diese Buchungen frei */
-/** Herkunft einer Position. `eingang`: weiterverrechnete Anteile von Eingangsrechnungen, `teil`: abgezogene Teilrechnungen */
-export type Quelle = { zeiten: string[]; material: string[]; regie: string[]; eingang?: string[]; teil?: string[] };
+/** Herkunft einer Position. `eingang`: weiterverrechnete Anteile von Eingangsrechnungen, `teil`: abgezogene Teilrechnungen, `pruefung`: Prüfprotokolle */
+export type Quelle = { zeiten: string[]; material: string[]; regie: string[]; eingang?: string[]; teil?: string[]; pruefung?: string[] };
 
 /** Eine Zeile im Editor. Menge und Preis als Text, damit „2,“ beim Tippen stehen bleibt. */
 export type EditorPosition = {
@@ -91,7 +91,7 @@ export function summen(positionen: EditorPosition[], ustSatz: number, ohneUst: b
 
 // ── Quelle ──────────────────────────────────────────────────────────────
 
-const LEERE_QUELLE = (): Quelle => ({ zeiten: [], material: [], regie: [], eingang: [], teil: [] });
+const LEERE_QUELLE = (): Quelle => ({ zeiten: [], material: [], regie: [], eingang: [], teil: [], pruefung: [] });
 
 export function quelleLesen(j: Json | null | undefined): Quelle | null {
   if (!j || typeof j !== "object" || Array.isArray(j)) return null;
@@ -102,7 +102,9 @@ export function quelleLesen(j: Json | null | undefined): Quelle | null {
   if (eingang.length) q.eingang = eingang;
   const teil = liste(o.teil);
   if (teil.length) q.teil = teil;
-  return q.zeiten.length || q.material.length || q.regie.length || eingang.length || teil.length ? q : null;
+  const pruefung = liste(o.pruefung);
+  if (pruefung.length) q.pruefung = pruefung;
+  return q.zeiten.length || q.material.length || q.regie.length || eingang.length || teil.length || pruefung.length ? q : null;
 }
 
 /** Nur befüllte Listen schreiben — `{"zeiten":[…]}` wie im Bestand */
@@ -114,6 +116,7 @@ export function quelleJson(q: Quelle | null | undefined): Json | null {
   if (q.regie.length) o.regie = q.regie;
   if (q.eingang?.length) o.eingang = q.eingang;
   if (q.teil?.length) o.teil = q.teil;
+  if (q.pruefung?.length) o.pruefung = q.pruefung;
   return Object.keys(o).length ? o : null;
 }
 
@@ -127,10 +130,11 @@ export function quellenIds(positionen: Pick<EditorPosition, "quelle">[]): Quelle
     q.regie.push(...p.quelle.regie);
     q.eingang!.push(...(p.quelle.eingang ?? []));
     q.teil!.push(...(p.quelle.teil ?? []));
+    q.pruefung!.push(...(p.quelle.pruefung ?? []));
   });
   return {
     zeiten: [...new Set(q.zeiten)], material: [...new Set(q.material)], regie: [...new Set(q.regie)], eingang: [...new Set(q.eingang)],
-    teil: [...new Set(q.teil)],
+    teil: [...new Set(q.teil)], pruefung: [...new Set(q.pruefung)],
   };
 }
 

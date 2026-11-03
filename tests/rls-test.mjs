@@ -335,6 +335,60 @@ console.log("\n— Teil- und Schlussrechnung —");
   ok(!eSrSt && t2?.abgezogen_in === null, "Schlussrechnung storniert → Teilrechnung wieder frei" + (eSrSt ? abgelehnt(eSrSt) : ""));
 }
 
+console.log("\n— Anlagen und Prüfprotokolle —");
+{
+  const heuteIso = new Date().toISOString().slice(0, 10);
+  const { data: anl, error: eAnl } = await monteur.from("anlagen")
+    .insert({ bezeichnung: "RLS-Test Verteiler", art: "verteiler", intervall_monate: 12 }).select("id").single();
+  ok(!eAnl, "Monteur legt eine Anlage an" + (eAnl ? abgelehnt(eAnl) : ""));
+  const { data: anlWeg } = await monteur.from("anlagen").delete().eq("id", anl.id).select();
+  ok(!anlWeg?.length, "Monteur löscht keine Anlage");
+  const { data: pr, error: ePr } = await monteur.from("pruefungen").insert({ anlage_id: anl.id, datum: heuteIso }).select("id, nummer").single();
+  ok(!ePr && /^PR-\d{4}-\d{3}$/.test(pr?.nummer ?? ""), `Monteur beginnt ein Prüfprotokoll: ${pr?.nummer ?? ePr?.message}`);
+  const sign = (felder) => monteur.from("pruefungen").update({ status: "unterschrieben", ...felder }).eq("id", pr.id).select("id").single();
+  const { error: eOhneBild } = await sign({ unterschrift_name: "RLS Kunde", ergebnis: "ok" });
+  ok(!!eOhneBild, "ohne Unterschriftsbild wird nicht unterschrieben" + abgelehnt(eOhneBild));
+  const { error: eOhneErg } = await sign({ unterschrift_name: "RLS Kunde", unterschrift_pfad: "anlagen/unterschriften/rls.png" });
+  ok(!!eOhneErg, "ohne Ergebnis wird nicht unterschrieben" + abgelehnt(eOhneErg));
+  const { error: eOhneMaengel } = await sign({ unterschrift_name: "RLS Kunde", unterschrift_pfad: "anlagen/unterschriften/rls.png", ergebnis: "maengel" });
+  ok(!!eOhneMaengel, "Mängel ohne Beschreibung gehen nicht" + abgelehnt(eOhneMaengel));
+  const { error: eSign } = await sign({ unterschrift_name: "RLS Kunde", unterschrift_pfad: "anlagen/unterschriften/rls.png", ergebnis: "ok" });
+  ok(!eSign, "Kunde unterschreibt das Protokoll" + (eSign ? abgelehnt(eSign) : ""));
+  const { data: anlNach } = await monteur.from("anlagen").select("letzte_pruefung, naechste_pruefung").eq("id", anl.id).single();
+  const naechste = new Date(`${heuteIso}T12:00:00Z`); naechste.setUTCFullYear(naechste.getUTCFullYear() + 1);
+  ok(anlNach?.letzte_pruefung === heuteIso && anlNach?.naechste_pruefung === naechste.toISOString().slice(0, 10),
+    `die nächste Prüfung springt ein Jahr weiter: ${anlNach?.naechste_pruefung}`);
+  const { error: eFest } = await chef.from("pruefungen").update({ maengel: "nachträglich" }).eq("id", pr.id);
+  ok(!!eFest, "unterschriebenes Protokoll ist fest" + abgelehnt(eFest));
+  const { error: eWeg } = await chef.from("pruefungen").delete().eq("id", pr.id);
+  const { data: noch } = await chef.from("pruefungen").select("id").eq("id", pr.id);
+  ok(noch?.length === 1, "unterschriebenes Protokoll lässt sich nicht löschen" + (eWeg ? ` — ${eWeg.message}` : ""));
+  const { error: eAnlWeg } = await chef.from("anlagen").delete().eq("id", anl.id);
+  ok(!!eAnlWeg, "Anlage mit Protokoll bleibt" + abgelehnt(eAnlWeg));
+
+  const { data: re3 } = await chef.from("belege").insert({ typ: "rechnung", projekt_id: projekt.id, empf_name: "RLS-Test Kunde" }).select("id").single();
+  const { error: eMVerr } = await monteur.from("pruefungen").update({ rechnung_id: re3.id }).eq("id", pr.id);
+  ok(!!eMVerr, "Monteur verrechnet kein Prüfprotokoll" + abgelehnt(eMVerr));
+  const { data: prPos } = await chef.from("beleg_positionen").insert({
+    beleg_id: re3.id, pos: 1, art: "pauschale", bezeichnung: "RLS-Test Prüfung", menge: 1, einheit: "Psch", einzelpreis: 150, quelle: { pruefung: [pr.id] },
+  }).select("id").single();
+  const { error: eVerr } = await chef.from("pruefungen").update({ rechnung_id: re3.id }).eq("id", pr.id);
+  ok(!eVerr, "Chef verrechnet das unterschriebene Protokoll" + (eVerr ? abgelehnt(eVerr) : ""));
+  await chef.from("beleg_positionen").delete().eq("id", prPos.id);
+  const { data: frei1 } = await chef.from("pruefungen").select("rechnung_id").eq("id", pr.id).single();
+  ok(frei1?.rechnung_id === null, "Position gelöscht → Protokoll wieder frei");
+  await chef.from("beleg_positionen").insert({
+    beleg_id: re3.id, pos: 1, art: "pauschale", bezeichnung: "RLS-Test Prüfung", menge: 1, einheit: "Psch", einzelpreis: 150, quelle: { pruefung: [pr.id] },
+  });
+  await chef.from("pruefungen").update({ rechnung_id: re3.id }).eq("id", pr.id);
+  await chef.rpc("beleg_fertigstellen", { p_id: re3.id });
+  const { error: eSt3 } = await chef.rpc("beleg_stornieren", { p_id: re3.id });
+  const { data: frei2 } = await chef.from("pruefungen").select("rechnung_id").eq("id", pr.id).single();
+  ok(!eSt3 && frei2?.rechnung_id === null, "Storno gibt das Protokoll wieder frei" + (eSt3 ? abgelehnt(eSt3) : ""));
+  const { data: neuSieht } = await neu.from("anlagen").select("id");
+  ok(!neuSieht?.length, "nicht Freigeschaltete sehen keine Anlagen");
+}
+
 console.log("\n— Regiebericht —");
 const { data: rb, error: eRb } = await monteur.from("regieberichte").insert({ projekt_id: projekt.id, arbeiten: "RLS-Test Arbeiten" }).select("id, nummer").single();
 ok(!eRb && /^RB-\d{4}-\d{3}$/.test(rb?.nummer ?? ""), `Monteur schreibt einen Regiebericht: ${rb?.nummer ?? eRb?.message}`);

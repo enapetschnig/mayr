@@ -7,6 +7,7 @@ import type { ProjektMitKunde } from "@/hooks/useDaten";
 import { datum, euro, isoTag, zahl } from "@/lib/format";
 import { belegStatus, type Kunde } from "@/lib/types";
 import { useKundeBelege } from "./stammDaten";
+import { KundeAnlagen } from "@/components/anlagen/KundeAnlagen";
 
 const adresse = (k: Pick<Kunde, "strasse" | "plz" | "ort">) =>
   [k.strasse, [k.plz, k.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
@@ -103,6 +104,8 @@ export function KundeDetail({
           </ul>
         )}
       </Karte>
+
+      <KundeAnlagen kundeId={kunde.id} />
 
       {istChef && (
         <Karte titel="Angebote & Rechnungen" ohnePolster>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Check, Eraser, Loader2, RotateCw } from "lucide-react";
 import FormularDialog from "@/components/FormularDialog";
@@ -39,9 +39,10 @@ function useHochformat() {
  * Der Monteur reicht dem Kunden das Handy: erst in großer Schrift prüfen
  * (Arbeiten, Stunden je Person, Material), Namen eintragen — dann auf einer
  * großen Fläche unterschreiben. Quer gehalten wird die Fläche breiter.
+ * Andere Belege (Prüfprotokoll) geben Titel, Inhalt und Bestätigungssatz mit.
  */
 export function KundenUnterschrift({
-  open, onOpenChange, sicht, nameVorschlag, onBestaetigen,
+  open, onOpenChange, sicht, nameVorschlag, onBestaetigen, titel, inhalt, hinweis,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -49,6 +50,12 @@ export function KundenUnterschrift({
   nameVorschlag: string;
   /** Hochladen und festschreiben; true = geschafft */
   onBestaetigen: (name: string, png: Blob) => Promise<boolean>;
+  /** statt „Regiebericht RB-…“ */
+  titel?: string;
+  /** statt Arbeiten, Stunden und Material */
+  inhalt?: ReactNode;
+  /** Was die Unterschrift bestätigt */
+  hinweis?: string;
 }) {
   const [schritt, setSchritt] = useState<"pruefen" | "unterschrift">("pruefen");
   const [name, setName] = useState("");
@@ -96,14 +103,14 @@ export function KundenUnterschrift({
     <FormularDialog
       open={open}
       onOpenChange={onOpenChange}
-      titel={schritt === "pruefen" ? `Regiebericht ${sicht.nummer ?? ""}`.trim() : "Unterschrift"}
+      titel={schritt === "pruefen" ? titel ?? `Regiebericht ${sicht.nummer ?? ""}`.trim() : "Unterschrift"}
       beschreibung={schritt === "pruefen" ? `Bitte prüfen · ${tag}` : `${name.trim()} · ${datumText(sicht.datum)}`}
       gesperrt={sendet}
       fuellend={schritt === "unterschrift"}
       fuss={schritt === "pruefen" ? (
         <>
           <Button variant="outline" className="h-12" onClick={() => onOpenChange(false)}>
-            <ArrowLeft className="h-4 w-4" /> Zurück zum Bericht
+            <ArrowLeft className="h-4 w-4" /> Zurück
           </Button>
           <Button className="h-12 min-w-56 text-base" disabled={!name.trim()} onClick={zurUnterschrift}>
             {name.trim() ? "Weiter zur Unterschrift" : "Bitte Namen eintragen"} <ArrowRight className="h-4 w-4" />
@@ -129,6 +136,7 @@ export function KundenUnterschrift({
             <p className="text-base text-muted-foreground">{[sicht.projekt, sicht.baustelle].filter(Boolean).join(" · ")}</p>
           </section>
 
+          {inhalt ?? (<>
           <section className="space-y-1.5">
             <h3 className="text-xs font-medium uppercase tracking-[0.06em] text-muted-foreground">Durchgeführte Arbeiten</h3>
             <p className="whitespace-pre-wrap text-lg leading-relaxed">{sicht.arbeiten.trim() || "—"}</p>
@@ -170,6 +178,7 @@ export function KundenUnterschrift({
               </ul>
             </section>
           )}
+          </>)}
 
           <section className="space-y-2 rounded-lg border bg-card p-4">
             <Label htmlFor="ku-name" className="text-base">Ihr Name</Label>
@@ -185,7 +194,7 @@ export function KundenUnterschrift({
               onKeyDown={(e) => { if (e.key === "Enter") zurUnterschrift(); }}
             />
             <p className="text-sm text-muted-foreground">
-              Mit Ihrer Unterschrift bestätigen Sie die angeführten Arbeiten, Arbeitszeiten und Materialien.
+              {hinweis ?? "Mit Ihrer Unterschrift bestätigen Sie die angeführten Arbeiten, Arbeitszeiten und Materialien."}
             </p>
           </section>
         </div>

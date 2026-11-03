@@ -194,6 +194,35 @@ Migration `20261103110000_teilrechnungen.sql`:
   darunter, Restbetrag netto, USt, „Zu zahlen“ (§ 11 Abs. 1 Z 4 UStG).
   Haftrücklass/Deckungsrücklass gibt es (noch) nicht.
 
+### Anlagen und Prüfprotokolle (`components/anlagen/`, Seiten `/anlagen`, `/pruefungen/:id`)
+
+Migration `20261103120000_anlagen.sql`:
+- **Anlage** beim Kunden (`anlagen`, Nummer `A1`, `A2` …): Art (Elektroanlage,
+  Verteiler, Blitzschutz, Notlicht, PV, Ladestation, Gerät, sonstige),
+  Standort, Prüfintervall in Monaten (Vorschlag je Art), `naechste_pruefung`,
+  Preis je Prüfung (nur Chef sieht ihn). Anlegen auf `/anlagen` oder in der
+  Kundenkarte. Löschen nur Chef und nur ohne Protokolle.
+- **QR-Aufkleber** (70 × 40 mm PDF, `lib/pruefPdf.ts`): Code = Adresse
+  `/anlagen/<id>`. Scannen auf `/anlagen` oder `/scan` öffnet die Anlage.
+- **Prüfprotokoll** (`pruefungen`, `PR-2026-001`): Besichtigung als Liste je
+  Art (OK/Mangel/–, eigene Punkte dazu), Messungen je Stromkreis (Schutz,
+  Leitung, RISO, Zs, IΔn, IΔ, tA), Erder. Netz, Messgerät und Stromkreise
+  kommen aus dem letzten Protokoll der Anlage. Grenzwerte in
+  `pruefLogik.ts` (RISO ≥ 1 MΩ, Zs ≤ 230 V / (k·In) mit k = 5/10/20 für
+  B/C/D, FI 50–100 % von IΔn und ≤ 300 ms, Erder ≤ 50 V / IΔn) — Verstöße
+  stehen sofort beim Feld, „Aus der Prüfung übernehmen“ schreibt den
+  Mängeltext, das Ergebnis wird vorgeschlagen.
+- **Unterschrift** wie beim Regiebericht (`KundenUnterschrift`, Bild unter
+  `anlagen/unterschriften/`). Trigger `pruefung_schutz`: danach
+  festgeschrieben, nur Entwürfe löschbar, Mängel brauchen Text.
+  `pruefung_termin` setzt an der Anlage letzte und nächste Prüfung.
+- **Verrechnen** (nur Chef): „Rechnung erstellen“ an der Anlage nimmt alle
+  unterschriebenen, offenen Protokolle als Pauschale zum Anlagenpreis,
+  `quelle.pruefung` → `pruefungen.rechnung_id`. Position gelöscht oder
+  Rechnung storniert → wieder frei.
+- Startseite (Chef): „X Anlagen zu prüfen · Y überfällig“ (fällig = in den
+  nächsten 30 Tagen).
+
 ### Kalkulieren im Angebot (`lib/kalkulation.ts`)
 
 Bewusst einfach, kein eigenes Kalkulationsblatt:

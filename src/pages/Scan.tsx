@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { anlageIdAusCode } from "@/components/anlagen/pruefLogik";
 import { toast } from "sonner";
 import { Check, ClipboardList, Loader2, PencilLine, ScanBarcode, Search, Warehouse, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -438,6 +439,12 @@ export default function Scan() {
   };
 
   const codeVerarbeiten = async (roh: string): Promise<ScanRueckmeldung | null> => {
+    // QR-Aufkleber einer Anlage: gleich die Anlage öffnen
+    const anlage = anlageIdAusCode(roh);
+    if (anlage) {
+      navigate(`/anlagen/${anlage}`);
+      return null;
+    }
     const code = codeBereinigen(roh);
     if (!code) return null;
     let treffer = codeCache.current.get(code);
