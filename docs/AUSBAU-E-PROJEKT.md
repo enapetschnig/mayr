@@ -26,7 +26,7 @@ Hardware existiert.
 | # | Bereich | Was genau | Stand |
 |---|---|---|---|
 | 1 | **Offene Posten & Mahnwesen** | Zahlungen (auch Teilzahlungen) je Rechnung, offener Rest, überfällig, Zahlungserinnerung → 1. → 2. Mahnung als PDF mit Mahnspesen und Verzugszinsen, Liste „Offene Posten“ | ✅ 03.11.2026 |
-| 2 | **Anzahlung, Teil- und Schlussrechnung** | Teilrechnung nach Prozent oder Betrag auf ein Angebot, Schlussrechnung zieht alle Teilrechnungen ab (mit USt je Teilrechnung), Restforderung, Deckungs-/Haftrücklass | geplant |
+| 2 | **Anzahlung, Teil- und Schlussrechnung** | Teilrechnung nach Prozent oder Betrag auf ein Angebot, Schlussrechnung zieht alle Teilrechnungen ab (mit USt je Teilrechnung), Restforderung (Haftrücklass später) | ✅ 03.11.2026 |
 | 3 | **Anlagen & Wartung / E-Check** | Anlagen beim Kunden (Verteiler, Blitzschutz, Notlicht, PV …), Prüfintervall, „fällig“-Liste, Prüfprotokoll am Handy mit Messwerten (Isolation, Schleifenimpedanz, FI-Auslösezeit …), Kundenunterschrift, PDF, daraus Rechnung | geplant |
 | 4 | **Bestellungen beim Großhändler** | Bestellvorschlag aus Mindestbestand und Projektbedarf, Bestellung als PDF/E-Mail-Text je Lieferant, Wareneingang gegen Bestellung (Teillieferung), offene Bestellungen | geplant |
 | 5 | **Abwesenheiten & Lohnarten** | Urlaub, Krankenstand, Zeitausgleich, Feiertag; Überstundenkonto je Mitarbeiter; Diäten und Kilometergeld; alles im Stundennachweis-PDF | geplant |

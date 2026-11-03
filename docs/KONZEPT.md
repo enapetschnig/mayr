@@ -176,6 +176,24 @@ Nur der Chef (Migration `20261103100000_offene_posten.sql`):
   jederzeit gleich neu. Nur die höchste Stufe lässt sich zurücknehmen.
 - Startseite: „… zu mahnen“, „… überfällig“ führen auf `/offene-posten`.
 
+### Teil- und Schlussrechnung (`components/belege/teilrechnung.ts`)
+
+Migration `20261103110000_teilrechnungen.sql`:
+- **Teilrechnung** = Rechnung mit `teil_nr` zum Angebot (`angebot_id`).
+  Angebot → Menü/Knopf „Teilrechnung“: Prozent oder Betrag netto, angelegt
+  wird ein Entwurf mit einer Pauschale („1. Teilrechnung laut Angebot … 30 %
+  von …“). Das Angebot wird angenommen, bleibt aber umwandelbar.
+- **Schlussrechnung**: „Schlussrechnung erstellen“ (oder „Aus dem Projekt
+  übernehmen“) übernimmt das ganze Angebot und je fertiger Teilrechnung eine
+  Position `art = 'abzug'` (negativ, `quelle.teil`). Verrechnet an der Quelle:
+  `belege.abgezogen_in` an der Teilrechnung; Trigger `teil_abzug_pruefen`
+  (nur fertige, nur einmal), Position gelöscht oder Schlussrechnung storniert
+  → wieder frei. Entwürfe von Teilrechnungen werden nicht abgezogen.
+- **PDF**: Abzüge nicht in der Tabelle, sondern im Summenblock —
+  Gesamtleistung netto/USt/brutto, je Teilrechnung brutto mit netto + USt
+  darunter, Restbetrag netto, USt, „Zu zahlen“ (§ 11 Abs. 1 Z 4 UStG).
+  Haftrücklass/Deckungsrücklass gibt es (noch) nicht.
+
 ### Kalkulieren im Angebot (`lib/kalkulation.ts`)
 
 Bewusst einfach, kein eigenes Kalkulationsblatt:

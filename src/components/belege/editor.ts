@@ -12,7 +12,7 @@ import type { Artikel, Beleg, Firma, Kunde, Leistung, Position } from "@/lib/typ
  */
 
 export type BelegTyp = "angebot" | "rechnung";
-export type PositionsArt = "titel" | "leistung" | "artikel" | "arbeit" | "material" | "pauschale" | "text";
+export type PositionsArt = "titel" | "leistung" | "artikel" | "arbeit" | "material" | "pauschale" | "text" | "abzug";
 
 export const ART_NAME: Record<PositionsArt, string> = {
   titel: "Titel / Raum",
@@ -22,11 +22,12 @@ export const ART_NAME: Record<PositionsArt, string> = {
   material: "Material",
   pauschale: "Pauschale",
   text: "Hinweistext",
+  abzug: "Abzug Teilrechnung",
 };
 
 /** Herkunft einer Position — beim Löschen gibt der Trigger diese Buchungen frei */
-/** Herkunft einer Position. `eingang`: weiterverrechnete Anteile von Eingangsrechnungen */
-export type Quelle = { zeiten: string[]; material: string[]; regie: string[]; eingang?: string[] };
+/** Herkunft einer Position. `eingang`: weiterverrechnete Anteile von Eingangsrechnungen, `teil`: abgezogene Teilrechnungen */
+export type Quelle = { zeiten: string[]; material: string[]; regie: string[]; eingang?: string[]; teil?: string[] };
 
 /** Eine Zeile im Editor. Menge und Preis als Text, damit „2,“ beim Tippen stehen bleibt. */
 export type EditorPosition = {
@@ -90,7 +91,7 @@ export function summen(positionen: EditorPosition[], ustSatz: number, ohneUst: b
 
 // ── Quelle ──────────────────────────────────────────────────────────────
 
-const LEERE_QUELLE = (): Quelle => ({ zeiten: [], material: [], regie: [], eingang: [] });
+const LEERE_QUELLE = (): Quelle => ({ zeiten: [], material: [], regie: [], eingang: [], teil: [] });
 
 export function quelleLesen(j: Json | null | undefined): Quelle | null {
   if (!j || typeof j !== "object" || Array.isArray(j)) return null;
@@ -99,7 +100,9 @@ export function quelleLesen(j: Json | null | undefined): Quelle | null {
   const q: Quelle = { zeiten: liste(o.zeiten), material: liste(o.material), regie: liste(o.regie) };
   const eingang = liste(o.eingang);
   if (eingang.length) q.eingang = eingang;
-  return q.zeiten.length || q.material.length || q.regie.length || eingang.length ? q : null;
+  const teil = liste(o.teil);
+  if (teil.length) q.teil = teil;
+  return q.zeiten.length || q.material.length || q.regie.length || eingang.length || teil.length ? q : null;
 }
 
 /** Nur befüllte Listen schreiben — `{"zeiten":[…]}` wie im Bestand */
@@ -110,6 +113,7 @@ export function quelleJson(q: Quelle | null | undefined): Json | null {
   if (q.material.length) o.material = q.material;
   if (q.regie.length) o.regie = q.regie;
   if (q.eingang?.length) o.eingang = q.eingang;
+  if (q.teil?.length) o.teil = q.teil;
   return Object.keys(o).length ? o : null;
 }
 
@@ -122,15 +126,17 @@ export function quellenIds(positionen: Pick<EditorPosition, "quelle">[]): Quelle
     q.material.push(...p.quelle.material);
     q.regie.push(...p.quelle.regie);
     q.eingang!.push(...(p.quelle.eingang ?? []));
+    q.teil!.push(...(p.quelle.teil ?? []));
   });
   return {
     zeiten: [...new Set(q.zeiten)], material: [...new Set(q.material)], regie: [...new Set(q.regie)], eingang: [...new Set(q.eingang)],
+    teil: [...new Set(q.teil)],
   };
 }
 
 // ── Umwandeln: Datenbank ↔ Editor ──────────────────────────────────────
 
-const ARTEN: PositionsArt[] = ["titel", "leistung", "artikel", "arbeit", "material", "pauschale", "text"];
+const ARTEN: PositionsArt[] = ["titel", "leistung", "artikel", "arbeit", "material", "pauschale", "text", "abzug"];
 
 export function positionAusDb(p: Position): EditorPosition {
   return {
@@ -419,14 +425,14 @@ export const gruppenGroesse = (positionen: EditorPosition[], titelId: string) =>
 
 /**
  * Positionsnummern: Titel 1, 2, 3 — darunter 1.1, 1.2 …; Positionen vor dem
- * ersten Titel zählen oben mit. Textzeilen bekommen keine Nummer.
+ * ersten Titel zählen oben mit. Textzeilen und Abzüge bekommen keine Nummer.
  */
 export function positionsNummern(arten: string[]): string[] {
   let oben = 0;
   let titel: number | null = null;
   let unter = 0;
   return arten.map((art) => {
-    if (art === "text") return "";
+    if (art === "text" || art === "abzug") return "";
     if (art === "titel") {
       oben += 1;
       titel = oben;
@@ -450,7 +456,7 @@ export function zwischensummen(zeilen: { art: string; gesamt: number }[]): Recor
     if (z.art === "titel") {
       titel = i;
       s[i] = 0;
-    } else if (titel != null) {
+    } else if (titel != null && z.art !== "abzug") {
       s[titel] = runden2(s[titel] + z.gesamt);
     }
   });

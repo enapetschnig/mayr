@@ -38,7 +38,7 @@ export function ImportDialog({
   vorhandeneTitel: boolean;
   onUebernehmen: (e: ImportErgebnis) => void;
 }) {
-  const belegtSchluessel = [...belegt.zeiten, ...belegt.material, ...belegt.regie, ...(belegt.eingang ?? [])].sort().join(",");
+  const belegtSchluessel = [...belegt.zeiten, ...belegt.material, ...belegt.regie, ...(belegt.eingang ?? []), ...(belegt.teil ?? [])].sort().join(",");
   const { data, isLoading, error } = useQuery({
     queryKey: ["belege", "import", projektId, belegId, belegtSchluessel, angebotId],
     enabled: open && !!projektId,
@@ -49,7 +49,7 @@ export function ImportDialog({
     queryFn: () => importDatenLaden(projektId!, belegId, belegt, angebotId),
   });
 
-  const [auswahl, setAuswahl] = useState<Required<ImportAuswahl>>({ angebote: [], regie: [], zeiten: [], material: [], eingang: [] });
+  const [auswahl, setAuswahl] = useState<Required<ImportAuswahl>>({ angebote: [], regie: [], zeiten: [], material: [], eingang: [], teile: [] });
   const [jeMitarbeiter, setJeMitarbeiter] = useState(true);
   const [pauschale, setPauschale] = useState(false);
   const [abgegolten, setAbgegolten] = useState(true);
@@ -69,6 +69,8 @@ export function ImportDialog({
       material: mitAngebot ? [] : gruppen.map((g) => g.schluessel),
       // Eingangsrechnungen nie vorgewählt: Material daraus ist oft schon ausgefasst und gebucht
       eingang: [],
+      // Gestellte Teilrechnungen gehören in die Schlussrechnung abgezogen
+      teile: (data.teile ?? []).map((t) => t.id),
     });
   }, [data, gruppen, open]);
   useEffect(() => {
@@ -93,12 +95,13 @@ export function ImportDialog({
   const nurAbgegolten = !!vorschau && anzahl === 0 && vorschau.positionen.some((p) => p.art === "text" && p.quelle);
 
   const eingang = data?.eingang ?? [];
+  const teile = data?.teile ?? [];
   const umschalten = (feld: keyof ImportAuswahl, id: string, an: boolean) =>
     setAuswahl((a) => ({ ...a, [feld]: an ? [...new Set([...a[feld], id])] : a[feld].filter((x) => x !== id) }));
   const alle = (feld: keyof ImportAuswahl, ids: string[], an: boolean) =>
     setAuswahl((a) => ({ ...a, [feld]: an ? ids : [] }));
 
-  const leer = data && !data.angebote.length && !data.regie.length && !data.zeiten.length && !gruppen.length && !eingang.length;
+  const leer = data && !data.angebote.length && !data.regie.length && !data.zeiten.length && !gruppen.length && !eingang.length && !teile.length;
   const mitAngebot = !!data?.angebote.length || !!data?.angebotImEntwurf;
   // Abgegolten-Schalter nur, wenn ein Angebot dabei ist und Stunden oder Material übrig bleiben
   const restOffen = !!data && (data.zeiten.some((z) => !auswahl.zeiten.includes(z.id)) || gruppen.some((g) => !auswahl.material.includes(g.schluessel)));
@@ -233,6 +236,24 @@ export function ImportDialog({
               <p className="truncate text-xs text-muted-foreground">
                 {[a.lieferant, a.nummer, a.datum && datum(a.datum)].filter(Boolean).join(" · ")} · Einkauf netto
               </p>
+            </Zeile>
+          ))}
+        </Bereich>
+      )}
+
+      {teile.length > 0 && (
+        <Bereich
+          titel="Teilrechnungen abziehen"
+          alle={{ an: auswahl.teile.length === teile.length, onAn: (v) => alle("teile", teile.map((t) => t.id), v) }}
+          hinweis="Schlussrechnung: schon gestellte Teilrechnungen werden am Ende abgezogen, die USt je Teilrechnung steht auf dem PDF."
+        >
+          {teile.map((t) => (
+            <Zeile key={t.id} an={auswahl.teile.includes(t.id)} onAn={(v) => umschalten("teile", t.id, v)} dicht>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate font-medium">{t.teil_nr}. Teilrechnung {t.nummer ?? ""}</span>
+                <span className="zahl shrink-0 text-sm">− {euro(t.netto)}</span>
+              </div>
+              <p className="truncate text-xs text-muted-foreground">vom {datum(t.datum)} · netto</p>
             </Zeile>
           ))}
         </Bereich>

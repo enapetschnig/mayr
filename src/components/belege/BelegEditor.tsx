@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Ban, Calculator, Check, Clock, Copy, Download, FileText, FolderInput, LockOpen, Mic, MoreVertical, Package, PenLine, Percent, Plus,
-  Receipt, RotateCcw, Rows3, Save, ThumbsDown, ThumbsUp, Trash2, Undo2,
+  Receipt, RotateCcw, Rows3, Save, SplitSquareHorizontal, ThumbsDown, ThumbsUp, Trash2, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,7 +37,7 @@ import { BelegKopf, BelegTexte } from "./BelegKopf";
 import { belegLaden, useBelegKurz, useFolgeRechnungen, useLeistungsKatalog, useNachfolger, type BelegMitPositionen } from "./daten";
 import {
   artikelPosition, fertigHinweise, hinzufuegen, kopfAusBeleg, leerePosition, leistungPosition, leistungWeniger, mengeVon,
-  ohneBetrag, ohneUstFuer, positionAusDb, preisText, preisVon, quellenIds, summen, titelMitNamen, titelPosition, zahlText,
+  ohneBetrag, ohneUstFuer, positionAusDb, preisText, preisVon, quelleLesen, quellenIds, summen, titelMitNamen, titelPosition, zahlText,
   type EditorPosition, type KatalogLeistung, type Kopf,
 } from "./editor";
 import { ImportDialog, type ImportErgebnis } from "./ImportDialog";
@@ -45,11 +45,12 @@ import { LeistungDialog } from "./LeistungDialog";
 import { PositionDialog } from "./PositionDialog";
 import { PositionenEditor } from "./PositionenEditor";
 import {
-  belegKopieren, belegLoeschen, belegSpeichern, fertigstellen, inRechnungUmwandeln, projektAktivieren, projektLoeschen,
+  belegKopieren, belegLoeschen, belegSpeichern, fertigstellen, inRechnungUmwandeln, teilrechnungAnlegen, abzuegeLaden, projektAktivieren, projektLoeschen,
   projektNurFuerBeleg, projektZurueckAufAngebot, StandVeraltet, statusSetzen, stornieren,
 } from "./speichern";
 import { sicherungLesen, sicherungLoeschen, sicherungSchreiben, sicherungsSchluessel, type Sicherung } from "./sicherung";
 import { SpracheDialog, type SprachUebernahme } from "./SpracheDialog";
+import { TeilrechnungDialog } from "./TeilrechnungDialog";
 import { TitelDialog } from "./TitelDialog";
 import { useVerlassenSchutz } from "./useVerlassenSchutz";
 import { VerlassenDialog } from "./VerlassenSchutz";
@@ -60,7 +61,7 @@ const DETAIL = (id: string) => ["belege", "detail", id];
 const NACH_AENDERUNG = ["belege", "projekte", "projekt_zahlen", "zeiten", "material", "regieberichte"];
 
 type Frage = "fertig" | "storno" | "entsperren" | null;
-type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | null;
+type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | "teil" | null;
 type Icon = ComponentType<{ className?: string }>;
 
 /**
@@ -120,7 +121,8 @@ export function BelegEditor({
   const anzeigeStatus = beleg ? belegStatus(beleg, heute) : "entwurf";
   const istAngebot = kopf.typ === "angebot";
   const istStorno = status === "storno";
-  const typText = istAngebot ? "Angebot" : istStorno ? "Stornorechnung" : "Rechnung";
+  const typText = istAngebot ? "Angebot" : istStorno ? "Stornorechnung"
+    : beleg?.teil_nr ? "Teilrechnung" : positionen.some((p) => p.art === "abzug") ? "Schlussrechnung" : "Rechnung";
   const entwurf = status === "entwurf";
   const bearbeitbar = entwurf || (istAngebot && status === "offen" && entsperrt);
 
@@ -129,6 +131,10 @@ export function BelegEditor({
   const stundensatz = stundensatzFuer(projekt, firma);
   const { data: katalog = [], isLoading: katalogLaedt } = useLeistungsKatalog();
   const { data: folge = [] } = useFolgeRechnungen(id, !neu && istAngebot);
+  // Teilrechnungen sperren das Angebot nicht — erst die (Schluss-)Rechnung
+  const teilFolge = folge.filter((f) => f.teil_nr != null && f.status !== "storniert");
+  const schlussDa = folge.some((f) => f.teil_nr == null && f.status !== "storniert");
+  const umwandelnText = teilFolge.length ? "Schlussrechnung erstellen" : "In Rechnung umwandeln";
   const { data: angebot } = useBelegKurz(istAngebot ? null : kopf.angebot_id);
   // Storno: die Stornorechnung zeigt auf die Rechnung, die sie aufhebt
   const stornoQuelle = useBelegKurz(beleg?.storno_von ?? null);
@@ -411,7 +417,17 @@ export function BelegEditor({
     const d = await frisch();
     const neueId = await inRechnungUmwandeln(d.beleg, d.positionen, firma, heute);
     void neuLaden(...NACH_AENDERUNG);
-    toast.success("Rechnung aus dem Angebot angelegt — prüfen, Leistungszeitraum eintragen, fertigstellen.");
+    if (teilFolge.some((f) => f.status === "entwurf")) {
+      toast.warning("Eine Teilrechnung ist noch Entwurf und deshalb nicht abgezogen — erst fertigstellen, dann hier „Aus dem Projekt übernehmen“.", { duration: 10_000 });
+    } else toast.success(`${teilFolge.length ? "Schlussrechnung" : "Rechnung"} aus dem Angebot angelegt — prüfen, Leistungszeitraum eintragen, fertigstellen.`);
+    navigate(`/belege/${neueId}`);
+  });
+  const teilAnlegen = (betrag: number, prozent: number | null) => ausfuehren("kopieren", async () => {
+    const d = await frisch();
+    const neueId = await teilrechnungAnlegen(d.beleg, betrag, prozent, firma, heute);
+    setDialog(null);
+    void neuLaden(...NACH_AENDERUNG);
+    toast.success("Teilrechnung angelegt — prüfen und fertigstellen.");
     navigate(`/belege/${neueId}`);
   });
   const kopieren = (mitHerkunft: boolean) => ausfuehren("kopieren", async () => {
@@ -489,6 +505,7 @@ export function BelegEditor({
       })),
       firma,
       projekt: await projektFuerPdf(),
+      abzuege: await abzuegeLaden(d.positionen.filter((p) => p.art === "abzug").flatMap((p) => quelleLesen(p.quelle)?.teil ?? [])),
       ...verweise,
     });
     if (!(await archivieren(d.beleg.id, blob))) toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen.");
@@ -529,6 +546,7 @@ export function BelegEditor({
         empf_plz: kopf.empf_plz.trim() || null,
         empf_ort: kopf.empf_ort.trim() || null,
         empf_uid: kopf.empf_uid.trim() || null,
+        teil_nr: beleg?.teil_nr ?? null,
       },
       positionen: positionen.map((p) => ({
         art: p.art, bezeichnung: p.bezeichnung, langtext: p.langtext, menge: mengeVon(p), einheit: p.einheit, einzelpreis: preisVon(p),
@@ -537,6 +555,7 @@ export function BelegEditor({
       projekt: await projektFuerPdf(),
       stornoZu: await stornoZuFuerPdf(),
       ersetzt: await ersetztFuerPdf(),
+      abzuege: await abzuegeLaden(positionen.filter((p) => p.art === "abzug").flatMap((p) => p.quelle?.teil ?? [])),
     });
     if (original) void archivieren(id, blob);
     if (pc) setVorschau({ url: URL.createObjectURL(blob), blob, dateiname });
@@ -562,7 +581,7 @@ export function BelegEditor({
     setPositionen((alt) => neue.reduce((liste, p) => hinzufuegen(liste, p, aktiverTitel).liste, alt));
   // Alle Preise um ± % — Aufschlag oder Rabatt aufs ganze Angebot (Zeilen ohne Betrag bleiben)
   const preiseUmProzent = (prozent: number) =>
-    setPositionen((alt) => alt.map((p) => (ohneBetrag(p) ? p : { ...p, einzelpreis: preisText(umProzent(preisVon(p), prozent)) })));
+    setPositionen((alt) => alt.map((p) => (ohneBetrag(p) || p.art === "abzug" ? p : { ...p, einzelpreis: preisText(umProzent(preisVon(p), prozent)) })));
   const freieHinzufuegen = (p: EditorPosition) => {
     setPositionen((alt) => hinzufuegen(alt, p, aktiverTitel).liste);
     setFreie(null);
@@ -640,8 +659,11 @@ export function BelegEditor({
         {istAngebot && status === "offen" && !entsperrt && (
           <MenuePunkt icon={LockOpen} onClick={() => setFrage("entsperren")}>Angebot ändern</MenuePunkt>
         )}
-        {istAngebot && (status === "offen" || status === "angenommen") && (
-          <MenuePunkt icon={Receipt} onClick={umwandeln}>In Rechnung umwandeln</MenuePunkt>
+        {istAngebot && (status === "offen" || status === "angenommen") && !schlussDa && (
+          <>
+            <MenuePunkt icon={SplitSquareHorizontal} onClick={() => setDialog("teil")}>Teilrechnung / Anzahlung</MenuePunkt>
+            <MenuePunkt icon={Receipt} onClick={umwandeln}>{umwandelnText}</MenuePunkt>
+          </>
         )}
         {istAngebot && (status === "angenommen" || status === "abgelehnt") && (
           <MenuePunkt icon={Undo2} onClick={wiederOffen}>Wieder auf „offen“</MenuePunkt>
@@ -704,7 +726,11 @@ export function BelegEditor({
         const abgelaufen = beleg.gueltig_bis && beleg.gueltig_bis < heute;
         return `Wartet auf Antwort${beleg.gueltig_bis ? ` · gültig bis ${datum(beleg.gueltig_bis)}${abgelaufen ? " (abgelaufen)" : ""}` : ""}`;
       }
-      if (status === "angenommen") return folge.length ? "" : "Jetzt in eine Rechnung umwandeln — oder später „Rechnung aus dem Projekt“.";
+      if (status === "angenommen") {
+        if (schlussDa) return "";
+        if (teilFolge.length) return `${teilFolge.length} ${teilFolge.length === 1 ? "Teilrechnung" : "Teilrechnungen"} gestellt — am Ende die Schlussrechnung, sie zieht sie ab.`;
+        return "Jetzt in eine Rechnung umwandeln, eine Teilrechnung stellen — oder später „Rechnung aus dem Projekt“.";
+      }
       if (status === "abgelehnt") return "Bleibt zur Ansicht erhalten. Für ein neues Angebot: Menü → Kopieren.";
       return "";
     }
@@ -729,7 +755,10 @@ export function BelegEditor({
       ]
       : status === "angenommen"
         ? [
-          ...(folge.some((f) => f.status !== "storniert") ? [] : [{ text: "In Rechnung umwandeln", icon: Receipt, onClick: umwandeln, primaer: true }]),
+          ...(schlussDa ? [] : [
+            { text: umwandelnText, icon: Receipt, onClick: umwandeln, primaer: true },
+            { text: "Teilrechnung", icon: SplitSquareHorizontal, onClick: () => setDialog("teil") },
+          ]),
           { text: "PDF", icon: FileText, onClick: pdf },
         ]
         : [{ text: "PDF", icon: FileText, onClick: pdf }, { text: "Wieder offen", icon: Undo2, onClick: wiederOffen }]
@@ -758,6 +787,7 @@ export function BelegEditor({
           {folge.map((f, i) => (
             <span key={f.id}>
               {i > 0 && ", "}
+              {f.teil_nr != null && `${f.teil_nr}. Teilrechnung `}
               <Link to={`/belege/${f.id}`} className="font-medium text-primary hover:underline">{f.nummer ?? "Entwurf"}</Link>
               {f.status === "storniert" && " (storniert)"}
             </span>
@@ -998,6 +1028,15 @@ export function BelegEditor({
           firma={firma}
           vorhandeneTitel={positionen.some((p) => p.art === "titel")}
           onUebernehmen={importUebernehmen}
+        />
+      )}
+      {istAngebot && beleg && (
+        <TeilrechnungDialog
+          open={dialog === "teil"}
+          onOpenChange={(o) => setDialog(o ? "teil" : null)}
+          angebot={beleg}
+          laeuft={laeuft === "kopieren"}
+          onAnlegen={teilAnlegen}
         />
       )}
       <PositionDialog position={freie} neu stundensatz={stundensatz} onOpenChange={(o) => { if (!o) setFreie(null); }} onUebernehmen={freieHinzufuegen} />

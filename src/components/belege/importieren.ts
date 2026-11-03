@@ -6,6 +6,7 @@ import {
   kopieVon, leerePosition, positionAusDb, preisText, titelPosition, zahlText,
   type EditorPosition, type Quelle,
 } from "./editor";
+import { abzugPosition } from "./teilrechnung";
 
 /**
  * „Rechnung aus dem Projekt“: alles, was am Projekt noch nicht verrechnet
@@ -78,7 +79,11 @@ export type ImportDaten = {
   angebotImEntwurf: { id: string; nummer: string | null } | null;
   /** Zugeordnete Eingangsrechnungen, noch nicht weiterverrechnet */
   eingang?: ImportEingang[];
+  /** Fertige Teilrechnungen des Projekts, noch in keiner Schlussrechnung abgezogen */
+  teile?: ImportTeil[];
 };
+
+export type ImportTeil = { id: string; teil_nr: number | null; nummer: string | null; datum: string; netto: number; ust: number; brutto: number };
 
 export type ImportAuswahl = {
   angebote: string[];
@@ -88,6 +93,8 @@ export type ImportAuswahl = {
   material: string[];
   /** Anteile von Eingangsrechnungen */
   eingang?: string[];
+  /** abzuziehende Teilrechnungen */
+  teile?: string[];
 };
 
 export type ImportOptionen = {
@@ -128,7 +135,7 @@ export async function importDatenLaden(projektId: string, belegId: string | null
   // frei = noch nicht verrechnet, oder an genau diesem Entwurf
   const frei = belegId ? `rechnung_id.is.null,rechnung_id.eq.${belegId}` : "rechnung_id.is.null";
 
-  const [rb, zt, mt, an, ea] = await Promise.all([
+  const [rb, zt, mt, an, ea, tr] = await Promise.all([
     supabase.from("regieberichte").select("id, nummer, datum, arbeiten, status, rechnung_id").eq("projekt_id", projektId).order("datum"),
     supabase.from("zeiten")
       .select("id, datum, stunden, taetigkeit, user_id, regiebericht_id, profiles(vorname, nachname)")
@@ -141,8 +148,11 @@ export async function importDatenLaden(projektId: string, belegId: string | null
     supabase.from("eingang_anteile")
       .select("id, betrag, text, eingangsrechnungen(lieferant, nummer, datum, kategorie)")
       .eq("projekt_id", projektId).or(frei).order("created_at"),
+    supabase.from("belege").select("id, teil_nr, nummer, datum, netto, ust, brutto")
+      .eq("projekt_id", projektId).eq("typ", "rechnung").not("teil_nr", "is", null).in("status", ["offen", "bezahlt"])
+      .or(belegId ? `abgezogen_in.is.null,abgezogen_in.eq.${belegId}` : "abgezogen_in.is.null").order("teil_nr"),
   ]);
-  for (const r of [rb, zt, mt, an, ea]) if (r.error) throw new Error(r.error.message);
+  for (const r of [rb, zt, mt, an, ea, tr]) if (r.error) throw new Error(r.error.message);
   const zeitZeilen = (zt.data ?? []) as unknown as ZeitZeile[];
   const materialZeilen = (mt.data ?? []) as unknown as MaterialZeile[];
 
@@ -153,7 +163,8 @@ export async function importDatenLaden(projektId: string, belegId: string | null
   let angebotPositionen: Position[] = [];
   if (angebotIds.length) {
     const [re, po] = await Promise.all([
-      supabase.from("belege").select("id, angebot_id").eq("typ", "rechnung").neq("status", "storniert").in("angebot_id", angebotIds),
+      // Teilrechnungen zählen nicht: das Angebot kommt danach als Schlussrechnung
+      supabase.from("belege").select("id, angebot_id").eq("typ", "rechnung").neq("status", "storniert").is("teil_nr", null).in("angebot_id", angebotIds),
       supabase.from("beleg_positionen").select("*").in("beleg_id", angebotIds).order("pos"),
     ]);
     if (re.error) throw new Error(re.error.message);
@@ -229,6 +240,9 @@ export async function importDatenLaden(projektId: string, belegId: string | null
         kategorie: a.eingangsrechnungen?.kategorie ?? "material",
       }))
       .sort((a, b) => a.datum.localeCompare(b.datum)),
+    teile: (tr.data ?? [])
+      .filter((t) => t.id !== belegId && !(belegt.teil ?? []).includes(t.id))
+      .map((t) => ({ id: t.id, teil_nr: t.teil_nr, nummer: t.nummer, datum: t.datum, netto: Number(t.netto), ust: Number(t.ust), brutto: Number(t.brutto) })),
   };
 }
 
@@ -433,6 +447,9 @@ export function importPositionen(
   }
 
   if (abgegoltenZeile && !angebote.length) aus.push(abgegoltenZeile);
+
+  // Schlussrechnung: gestellte Teilrechnungen ganz am Ende abziehen
+  (daten.teile ?? []).filter((t) => (auswahl.teile ?? []).includes(t.id)).forEach((t) => aus.push(abzugPosition(t)));
 
   zeiten.forEach((z) => tage.push(z.datum));
   daten.material.filter((m) => gruppen.some((g) => g.ids.includes(m.id))).forEach((m) => tage.push(m.datum));

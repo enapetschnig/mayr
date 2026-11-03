@@ -188,6 +188,7 @@ export type Database = {
       }
       belege: {
         Row: {
+          abgezogen_in: string | null
           angebot_id: string | null
           betreff: string | null
           bezahlt_am: string | null
@@ -219,12 +220,14 @@ export type Database = {
           schlusstext: string | null
           status: string
           storno_von: string | null
+          teil_nr: number | null
           typ: string
           updated_at: string
           ust: number
           ust_satz: number
         }
         Insert: {
+          abgezogen_in?: string | null
           angebot_id?: string | null
           betreff?: string | null
           bezahlt_am?: string | null
@@ -256,12 +259,14 @@ export type Database = {
           schlusstext?: string | null
           status?: string
           storno_von?: string | null
+          teil_nr?: number | null
           typ: string
           updated_at?: string
           ust?: number
           ust_satz?: number
         }
         Update: {
+          abgezogen_in?: string | null
           angebot_id?: string | null
           betreff?: string | null
           bezahlt_am?: string | null
@@ -293,12 +298,20 @@ export type Database = {
           schlusstext?: string | null
           status?: string
           storno_von?: string | null
+          teil_nr?: number | null
           typ?: string
           updated_at?: string
           ust?: number
           ust_satz?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "belege_abgezogen_in_fkey"
+            columns: ["abgezogen_in"]
+            isOneToOne: false
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "belege_angebot_id_fkey"
             columns: ["angebot_id"]

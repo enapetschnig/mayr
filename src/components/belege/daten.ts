@@ -63,7 +63,7 @@ export function useBeleg(id: string | undefined) {
   });
 }
 
-export type BelegKurz = Pick<Beleg, "id" | "typ" | "nummer" | "status">;
+export type BelegKurz = Pick<Beleg, "id" | "typ" | "nummer" | "status"> & { teil_nr?: number | null };
 
 /** Rechnungen, die aus einem Angebot entstanden sind */
 export function useFolgeRechnungen(angebotId: string, aktiv: boolean) {
@@ -73,7 +73,7 @@ export function useFolgeRechnungen(angebotId: string, aktiv: boolean) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("belege")
-        .select("id, typ, nummer, status")
+        .select("id, typ, nummer, status, teil_nr")
         .eq("angebot_id", angebotId)
         .eq("typ", "rechnung")
         .order("created_at");

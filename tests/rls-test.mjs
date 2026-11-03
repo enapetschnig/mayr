@@ -293,6 +293,48 @@ console.log("\n— Eingangsrechnungen —");
   ok(erWeg2?.length === 1, "freie Eingangsrechnung lässt sich löschen" + (eWeg2 ? abgelehnt(eWeg2) : ""));
 }
 
+console.log("\n— Teil- und Schlussrechnung —");
+{
+  const neueRechnung = (felder) => chef.from("belege").insert({ typ: "rechnung", projekt_id: projekt.id, empf_name: "RLS-Test Kunde", ...felder }).select("id").single();
+  const pos = (belegId, art, preis, quelle = null) => chef.from("beleg_positionen").insert({
+    beleg_id: belegId, pos: art === "abzug" ? 2 : 1, art, bezeichnung: `RLS-Test ${art}`, menge: 1, einheit: "Psch", einzelpreis: preis, quelle,
+  }).select("id").single();
+  const { data: an3 } = await chef.from("belege").insert({ typ: "angebot", projekt_id: projekt.id, empf_name: "RLS-Test Kunde" }).select("id").single();
+  const { data: tr } = await neueRechnung({ angebot_id: an3.id, teil_nr: 1 });
+  await pos(tr.id, "pauschale", 100);
+  const { data: sr } = await neueRechnung({ angebot_id: an3.id });
+  const { error: eEntw } = await chef.from("belege").update({ abgezogen_in: sr.id }).eq("id", tr.id);
+  ok(!!eEntw, "eine Teilrechnung im Entwurf lässt sich nicht abziehen" + abgelehnt(eEntw));
+  await chef.rpc("beleg_fertigstellen", { p_id: tr.id });
+  const { error: eSelbst } = await chef.from("belege").update({ abgezogen_in: tr.id }).eq("id", tr.id);
+  ok(!!eSelbst, "eine Rechnung zieht sich nicht selbst ab" + abgelehnt(eSelbst));
+
+  await pos(sr.id, "pauschale", 500);
+  const { data: abz } = await pos(sr.id, "abzug", -100, { teil: [tr.id] });
+  const { error: eAbz } = await chef.from("belege").update({ abgezogen_in: sr.id }).eq("id", tr.id);
+  ok(!eAbz, "Schlussrechnung zieht die fertige Teilrechnung ab" + (eAbz ? abgelehnt(eAbz) : ""));
+  const { data: sr2 } = await neueRechnung({ angebot_id: an3.id });
+  const { error: eDoppelt } = await chef.from("belege").update({ abgezogen_in: sr2.id }).eq("id", tr.id);
+  ok(!!eDoppelt, "keine Teilrechnung wird zweimal abgezogen" + abgelehnt(eDoppelt));
+  await chef.from("belege").delete().eq("id", sr2.id);
+  const { error: eMAbz } = await monteur.from("belege").update({ abgezogen_in: null }).eq("id", tr.id);
+  const { data: tMon } = await chef.from("belege").select("abgezogen_in").eq("id", tr.id).single();
+  ok(tMon?.abgezogen_in === sr.id, "Monteur hebt den Abzug nicht auf" + (eMAbz ? ` — ${eMAbz.message}` : ""));
+
+  await chef.from("beleg_positionen").delete().eq("id", abz.id);
+  const { data: t1 } = await chef.from("belege").select("abgezogen_in").eq("id", tr.id).single();
+  ok(t1?.abgezogen_in === null, "Abzugsposition gelöscht → Teilrechnung wieder frei");
+
+  await pos(sr.id, "abzug", -100, { teil: [tr.id] });
+  await chef.from("belege").update({ abgezogen_in: sr.id }).eq("id", tr.id);
+  await chef.rpc("beleg_fertigstellen", { p_id: sr.id });
+  const { data: srB } = await chef.from("belege").select("netto, brutto").eq("id", sr.id).single();
+  ok(Number(srB?.netto) === 400 && Number(srB?.brutto) === 480, `Schlussrechnung rechnet den Rest: ${srB?.netto} netto, ${srB?.brutto} brutto`);
+  const { error: eSrSt } = await chef.rpc("beleg_stornieren", { p_id: sr.id });
+  const { data: t2 } = await chef.from("belege").select("abgezogen_in").eq("id", tr.id).single();
+  ok(!eSrSt && t2?.abgezogen_in === null, "Schlussrechnung storniert → Teilrechnung wieder frei" + (eSrSt ? abgelehnt(eSrSt) : ""));
+}
+
 console.log("\n— Regiebericht —");
 const { data: rb, error: eRb } = await monteur.from("regieberichte").insert({ projekt_id: projekt.id, arbeiten: "RLS-Test Arbeiten" }).select("id, nummer").single();
 ok(!eRb && /^RB-\d{4}-\d{3}$/.test(rb?.nummer ?? ""), `Monteur schreibt einen Regiebericht: ${rb?.nummer ?? eRb?.message}`);

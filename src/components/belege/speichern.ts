@@ -1,7 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
+import { datum as datumText } from "@/lib/format";
 import { belegSummen } from "@/lib/preise";
 import type { Beleg, Firma, Position } from "@/lib/types";
 import { fehlerText } from "@/components/stamm/stammDaten";
+import { abzugPosition, naechsteTeilNr, teilText, type TeilRechnung } from "./teilrechnung";
 import {
   kopfZuDb, neueId, ohneUstFuer, positionZuDb, quelleJson, quellenIds, summen,
   type BelegTyp, type EditorPosition, type Kopf, type Quelle,
@@ -140,6 +142,15 @@ export async function quellenBinden(belegId: string, q: Quelle): Promise<number>
     ["zeiten", q.zeiten], ["material_buchungen", q.material], ["regieberichte", q.regie], ["eingang_anteile", q.eingang ?? []],
   ];
   let konflikte = 0;
+  // Teilrechnungen: an der Teilrechnung steht, in welcher Schlussrechnung sie abgezogen ist
+  const teilIds = q.teil ?? [];
+  if (teilIds.length) {
+    const { error } = await supabase.from("belege").update({ abgezogen_in: belegId }).in("id", teilIds).is("abgezogen_in", null);
+    if (error) throw fehler("Teilrechnungen konnten nicht als abgezogen markiert werden", error);
+    const { data, error: e2 } = await supabase.from("belege").select("id, abgezogen_in").in("id", teilIds);
+    if (e2) throw fehler("Abzug konnte nicht geprüft werden", e2);
+    konflikte += teilIds.length - (data ?? []).filter((r) => r.abgezogen_in === belegId).length;
+  }
   for (const [tabelle, ids] of teile) {
     for (let i = 0; i < ids.length; i += 100) {
       const stueck = ids.slice(i, i + 100);
@@ -329,14 +340,79 @@ export async function belegKopieren({
 function quelleAusJson(j: Position["quelle"]): Quelle | null {
   const o = (j && typeof j === "object" && !Array.isArray(j) ? j : {}) as Record<string, unknown>;
   const liste = (x: unknown) => (Array.isArray(x) ? x.filter((v): v is string => typeof v === "string") : []);
-  const q = { zeiten: liste(o.zeiten), material: liste(o.material), regie: liste(o.regie) };
+  const q = { zeiten: liste(o.zeiten), material: liste(o.material), regie: liste(o.regie), eingang: liste(o.eingang), teil: liste(o.teil) };
   return quelleJson(q) ? q : null;
 }
 
-/** Angebot → Rechnung: Positionen kopieren, Angebot angenommen, Projekt in Arbeit */
+/**
+ * Angebot → Rechnung: Positionen kopieren, Angebot angenommen, Projekt in
+ * Arbeit. Gibt es schon Teilrechnungen zum Angebot, wird es die
+ * Schlussrechnung: je fertiger, noch nicht abgezogener Teilrechnung eine
+ * Abzugsposition am Ende.
+ */
 export async function inRechnungUmwandeln(angebot: Beleg, positionen: Position[], firma: Firma | null, heute: string): Promise<string> {
   const { id } = await belegKopieren({ quelle: angebot, positionen, typ: "rechnung", firma, heute });
+  const teile = (await teilrechnungenZu(angebot.id)).filter((t) => (t.status === "offen" || t.status === "bezahlt") && !t.abgezogen_in);
+  if (teile.length) {
+    const abzuege = teile.map((t, i) => positionZuDb(abzugPosition(t), id, positionen.length + 1 + i));
+    const { error } = await supabase.from("beleg_positionen").insert(abzuege);
+    if (error) throw fehler("Teilrechnungen konnten nicht abgezogen werden", error);
+    await quellenBinden(id, { zeiten: [], material: [], regie: [], teil: teile.map((t) => t.id) });
+    const alle = [...positionen.map((p) => ({ art: p.art, menge: Number(p.menge), einzelpreis: Number(p.einzelpreis) })),
+      ...abzuege.map((p) => ({ art: p.art, menge: p.menge, einzelpreis: p.einzelpreis }))];
+    const ohneUst = !!angebot.reverse_charge || !!firma?.kleinunternehmer;
+    const sm = belegSummen(alle, Number(angebot.ust_satz), ohneUst);
+    await supabase.from("belege").update({ netto: sm.netto, ust: sm.ust, brutto: sm.brutto, betreff: schlussBetreff(angebot.betreff) }).eq("id", id);
+  }
   if (angebot.status === "offen") await statusSetzen(angebot.id, "angenommen");
   await projektAktivieren(angebot.projekt_id);
   return id;
+}
+
+const schlussBetreff = (betreff: string | null) => `Schlussrechnung${betreff?.trim() ? ` – ${betreff.trim()}` : ""}`;
+
+export type TeilZeile = TeilRechnung & { abgezogen_in: string | null };
+
+/** Alle Teilrechnungen zu einem Angebot, nach Nummer */
+export async function teilrechnungenZu(angebotId: string): Promise<TeilZeile[]> {
+  const { data, error } = await supabase.from("belege").select("id, teil_nr, nummer, datum, netto, ust, brutto, status, abgezogen_in")
+    .eq("typ", "rechnung").eq("angebot_id", angebotId).not("teil_nr", "is", null).order("teil_nr");
+  if (error) throw fehler("Teilrechnungen konnten nicht geladen werden", error);
+  return data ?? [];
+}
+
+/**
+ * Teilrechnung (Anzahlung) zum Angebot: neuer Rechnungsentwurf mit einer
+ * Pauschale über den Betrag. Angebot wird angenommen, Projekt in Arbeit.
+ */
+export async function teilrechnungAnlegen(
+  angebot: Beleg, betragNetto: number, prozent: number | null, firma: Firma | null, heute: string,
+): Promise<string> {
+  const nr = naechsteTeilNr(await teilrechnungenZu(angebot.id));
+  const position = {
+    id: neueId(), beleg_id: angebot.id, pos: 1, art: "pauschale", bezeichnung: teilText(nr, angebot.nummer, Number(angebot.netto), prozent),
+    langtext: null, menge: 1, einheit: "Psch", einzelpreis: betragNetto, ek_preis: null, minuten: null, artikel_id: null, leistung_id: null,
+    quelle: null,
+  } as unknown as Position;
+  const { id } = await belegKopieren({ quelle: angebot, positionen: [position], typ: "rechnung", firma, heute });
+  const { error } = await supabase.from("belege")
+    .update({ teil_nr: nr, betreff: `${nr}. Teilrechnung${angebot.betreff?.trim() ? ` – ${angebot.betreff.trim()}` : ""}` }).eq("id", id);
+  if (error) throw fehler("Teilrechnung konnte nicht angelegt werden", error);
+  if (angebot.status === "offen") await statusSetzen(angebot.id, "angenommen");
+  await projektAktivieren(angebot.projekt_id);
+  return id;
+}
+
+/** Abgezogene Teilrechnungen fürs PDF der Schlussrechnung, in der Reihenfolge der Abzugspositionen */
+export async function abzuegeLaden(teilIds: string[]): Promise<{ text: string; netto: number; ust: number; brutto: number }[]> {
+  if (!teilIds.length) return [];
+  const { data, error } = await supabase.from("belege").select("id, teil_nr, nummer, datum, netto, ust, brutto").in("id", teilIds);
+  if (error) throw fehler("Teilrechnungen konnten nicht geladen werden", error);
+  return teilIds.flatMap((id) => {
+    const t = (data ?? []).find((x) => x.id === id);
+    return t ? [{
+      text: `${t.teil_nr ?? ""}. Teilrechnung ${t.nummer ?? ""} vom ${datumText(t.datum)}`.replace(/\s+/g, " "),
+      netto: Number(t.netto), ust: Number(t.ust), brutto: Number(t.brutto),
+    }] : [];
+  });
 }

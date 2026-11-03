@@ -1,5 +1,6 @@
 import type { CellHookData, RowInput } from "jspdf-autotable";
 import { ohneBetrag, positionsNummern, zwischensummen } from "@/components/belege/editor";
+import { schlussAufstellung } from "@/components/belege/teilrechnung";
 import {
   FUSS_PLATZ, RAND, briefkopf, datenBlock, empfaengerBlock, eur, fmt, fmtDatum, fmtMenge, fusszeilen,
   pdfDateiname, pdfLaden, platzPruefen, titelZeile, zahlungsQr,
@@ -15,6 +16,9 @@ import type { Beleg, Firma } from "@/lib/types";
  * Stornorechnungen: eigene Nummer, Verweis, negative Beträge, keine Zahlung.
  * Angebote sagen immer, ob der Kostenvoranschlag verbindlich ist — bei
  * Verbrauchern gilt er sonst als verbindlich (§ 5 Abs. 2 KSchG).
+ * Schlussrechnung: die Abzüge der Teilrechnungen stehen nicht in der
+ * Tabelle, sondern im Summenblock — Gesamtleistung, je Teilrechnung netto
+ * und USt, Restbetrag (§ 11 Abs. 1 Z 4 UStG).
  */
 
 export type PdfPosition = {
@@ -32,7 +36,7 @@ export type BelegPdfDaten = {
     | "typ" | "nummer" | "status" | "datum" | "leistung_von" | "leistung_bis" | "gueltig_bis" | "faellig_am"
     | "betreff" | "einleitung" | "schlusstext" | "ust_satz" | "reverse_charge" | "kv_verbindlich"
     | "empf_name" | "empf_zusatz" | "empf_strasse" | "empf_plz" | "empf_ort" | "empf_uid"
-  >;
+  > & { teil_nr?: number | null };
   positionen: PdfPosition[];
   firma: Firma;
   projekt?: { nummer: string; name: string; strasse?: string | null; plz?: string | null; ort?: string | null } | null;
@@ -40,11 +44,16 @@ export type BelegPdfDaten = {
   stornoZu?: string | null;
   /** Korrektur: Nummer der stornierten Rechnung, die sie ersetzt */
   ersetzt?: string | null;
+  /** Schlussrechnung: abgezogene Teilrechnungen (Text, netto, USt, brutto) */
+  abzuege?: Abzug[];
 };
 
 const GRAU: [number, number, number] = [110, 110, 110];
 
-export async function belegPdfErstellen({ beleg, positionen, firma, projekt, stornoZu, ersetzt }: BelegPdfDaten): Promise<{ blob: Blob; dateiname: string }> {
+export type Abzug = { text: string; netto: number; ust: number; brutto: number };
+type SummenZeile = { text: string; betrag: number; fett?: boolean; linie?: boolean; unter?: string };
+
+export async function belegPdfErstellen({ beleg, positionen: allePositionen, firma, projekt, stornoZu, ersetzt, abzuege = [] }: BelegPdfDaten): Promise<{ blob: Blob; dateiname: string }> {
   const { pdf, autoTable } = await pdfLaden();
   const bw = pdf.internal.pageSize.getWidth();
   const bh = pdf.internal.pageSize.getHeight();
@@ -52,10 +61,14 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt, sto
   const istAngebot = beleg.typ === "angebot";
   const storno = beleg.status === "storno";
   const typText = istAngebot ? "Angebot" : storno ? "Stornorechnung" : "Rechnung";
+  const schluss = !istAngebot && !storno && allePositionen.some((p) => p.art === "abzug");
+  const titelText = beleg.teil_nr && !istAngebot && !storno ? `${beleg.teil_nr}. Teilrechnung` : schluss ? "Schlussrechnung" : typText;
+  // Abzüge stehen im Summenblock, nicht in der Tabelle
+  const positionen = allePositionen.filter((p) => p.art !== "abzug");
   const entwurf = beleg.status === "entwurf" || !beleg.nummer;
   const rc = !!beleg.reverse_charge && !firma.kleinunternehmer;
   const klein = !!firma.kleinunternehmer;
-  const s = belegSummen(positionen, Number(beleg.ust_satz ?? 20), rc || klein);
+  const s = belegSummen(allePositionen, Number(beleg.ust_satz ?? 20), rc || klein);
 
   // ── Kopf ──
   let y = await briefkopf(pdf, firma);
@@ -88,7 +101,7 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt, sto
   const yRechts = datenBlock(pdf, daten, yStart);
 
   y = Math.max(yLinks, yRechts) + 6;
-  y = titelZeile(pdf, entwurf ? `${typText} – Entwurf` : `${typText} ${beleg.nummer}`, firma, y);
+  y = titelZeile(pdf, entwurf ? `${titelText} – Entwurf` : `${titelText} ${beleg.nummer}`, firma, y);
 
   if (beleg.betreff?.trim()) {
     pdf.setFont("helvetica", "bold");
@@ -199,28 +212,48 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt, sto
   y = (pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
 
   // ── Summen ──
-  const summen: [string, number, boolean][] = rc || klein
-    ? [[rc ? "Gesamtbetrag netto" : "Gesamtbetrag", s.netto, true]]
-    : [
-      ["Nettobetrag", s.netto, false],
-      [`USt ${fmt(Number(beleg.ust_satz ?? 20)).replace(",00", "")} %`, s.ust, false],
-      ["Gesamtbetrag", s.brutto, true],
-    ];
-  y = platzPruefen(pdf, y, summen.length * 7 + 12);
+  const ohneUst = rc || klein;
+  const ustText = `USt ${fmt(Number(beleg.ust_satz ?? 20)).replace(",00", "")} %`;
+  const summen: SummenZeile[] = [];
+  if (schluss && abzuege.length) {
+    const a = schlussAufstellung(s, abzuege);
+    if (ohneUst) summen.push({ text: "Gesamtleistung netto", betrag: a.gesamtNetto });
+    else {
+      summen.push({ text: "Gesamtleistung netto", betrag: a.gesamtNetto }, { text: ustText, betrag: a.gesamtUst }, { text: "Gesamtleistung brutto", betrag: a.gesamtBrutto, linie: true });
+    }
+    abzuege.forEach((x) => summen.push({
+      text: `abzüglich ${x.text}`,
+      betrag: -(ohneUst ? x.netto : x.brutto),
+      unter: ohneUst ? undefined : `netto ${eur(x.netto)} + USt ${eur(x.ust)}`,
+    }));
+    if (ohneUst) summen.push({ text: "Restbetrag", betrag: s.netto, fett: true, linie: true });
+    else summen.push({ text: "Restbetrag netto", betrag: s.netto, linie: true }, { text: ustText, betrag: s.ust }, { text: "Zu zahlen", betrag: s.brutto, fett: true, linie: true });
+  } else if (ohneUst) summen.push({ text: rc ? "Gesamtbetrag netto" : "Gesamtbetrag", betrag: s.netto, fett: true });
+  else summen.push({ text: "Nettobetrag", betrag: s.netto }, { text: ustText, betrag: s.ust }, { text: "Gesamtbetrag", betrag: s.brutto, fett: true, linie: true });
+
+  y = platzPruefen(pdf, y, summen.reduce((h, z) => h + (z.unter ? 10 : 7), 0) + 12);
   y += 2;
   pdf.setDrawColor(0, 0, 0);
   pdf.setLineWidth(0.6);
   pdf.line(bw - RAND - 90, y, bw - RAND, y);
-  summen.forEach(([text, betrag, fett]) => {
-    if (fett && summen.length > 1) {
-      pdf.setLineWidth(0.6);
+  summen.forEach((z) => {
+    if (z.linie && summen.length > 1) {
+      pdf.setLineWidth(z.fett ? 0.6 : 0.2);
       pdf.line(bw - RAND - 90, y + 1, bw - RAND, y + 1);
     }
-    pdf.setFont("helvetica", fett ? "bold" : "normal");
-    pdf.setFontSize(fett ? 10.5 : 9);
-    pdf.text(text, bw - RAND - 32, y + 5, { align: "right" });
+    pdf.setFont("helvetica", z.fett ? "bold" : "normal");
+    pdf.setFontSize(z.fett ? 10.5 : 9);
+    pdf.text(z.text, bw - RAND - 32, y + 5, { align: "right" });
     pdf.setFont("helvetica", "bold");
-    pdf.text(eur(betrag), bw - RAND - 1, y + 5, { align: "right" });
+    pdf.text(eur(z.betrag), bw - RAND - 1, y + 5, { align: "right" });
+    if (z.unter) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(...GRAU);
+      pdf.text(z.unter, bw - RAND - 32, y + 8.8, { align: "right" });
+      pdf.setTextColor(0, 0, 0);
+      y += 3.5;
+    }
     y += 7;
   });
   y += 6;
@@ -326,7 +359,7 @@ export async function belegPdfErstellen({ beleg, positionen, firma, projekt, sto
     }
   }
 
-  const dateiname = pdfDateiname(typText, beleg.nummer || "Entwurf", beleg.empf_name);
+  const dateiname = pdfDateiname(titelText.replace(/^\d+\. /, ""), beleg.nummer || "Entwurf", beleg.empf_name);
   // Titel fürs Dokument — sonst zeigt die PDF-Ansicht des Browsers eine Blob-Nummer
   pdf.setProperties({ title: dateiname.replace(/\.pdf$/, ""), author: firma.name, creator: firma.name });
   return { blob: pdf.output("blob"), dateiname };
