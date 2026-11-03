@@ -15,6 +15,7 @@ Hardware existiert.
 | Projekte / Kommissionen, Projektnachkalkulation | Projekte `2026-0001`, Nachkalkulation in der Auswertung |
 | Angebote, Rechnungen, Storno, Gutschrift | Angebote (KV), Rechnungen, Stornorechnung, Korrektur, Rechnungsarchiv |
 | Materialverwaltung, Lager, Inventur | Lager, Bus als Lagerort, Ausfassen/Rückgabe, Inventur |
+| Bestellwesen, Bestellvorschlag, Wareneingang | Bestellungen je Lieferant aus Mindestbestand oder Angebot, PDF/CSV, Wareneingang per Scan mit Teillieferung |
 | Zeiterfassung, Handy-APP, Mobile Aufträge mit Unterschrift + Foto | Stunden am Handy, Regiebericht mit Kundenunterschrift, Fotos |
 | WEL/WER (Eingangsrechnungen) | Eingangsrechnungen, Projekten zuordnen, weiterverrechnen |
 | Zeitplanung | Kalender |
@@ -29,7 +30,7 @@ Hardware existiert.
 | 1 | **Offene Posten & Mahnwesen** | Zahlungen (auch Teilzahlungen) je Rechnung, offener Rest, überfällig, Zahlungserinnerung → 1. → 2. Mahnung als PDF mit Mahnspesen und Verzugszinsen, Liste „Offene Posten“ | ✅ 03.11.2026 |
 | 2 | **Anzahlung, Teil- und Schlussrechnung** | Teilrechnung nach Prozent oder Betrag auf ein Angebot, Schlussrechnung zieht alle Teilrechnungen ab (mit USt je Teilrechnung), Restforderung (Haftrücklass später) | ✅ 03.11.2026 |
 | 3 | **Anlagen & Wartung / E-Check** | Anlagen beim Kunden (Verteiler, Blitzschutz, Notlicht, PV …), Prüfintervall, „fällig“-Liste, Prüfprotokoll am Handy mit Messwerten (Isolation, Schleifenimpedanz, FI-Auslösezeit …), Kundenunterschrift, PDF, daraus Rechnung | ✅ 03.11.2026 |
-| 4 | **Bestellungen beim Großhändler** | Bestellvorschlag aus Mindestbestand und Projektbedarf, Bestellung als PDF/E-Mail-Text je Lieferant, Wareneingang gegen Bestellung (Teillieferung), offene Bestellungen | geplant |
+| 4 | **Bestellungen beim Großhändler** | Bestellvorschlag aus Mindestbestand und Projektbedarf, Bestellung als PDF/E-Mail-Text je Lieferant, Wareneingang gegen Bestellung (Teillieferung), offene Bestellungen | ✅ 03.11.2026 |
 | 5 | **Abwesenheiten & Lohnarten** | Urlaub, Krankenstand, Zeitausgleich, Feiertag; Überstundenkonto je Mitarbeiter; Diäten und Kilometergeld; alles im Stundennachweis-PDF | geplant |
 | 6 | **Metallzuschlag (Kupfer)** | Datanorm-Kupferzahl (kg/km), Kupfernotiz (DEL) in Einstellungen, Zuschlag auf Kabelpositionen | geplant |
 | 7 | **E-Rechnung & Buchhaltungsexport** | ebInterface 6.1 (österreichischer Standard, Pflicht bei Bund), ZUGFeRD/XRechnung, Export für BMD/DATEV (CSV) | geplant |

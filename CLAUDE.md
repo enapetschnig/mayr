@@ -42,9 +42,9 @@ npm run check        # Absturz-Wächter
 npm test             # vitest (Parser)
 ```
 
-Regeln in der Datenbank prüfen (123 Prüfungen: nicht freigeschaltet, Monteur,
+Regeln in der Datenbank prüfen (140 Prüfungen: nicht freigeschaltet, Monteur,
 Chef, Festschreiben, Offene Posten, Stornorechnung, Korrektur, Eingangsrechnungen,
-Teil-/Schlussrechnung, Anlagen und Prüfprotokolle,
+Teil-/Schlussrechnung, Anlagen und Prüfprotokolle, Bestellungen,
 Regiebericht, Material, Konten, Rechnungsarchiv) — legt echte Daten und Nummern an, danach **immer** aufräumen:
 
 ```bash

@@ -434,6 +434,59 @@ console.log("\n— Material —");
   ok(!!mb && !!e4, "und schiebt die Buchung keinem Kollegen unter" + abgelehnt(e4));
 }
 
+console.log("\n— Bestellungen —");
+{
+  const { data: lager } = await chef.from("lagerorte").select("id").eq("art", "lager").limit(1).single();
+  const { data: zwei } = await chef.from("artikel").select("id").eq("aktiv", true).order("id").limit(2);
+  const [art1, art2] = zwei;
+  const { error: eM } = await monteur.from("bestellungen").insert({ lieferant: "RLS-Test Großhandel", lagerort_id: lager.id });
+  ok(!!eM, "Monteur legt keine Bestellung an" + abgelehnt(eM));
+  const { error: eZiel } = await chef.from("bestellungen").insert({ lieferant: "RLS-Test Großhandel", lagerort_id: lager.id, projekt_id: projekt.id });
+  ok(!!eZiel, "Lager und Baustelle zugleich geht nicht" + abgelehnt(eZiel));
+  const { data: be, error: eBe } = await chef.from("bestellungen")
+    .insert({ lieferant: "RLS-Test Großhandel", lagerort_id: lager.id }).select("id, nummer").single();
+  ok(!eBe && /^BE-\d{4}-\d{3}$/.test(be?.nummer ?? ""), `Chef legt eine Bestellung an: ${be?.nummer ?? eBe?.message}`);
+  const { error: eLeer } = await chef.from("bestellungen").update({ status: "bestellt" }).eq("id", be.id);
+  ok(!!eLeer, "ohne Positionen wird nicht bestellt" + abgelehnt(eLeer));
+  const { data: pos } = await chef.from("bestell_positionen")
+    .insert({ bestellung_id: be.id, pos: 1, artikel_id: art1.id, menge: 10, ek_preis: 2, geliefert: 99 }).select("id, geliefert").single();
+  ok(Number(pos?.geliefert) === 0, "die gelieferte Menge startet bei 0, egal was geschickt wird");
+  const { error: eGel } = await chef.from("bestell_positionen").update({ geliefert: 10 }).eq("id", pos.id);
+  ok(!!eGel, "gelieferte Menge lässt sich nicht von Hand setzen" + abgelehnt(eGel));
+  const { data: best, error: eBest } = await chef.from("bestellungen").update({ status: "bestellt" }).eq("id", be.id).select("bestellt_am").single();
+  ok(!eBest && !!best?.bestellt_am, "Chef bestellt, der Zeitpunkt wird gesetzt" + (eBest ? abgelehnt(eBest) : ""));
+  const { error: eFix } = await chef.from("bestell_positionen").update({ menge: 20 }).eq("id", pos.id);
+  ok(!!eFix, "nach dem Bestellen stehen die Positionen fest" + abgelehnt(eFix));
+  const eingang = (c, menge, artikelId = art1.id) => c.from("material_buchungen")
+    .insert({ art: "zugang", artikel_id: artikelId, lagerort_id: lager.id, menge, notiz: "RLS-Test Lieferung", bestellposition_id: pos.id }).select("id").single();
+  const { error: eMon } = await eingang(monteur, 1);
+  ok(!!eMon, "Monteur bucht keinen Wareneingang gegen die Bestellung" + abgelehnt(eMon));
+  const { error: eFalsch } = await eingang(chef, 1, art2.id);
+  ok(!!eFalsch, "falscher Artikel passt nicht zur Position" + abgelehnt(eFalsch));
+  const { data: l1, error: eL1 } = await eingang(chef, 4);
+  const stand = async () => {
+    const { data } = await chef.from("bestellungen").select("status, bestell_positionen(geliefert)").eq("id", be.id).single();
+    return { status: data?.status, geliefert: Number(data?.bestell_positionen?.[0]?.geliefert) };
+  };
+  let s = await stand();
+  ok(!eL1 && s.status === "teilgeliefert" && s.geliefert === 4, `Teillieferung: ${s.status}, geliefert ${s.geliefert}` + (eL1 ? abgelehnt(eL1) : ""));
+  const { error: eSt } = await chef.from("bestellungen").update({ status: "storniert" }).eq("id", be.id);
+  ok(!!eSt, "schon teilweise geliefert → nicht stornierbar" + abgelehnt(eSt));
+  await eingang(chef, 6);
+  s = await stand();
+  ok(s.status === "geliefert" && s.geliefert === 10, `Rest geliefert: ${s.status}, geliefert ${s.geliefert}`);
+  await chef.from("material_buchungen").delete().eq("id", l1.id);
+  s = await stand();
+  ok(s.status === "teilgeliefert" && s.geliefert === 6, `Buchung gelöscht → wieder teilgeliefert, geliefert ${s.geliefert}`);
+  const { error: eDel } = await chef.from("bestellungen").delete().eq("id", be.id);
+  const { data: nochDa } = await chef.from("bestellungen").select("id").eq("id", be.id);
+  ok(nochDa?.length === 1, "eine bestellte Bestellung lässt sich nicht löschen" + (eDel ? ` — ${eDel.message}` : ""));
+  const { error: eErl } = await chef.from("bestellungen").update({ status: "erledigt" }).eq("id", be.id);
+  ok(!eErl, "„Rest kommt nicht mehr“ schließt ab" + (eErl ? abgelehnt(eErl) : ""));
+  const { data: sieht } = await monteur.from("bestellungen").select("id");
+  ok(!sieht?.length, "Monteur sieht keine Bestellungen (Einkaufspreise)");
+}
+
 console.log("\n— Konten —");
 {
   const { error: e1 } = await monteur.rpc("passwort_setzen", { p_user: neuId, p_passwort: "Monteur-1234" });

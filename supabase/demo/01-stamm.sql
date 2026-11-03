@@ -29,6 +29,8 @@ begin
   alter table material_buchungen disable trigger user;
   alter table eingang_anteile disable trigger user;
   alter table pruefungen disable trigger user;
+  alter table bestellungen disable trigger user;
+  alter table bestell_positionen disable trigger user;
   delete from pruefungen;
   delete from anlagen;
   delete from mahnungen;
@@ -37,6 +39,7 @@ begin
   delete from eingangsrechnungen;
   delete from beleg_positionen;
   delete from material_buchungen;
+  delete from bestellungen;
   delete from zeiten;
   delete from regieberichte;
   delete from belege;
@@ -56,6 +59,8 @@ begin
   alter table material_buchungen enable trigger user;
   alter table eingang_anteile enable trigger user;
   alter table pruefungen enable trigger user;
+  alter table bestellungen enable trigger user;
+  alter table bestell_positionen enable trigger user;
   perform setval(pg_get_serial_sequence('kunden', 'nummer'), 1001, false);
   perform setval(pg_get_serial_sequence('anlagen', 'nummer'), 1, false);
 

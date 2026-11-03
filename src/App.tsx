@@ -34,6 +34,8 @@ const Einstellungen = lazy(() => import("./pages/Einstellungen"));
 const Handyansicht = lazy(() => import("./pages/Handyansicht"));
 const Eingang = lazy(() => import("./pages/Eingang"));
 const OffenePosten = lazy(() => import("./pages/OffenePosten"));
+const Bestellungen = lazy(() => import("./pages/Bestellungen"));
+const BestellungDetail = lazy(() => import("./pages/BestellungDetail"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: true, retry: 1 } },
@@ -71,6 +73,8 @@ const App = () => (
                 <Route path="/kalender" element={<S><Kalender /></S>} />
                 <Route path="/scan" element={<S><Scan /></S>} />
                 <Route path="/lager" element={<S><Lager /></S>} />
+                <Route path="/bestellungen" element={<S chef><Bestellungen /></S>} />
+                <Route path="/bestellungen/:id" element={<S chef><BestellungDetail /></S>} />
                 <Route path="/anlagen" element={<S><Anlagen /></S>} />
                 <Route path="/anlagen/:id" element={<S><AnlageDetail /></S>} />
                 <Route path="/pruefungen/:id" element={<S><PruefungSeite /></S>} />

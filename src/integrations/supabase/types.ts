@@ -453,6 +453,131 @@ export type Database = {
           },
         ]
       }
+      bestell_positionen: {
+        Row: {
+          artikel_id: string
+          bestellung_id: string
+          created_at: string
+          ek_preis: number | null
+          geliefert: number
+          id: string
+          menge: number
+          pos: number
+        }
+        Insert: {
+          artikel_id: string
+          bestellung_id: string
+          created_at?: string
+          ek_preis?: number | null
+          geliefert?: number
+          id?: string
+          menge: number
+          pos?: number
+        }
+        Update: {
+          artikel_id?: string
+          bestellung_id?: string
+          created_at?: string
+          ek_preis?: number | null
+          geliefert?: number
+          id?: string
+          menge?: number
+          pos?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bestell_positionen_artikel_id_fkey"
+            columns: ["artikel_id"]
+            isOneToOne: false
+            referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bestell_positionen_bestellung_id_fkey"
+            columns: ["bestellung_id"]
+            isOneToOne: false
+            referencedRelation: "bestellungen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bestellungen: {
+        Row: {
+          bestellt_am: string | null
+          created_at: string
+          datum: string
+          erstellt_von: string | null
+          id: string
+          lagerort_id: string | null
+          lieferant: string
+          liefertermin: string | null
+          notiz: string | null
+          nummer: string | null
+          projekt_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          bestellt_am?: string | null
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          id?: string
+          lagerort_id?: string | null
+          lieferant: string
+          liefertermin?: string | null
+          notiz?: string | null
+          nummer?: string | null
+          projekt_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          bestellt_am?: string | null
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          id?: string
+          lagerort_id?: string | null
+          lieferant?: string
+          liefertermin?: string | null
+          notiz?: string | null
+          nummer?: string | null
+          projekt_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bestellungen_erstellt_von_fkey"
+            columns: ["erstellt_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bestellungen_lagerort_id_fkey"
+            columns: ["lagerort_id"]
+            isOneToOne: false
+            referencedRelation: "lagerorte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bestellungen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
+          },
+          {
+            foreignKeyName: "bestellungen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dateien: {
         Row: {
           art: string
@@ -980,6 +1105,7 @@ export type Database = {
         Row: {
           art: string
           artikel_id: string | null
+          bestellposition_id: string | null
           bezeichnung: string | null
           created_at: string
           einheit: string | null
@@ -997,6 +1123,7 @@ export type Database = {
         Insert: {
           art: string
           artikel_id?: string | null
+          bestellposition_id?: string | null
           bezeichnung?: string | null
           created_at?: string
           einheit?: string | null
@@ -1014,6 +1141,7 @@ export type Database = {
         Update: {
           art?: string
           artikel_id?: string | null
+          bestellposition_id?: string | null
           bezeichnung?: string | null
           created_at?: string
           einheit?: string | null
@@ -1034,6 +1162,13 @@ export type Database = {
             columns: ["artikel_id"]
             isOneToOne: false
             referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_buchungen_bestellposition_id_fkey"
+            columns: ["bestellposition_id"]
+            isOneToOne: false
+            referencedRelation: "bestell_positionen"
             referencedColumns: ["id"]
           },
           {

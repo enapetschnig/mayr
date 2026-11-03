@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  ChevronDown, ChevronRight, ClipboardCheck, Download, History, Loader2, Package, PackagePlus, Plus, Search, Truck, Warehouse,
+  ChevronDown, ChevronRight, ClipboardCheck, Download, History, Loader2, Package, PackagePlus, Plus, Search, ShoppingCart, Truck, Warehouse,
 } from "lucide-react";
 import { Seite } from "@/components/PageHeader";
 import { Abschnitt, AktionsKachel, Kennzahl, Leer, StatusPille } from "@/components/Bausteine";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LagerortDialog } from "@/components/material/LagerortDialog";
+import { useOffeneBestellMengen } from "@/components/bestellung/bestellDaten";
 import {
   artikelInfo, fehlerText, lagerVorzeichen, mengeText, nachVorgang, runden3, useAlleLagerorte, useLagerArtikel,
   useLagerbestand, useLetzteBuchungen, useMaterialLive, zeitpunktText, type ArtikelLager,
@@ -47,6 +48,7 @@ export default function Lager() {
   const { data: lagerArtikel = [], isLoading: laedtArtikel } = useLagerArtikel();
   const { data: alleOrte = [] } = useAlleLagerorte();
   const { data: mitarbeiter = [] } = useMitarbeiter();
+  const { data: bestellt } = useOffeneBestellMengen();
   useMaterialLive();
 
   const orte = useMemo(() => alleOrte.filter((o) => o.aktiv), [alleOrte]);
@@ -180,7 +182,7 @@ export default function Lager() {
                   <td className="py-2.5 pl-4 pr-2">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-medium">{a.bezeichnung}</span>
-                      {z.fehlt > 0 && <StatusPille eintrag={{ ton: "gelb", text: `Nachbestellen · ${zahl(z.fehlt)}` }} />}
+                      {z.fehlt > 0 && <StatusPille eintrag={{ ton: "gelb", text: `Nachbestellen · ${zahl(z.fehlt)}${bestellt?.get(a.id) ? ` · ${zahl(bestellt.get(a.id))} bestellt` : ""}` }} />}
                     </div>
                     <p className="text-xs text-muted-foreground">{artikelInfo(a) || a.kategorie}</p>
                   </td>
@@ -224,7 +226,7 @@ export default function Lager() {
                   <p className="line-clamp-2 font-medium leading-snug">{a.bezeichnung}</p>
                   <p className="truncate text-xs text-muted-foreground">{artikelInfo(a) || a.kategorie}</p>
                   {z.fehlt > 0 && (
-                    <StatusPille className="mt-1" eintrag={{ ton: "gelb", text: `Nachbestellen · ${zahl(z.fehlt)} fehlen` }} />
+                    <StatusPille className="mt-1" eintrag={{ ton: "gelb", text: `Nachbestellen · ${zahl(z.fehlt)} fehlen${bestellt?.get(a.id) ? ` · ${zahl(bestellt.get(a.id))} bestellt` : ""}` }} />
                   )}
                 </div>
                 <div className="shrink-0 text-right">
@@ -267,9 +269,10 @@ export default function Lager() {
   return (
     <Seite titel="Lager" untertitel={ortName ? `Bestand · ${ortName}` : "Bestand über alle Lagerorte"} breit>
       {istChef && (
-        <div className="grid grid-cols-2 gap-3 lg:max-w-xl">
+        <div className="grid grid-cols-2 gap-3 lg:max-w-3xl lg:grid-cols-3">
           <AktionsKachel icon={PackagePlus} titel="Wareneingang" unter="Lieferung einbuchen" to={`/scan?modus=zugang${lagerParam}`} />
           <AktionsKachel icon={ClipboardCheck} titel="Inventur" unter="Zählen, korrigieren" to={`/scan?modus=korrektur${lagerParam}`} />
+          <AktionsKachel icon={ShoppingCart} titel="Bestellungen" unter="Beim Großhändler bestellen" to="/bestellungen" className="col-span-2 lg:col-span-1" />
         </div>
       )}
 
@@ -313,9 +316,14 @@ export default function Lager() {
 
       <section className="space-y-2.5">
         {istChef && nurNachbestellen && nachbestellen.length > 0 && (
-          <Button variant="outline" className="h-11 w-full gap-2 sm:w-auto" onClick={bestelllisteLaden}>
-            <Download className="h-4 w-4" /> Bestellliste als CSV · {nachbestellen.length} Artikel
-          </Button>
+          <div className="grid gap-2 sm:flex">
+            <Button asChild className="h-11 gap-2">
+              <Link to="/bestellungen?neu=lager"><ShoppingCart className="h-4 w-4" /> Bestellung anlegen</Link>
+            </Button>
+            <Button variant="outline" className="h-11 gap-2" onClick={bestelllisteLaden}>
+              <Download className="h-4 w-4" /> Bestellliste als CSV · {nachbestellen.length} Artikel
+            </Button>
+          </div>
         )}
         {liste}
         {sichtbar.length > zeigen && (

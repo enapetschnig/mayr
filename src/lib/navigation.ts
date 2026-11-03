@@ -1,6 +1,6 @@
 import {
   BarChart3, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
-  Receipt, ScanBarcode, Settings, ShieldCheck, Smartphone, Users, Warehouse, type LucideIcon,
+  Receipt, ScanBarcode, Settings, ShieldCheck, ShoppingCart, Smartphone, Users, Warehouse, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -37,6 +37,7 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Angebote & Rechnungen", text: "Vor Ort per Sprache, PDF mit Bezahl-QR", pfad: "/belege", icon: Receipt, gruppe: "buero", nurChef: true },
   { titel: "Offene Posten", text: "Wer noch zahlen muss, mahnen mit einem Tipp", pfad: "/offene-posten", icon: HandCoins, gruppe: "buero", nurChef: true },
   { titel: "Eingangsrechnungen", text: "Rechnungen vom Großhändler zuordnen", pfad: "/eingang", icon: Inbox, gruppe: "buero", nurChef: true },
+  { titel: "Bestellungen", text: "Beim Großhändler bestellen, Lieferung einbuchen", pfad: "/bestellungen", icon: ShoppingCart, gruppe: "buero", nurChef: true },
   { titel: "Kunden", text: "Adressen und Kontakte", pfad: "/kunden", icon: Users, gruppe: "buero" },
   { titel: "Artikel", text: "Artikelstamm, Datanorm, Strichcodes", pfad: "/artikel", icon: Package, gruppe: "buero" },
   { titel: "Leistungskatalog", text: "Leistungen mit Material und Montagezeit", pfad: "/leistungen", icon: ListChecks, gruppe: "buero", nurChef: true },

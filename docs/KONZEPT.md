@@ -223,6 +223,38 @@ Migration `20261103120000_anlagen.sql`:
 - Startseite (Chef): „X Anlagen zu prüfen · Y überfällig“ (fällig = in den
   nächsten 30 Tagen).
 
+### Bestellungen beim Großhändler (`components/bestellung/`, Seite `/bestellungen`, nur Chef)
+
+Migration `20261103130000_bestellungen.sql`:
+- **Bestellung** (`bestellungen`, `BE-2026-001`) an einen Lieferanten (freier
+  Text, Vorschläge aus `artikel.lieferant`), Ziel genau eines: Lagerort
+  (Zugang ins Lager) oder Projekt (direkt auf die Baustelle). Positionen
+  (`bestell_positionen`) sind immer Artikel aus dem Stamm, EK aus dem Stamm
+  vorbelegt.
+- **Neue Bestellung** — drei Wege, angelegt werden Entwürfe, je Lieferant einer:
+  „Lager auffüllen“ (Mindestbestand − Bestand − schon bestellt, aufgerundet),
+  „Material fürs Projekt“ (Angebot des Projekts: angenommen vor offen vor
+  Entwurf; Artikel-Positionen direkt, Leistungen über `leistung_material`;
+  schon für das Projekt Bestelltes zählt ab), „Leere Bestellung“. Logik in
+  `bestellLogik.ts` (Tests daneben). Lager → Nachbestellen hat den Knopf
+  „Bestellung anlegen“; die Pille zeigt „… bestellt“.
+- **Bestellen**: PDF (Lieferadresse Betrieb oder Baustelle), CSV für den
+  Webshop (Artikelnummer;Menge vorne), Text kopieren — verschickt wird
+  außerhalb der App. „Als bestellt markieren“ → `bestellt_am` vom Server,
+  Positionen, Lieferant und Ziel stehen fest (Trigger `bestellung_schutz`,
+  `bestellpos_schutz`).
+- **Wareneingang** („Lieferung einbuchen“): Menge je Position, „Alles wie
+  bestellt“ oder Scannen (`artikelZuCode`, Karton-Code zählt den
+  Packungsinhalt, fremde Codes: „Nicht in dieser Bestellung“). Gebucht wird
+  `material_buchungen` `zugang` bzw. `direkt` mit `bestellposition_id`, ein
+  Vorgang je Lieferschein. `geliefert` und der Status (bestellt →
+  teilgeliefert → geliefert) rechnet der Trigger `bestellung_nachrechnen`
+  aus den Buchungen — Buchung gelöscht, Stand stimmt wieder. Nur der Chef,
+  nur offene Bestellungen, Artikel und Ziel müssen passen.
+- **Abschließen**: „Rest kommt nicht mehr“ (`erledigt`) bei Teillieferung,
+  „Stornieren“ nur, solange nichts geliefert ist. Löschen nur Entwürfe.
+- Startseite (Chef): „X Bestellungen unterwegs · Y Liefertermin vorbei“.
+
 ### Kalkulieren im Angebot (`lib/kalkulation.ts`)
 
 Bewusst einfach, kein eigenes Kalkulationsblatt:

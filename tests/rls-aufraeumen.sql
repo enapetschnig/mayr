@@ -16,6 +16,8 @@ begin
   alter table public.beleg_positionen disable trigger user;
   alter table public.eingang_anteile disable trigger user;
   alter table public.pruefungen disable trigger user;
+  alter table public.bestellungen disable trigger user;
+  alter table public.bestell_positionen disable trigger user;
 
   delete from public.pruefungen where anlage_id in (select id from public.anlagen where bezeichnung like 'RLS-Test%') or erstellt_von = any(v_user);
   delete from public.anlagen where bezeichnung like 'RLS-Test%' or erstellt_von = any(v_user);
@@ -25,6 +27,7 @@ begin
   delete from public.belege where projekt_id = any(v_projekte) or erstellt_von = any(v_user);
   delete from public.zeiten where projekt_id = any(v_projekte) or user_id = any(v_user) or erstellt_von = any(v_user);
   delete from public.material_buchungen where projekt_id = any(v_projekte) or user_id = any(v_user);
+  delete from public.bestellungen where lieferant like 'RLS-Test%' or erstellt_von = any(v_user);
   delete from public.regieberichte where projekt_id = any(v_projekte) or erstellt_von = any(v_user);
   delete from public.termine where projekt_id = any(v_projekte) or user_id = any(v_user);
   delete from public.dateien where projekt_id = any(v_projekte) or user_id = any(v_user);
@@ -38,6 +41,8 @@ begin
   alter table public.beleg_positionen enable trigger user;
   alter table public.eingang_anteile enable trigger user;
   alter table public.pruefungen enable trigger user;
+  alter table public.bestellungen enable trigger user;
+  alter table public.bestell_positionen enable trigger user;
 
   -- Nummernkreise zurück auf die höchste Nummer, die es noch gibt
   update public.nummernkreise n set letzte = coalesce((
@@ -47,5 +52,6 @@ begin
       union all select nummer from public.belege where n.typ = 'rechnung' and nummer like 'RE-' || n.jahr || '-%'
       union all select nummer from public.regieberichte where n.typ = 'regie' and nummer like 'RB-' || n.jahr || '-%'
       union all select nummer from public.pruefungen where n.typ = 'pruefung' and nummer like 'PR-' || n.jahr || '-%'
+      union all select nummer from public.bestellungen where n.typ = 'bestellung' and nummer like 'BE-' || n.jahr || '-%'
     ) x), 0);
 end $$;

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   BellRing, AlertTriangle, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
-  ScanBarcode, ShieldCheck, UserCheck,
+  ScanBarcode, ShieldCheck, ShoppingCart, UserCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KontoMenue } from "@/components/KontoMenue";
@@ -20,6 +20,8 @@ import { useEingangsrechnungen } from "@/components/eingang/eingangDaten";
 import { zuordnung } from "@/components/eingang/eingangLogik";
 import { useOffenePosten } from "@/components/op/opDaten";
 import { useAnlagen } from "@/components/anlagen/anlagenDaten";
+import { useBestellungen } from "@/components/bestellung/bestellDaten";
+import { istOffen } from "@/components/bestellung/bestellLogik";
 import { faelligkeit } from "@/components/anlagen/pruefLogik";
 import { mahnFristAbgelaufen, mahnVorschlag } from "@/components/op/opLogik";
 import { belegStatus } from "@/lib/types";
@@ -135,6 +137,11 @@ export default function Index() {
   const pruefFaellig = anlagen.filter((a) => a.aktiv && ["ueberfaellig", "bald"].includes(faelligkeit(a.naechste_pruefung, heuteIso).stufe));
   const pruefUeber = pruefFaellig.filter((a) => faelligkeit(a.naechste_pruefung, heuteIso).stufe === "ueberfaellig").length;
 
+  // Bestellungen: unterwegs, davon Liefertermin vorbei
+  const { data: bestellungen = [] } = useBestellungen(istChef);
+  const unterwegs = bestellungen.filter((b) => istOffen(b.status));
+  const spaet = unterwegs.filter((b) => b.liefertermin && b.liefertermin < heuteIso).length;
+
   const offenePunkte: Punkt[] = istChef && buero ? ([
     buero.wartend > 0 && { icon: UserCheck, text: `${buero.wartend} ${buero.wartend === 1 ? "Mitarbeiter wartet" : "Mitarbeiter warten"} auf Freischaltung`, to: "/einstellungen?bereich=mitarbeiter", warn: true },
     buero.ueberfaellig > 0 && { icon: AlertTriangle, text: `${buero.ueberfaellig} ${buero.ueberfaellig === 1 ? "Rechnung ist" : "Rechnungen sind"} überfällig`, to: "/offene-posten?filter=ueberfaellig", warn: true },
@@ -145,6 +152,12 @@ export default function Index() {
       text: `${pruefFaellig.length} ${pruefFaellig.length === 1 ? "Anlage" : "Anlagen"} zu prüfen${pruefUeber ? ` · ${pruefUeber} überfällig` : ""}`,
       to: "/anlagen",
       warn: pruefUeber > 0,
+    },
+    unterwegs.length > 0 && {
+      icon: ShoppingCart,
+      text: `${unterwegs.length} ${unterwegs.length === 1 ? "Bestellung" : "Bestellungen"} unterwegs${spaet ? ` · ${spaet} Liefertermin vorbei` : ""}`,
+      to: "/bestellungen",
+      warn: spaet > 0,
     },
     regieOffen > 0 && { icon: ClipboardSignature, text: `${regieOffen} ${regieOffen === 1 ? "Regiebericht" : "Regieberichte"} unterschrieben, nicht verrechnet`, to: "/regie?filter=offen" },
     eingangZuordnen > 0 && { icon: Inbox, text: `${eingangZuordnen} ${eingangZuordnen === 1 ? "Eingangsrechnung" : "Eingangsrechnungen"} zuordnen`, to: "/eingang?filter=zuzuordnen" },
