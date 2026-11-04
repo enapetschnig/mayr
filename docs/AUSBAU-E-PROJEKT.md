@@ -31,16 +31,22 @@ Hardware existiert.
 | 2 | **Anzahlung, Teil- und Schlussrechnung** | Teilrechnung nach Prozent oder Betrag auf ein Angebot, Schlussrechnung zieht alle Teilrechnungen ab (mit USt je Teilrechnung), Restforderung (Haftrücklass später) | ✅ 03.11.2026 |
 | 3 | **Anlagen & Wartung / E-Check** | Anlagen beim Kunden (Verteiler, Blitzschutz, Notlicht, PV …), Prüfintervall, „fällig“-Liste, Prüfprotokoll am Handy mit Messwerten (Isolation, Schleifenimpedanz, FI-Auslösezeit …), Kundenunterschrift, PDF, daraus Rechnung | ✅ 03.11.2026 |
 | 4 | **Bestellungen beim Großhändler** | Bestellvorschlag aus Mindestbestand und Projektbedarf, Bestellung als PDF/E-Mail-Text je Lieferant, Wareneingang gegen Bestellung (Teillieferung), offene Bestellungen | ✅ 03.11.2026 |
-| 5 | **Abwesenheiten & Lohnarten** | Urlaub, Krankenstand, Zeitausgleich, Feiertag; Überstundenkonto je Mitarbeiter; Diäten und Kilometergeld; alles im Stundennachweis-PDF | geplant |
-| 6 | **Metallzuschlag (Kupfer)** | Datanorm-Kupferzahl (kg/km), Kupfernotiz (DEL) in Einstellungen, Zuschlag auf Kabelpositionen | geplant |
-| 7 | **E-Rechnung & Buchhaltungsexport** | ebInterface 6.1 (österreichischer Standard, Pflicht bei Bund), ZUGFeRD/XRechnung, Export für BMD/DATEV (CSV) | geplant |
-| 8 | **Geräte & Werkzeuge** | Wer hat welches Gerät, Prüftermine (Messgeräte kalibrieren, Leitern), Übergabe per Scan | geplant |
-| 9 | **Aufmaß & ÖNORM-LV** | Aufmaß je Position mit Formel, ÖNORM A2063/B2063 einlesen und ausgeben | später, nur auf Wunsch |
+| 5 | **Zeit & Personal** | Art je Stunde (Arbeit, Regie, Fahrt, Überstunde 50/100 %) mit Stundensatz für die Rechnung; Urlaub, Krankenstand, Arzt, Berufsschule, Zeitausgleich — Monteur beantragt am Handy, Chef bestätigt, steht im Kalender; Sollzeit je Mitarbeiter, österreichische Feiertage, Überstunden- und Urlaubskonto; Taggeld/Diäten aus den Stunden, Kilometergeld; alles im Stundennachweis-PDF und als CSV für die Lohnverrechnung | geplant |
+| 6 | **Einsätze am Handy** | Monteur-Startseite „Heute / Morgen“ mit Adresse, Navi, Telefon; Einsatz begonnen/erledigt; Chef sieht „erledigt, noch nicht verrechnet“; Kundendienst/dringend; Hinweis an den Monteur, wenn sich sein Termin ändert | geplant |
+| 7 | **Angebot & Rechnung verfeinern** | Wahlpositionen (mit Preis, ohne Summe; beim Umwandeln fragen), sichtbarer Nachlass im Summenblock, Skonto in der Zahlungsbedingung und Zahlungsziel je Kunde, Haftrücklass, Angebot vor Ort unterschreiben (= angenommen), Preise aus dem Stamm neu holen, Nachfass-Datum, PDF ohne Einzelpreise, Räume aus einem anderen Beleg holen | geplant |
+| 8 | **Buchhaltung** | Monatsexport für den Steuerberater (BMD/RZL/DATEV-CSV + alle PDFs als ZIP, „übergeben am“), E-Rechnung ebInterface 6.1 und ZUGFeRD, Bankauszug (ELBA-CSV/camt.053) einlesen und Zahlungen zuordnen, Beleg per E-Mail aus der App mit „gesendet am“, Komplett-Datenexport | geplant |
+| 9 | **Eingangsrechnungen einlesen** | ZUGFeRD-/XRechnung-Daten aus dem PDF als Vorschlag, Abgleich mit der Bestellung (teurer = rot), Skonto-Frist mit Erinnerung | geplant |
+| 10 | **Kunden & Stamm** | Mehrere Ansprechpartner, eigene Rechnungsadresse (Hausverwaltung), Reverse Charge am Kunden, Warnung bei säumigen Kunden, Textbausteine, Aufschlag je Warengruppe, Kostensatz je Mitarbeiter (echte Nachkalkulation), Preisänderungsliste nach Datanorm-Import, Kupferzuschlag | geplant |
+| 11 | **Geräte, Etiketten, Mängel** | Geräte & Werkzeuge mit QR (Übergabe per Scan, Kalibriertermine, Messgerät im Prüfprotokoll), Strichcode-Etiketten für Lagerartikel, Mängel mit Frist bei Anlagen → Angebot | geplant |
+| 12 | **Später / auf Wunsch** | Offline-Warteschlange für Buchungen, einfaches Aufmaß, ÖNORM-LV | später |
 
 Bewusst **nicht** übernommen: Registrierkasse/Barverkauf (RKSV-Signatur braucht zertifizierte Hardware
 und lohnt sich für einen Installationsbetrieb nicht), Seriennummernverwaltung, Mandantenverwaltung, eigener
 Schriftverkehr/Office (E-Mail und Dokumente laufen über das Handy), MDE-Scanner (die Handykamera ersetzt sie),
 alles zu Netzwerk, Datenbankwartung, Lizenzen und Updates (Web-App).
+
+Grundlage der Reihenfolge ab 5: der Detailvergleich aller Hilfeseiten in `E-PROJEKT-VERGLEICH.md` (04.11.2026)
+— was mehrere Bereiche und die Update-Notizen von e-projekt immer wieder nennen, kommt zuerst.
 
 ## Leitlinien bleiben
 
