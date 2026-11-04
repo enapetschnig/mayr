@@ -21,6 +21,8 @@ export type Eingangsrechnung = Tables<"eingangsrechnungen">;
 export type EingangAnteil = Tables<"eingang_anteile">;
 export type Datei = Tables<"dateien">;
 export type Termin = Tables<"termine">;
+export type Abwesenheit = Tables<"abwesenheiten">;
+export type KontoBuchung = Tables<"konto_buchungen">;
 export type Zahlung = Tables<"zahlungen">;
 export type Mahnung = Tables<"mahnungen">;
 
@@ -44,6 +46,40 @@ export const TON_KLASSE: Record<StatusTon, string> = {
 };
 
 export type StatusEintrag = { ton: StatusTon; text: string; durchgestrichen?: boolean };
+
+// ── Stunden, Abwesenheit, Einsatz ───────────────────────────────────────
+export type StundenArt = "arbeit" | "fahrt" | "ue50" | "ue100" | "garantie";
+export const STUNDEN_ART: Record<StundenArt, StatusEintrag> = {
+  arbeit: { ton: "grau", text: "Arbeit" },
+  fahrt: { ton: "cyan", text: "Fahrzeit" },
+  ue50: { ton: "gelb", text: "Überstunden 50 %" },
+  ue100: { ton: "gelb", text: "Überstunden 100 %" },
+  garantie: { ton: "rosa", text: "Garantie (nicht verrechnen)" },
+};
+
+export type AbwesenheitArt = "urlaub" | "krank" | "arzt" | "berufsschule" | "zeitausgleich" | "sonstiges";
+/** kurz = im Wochenraster. „abwesend“ sehen die Kollegen — der Grund geht sie nichts an. */
+export const ABWESENHEIT_ART: Record<AbwesenheitArt | "abwesend", { text: string; kurz: string }> = {
+  urlaub: { text: "Urlaub", kurz: "U" },
+  krank: { text: "Krankenstand", kurz: "K" },
+  arzt: { text: "Arzt", kurz: "A" },
+  berufsschule: { text: "Berufsschule", kurz: "BS" },
+  zeitausgleich: { text: "Zeitausgleich", kurz: "ZA" },
+  sonstiges: { text: "Sonstiges", kurz: "S" },
+  abwesend: { text: "Abwesend", kurz: "–" },
+};
+
+export const ABWESENHEIT_STATUS: Record<string, StatusEintrag> = {
+  beantragt: { ton: "gelb", text: "Beantragt" },
+  genehmigt: { ton: "gruen", text: "Genehmigt" },
+  abgelehnt: { ton: "rosa", text: "Abgelehnt", durchgestrichen: true },
+};
+
+export const EINSATZ_STATUS: Record<string, StatusEintrag> = {
+  geplant: { ton: "grau", text: "Geplant" },
+  begonnen: { ton: "blau", text: "Läuft" },
+  erledigt: { ton: "gruen", text: "Erledigt" },
+};
 
 // ── Projekte ────────────────────────────────────────────────────────────
 export type ProjektStatus = "angebot" | "aktiv" | "verrechnen" | "abgeschlossen";

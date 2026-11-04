@@ -11,7 +11,9 @@ import { useIstPc } from "@/components/AppLayout";
 import { useProjekte, useProjektZahlen } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { alleZeilen, csvHerunterladen } from "@/lib/abfrage";
-import { datum, euro, isoTag, stunden, uhrzeit, zahl } from "@/lib/format";
+import { abwesenheitStunden, abwesenheitsTage, lohnSumme } from "@/lib/zeitkonto";
+import { ABWESENHEIT_ART, STUNDEN_ART, type AbwesenheitArt, type StundenArt } from "@/lib/types";
+import { datum, euro, isoTag, stunden, tageDazu, uhrzeit, zahl } from "@/lib/format";
 import { buchungVk, runden2, stundensatzFuer } from "@/lib/preise";
 import { pdfDateiname, pdfTeilenOderLaden } from "@/lib/pdfBasis";
 import { stundenPdf } from "@/lib/stundenPdf";
@@ -101,7 +103,7 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
     queryKey: ["zeiten", "auswertung", vonIso, bisIso],
     placeholderData: keepPreviousData,
     queryFn: () => alleZeilen((a, b) => supabase.from("zeiten")
-      .select("id, user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, rechnung_id, projekte(nummer, name), profiles(vorname, nachname, farbe), regieberichte(nummer, rechnung_id)")
+      .select("id, user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, rechnung_id, art, km, projekte(nummer, name), profiles(vorname, nachname, farbe), regieberichte(nummer, rechnung_id)")
       .gte("datum", vonIso).lt("datum", bisIso).order("id").range(a, b)),
   });
   const materialQ = useQuery({
@@ -136,7 +138,7 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
   // Verrechnet ist eine Stunde, wenn sie selbst oder ihr Regiebericht auf einer Rechnung steht
   const verrechnet = (z: (typeof zeiten)[number]) => !!z.rechnung_id || !!z.regieberichte?.rechnung_id;
   const stundenGesamt = summe(zeiten.map((z) => z.stunden));
-  const stundenOffen = summe(zeiten.filter((z) => z.projekt_id && !verrechnet(z)).map((z) => z.stunden));
+  const stundenOffen = summe(zeiten.filter((z) => z.projekt_id && !verrechnet(z) && z.art !== "garantie").map((z) => z.stunden));
 
   let materialEk = 0;
   let materialVk = 0;
@@ -178,15 +180,54 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
     const sortiert = [...zeiten].sort((a, b) =>
       name(a.profiles).localeCompare(name(b.profiles)) || a.datum.localeCompare(b.datum) || (a.von ?? "").localeCompare(b.von ?? ""));
     const zeilen: (string | number | null)[][] = [
-      ["Mitarbeiter", "Datum", "Von", "Bis", "Pause (Min.)", "Stunden", "Projekt", "Tätigkeit", "Regiebericht", "Verrechnet"],
+      ["Mitarbeiter", "Datum", "Von", "Bis", "Pause (Min.)", "Stunden", "Art", "km", "Projekt", "Tätigkeit", "Regiebericht", "Verrechnet"],
       ...sortiert.map((z) => [
-        name(z.profiles), datum(z.datum), uhrzeit(z.von), uhrzeit(z.bis), z.pause_minuten || null, Number(z.stunden),
+        name(z.profiles), datum(z.datum), uhrzeit(z.von), uhrzeit(z.bis), z.pause_minuten || null, Number(z.stunden), STUNDEN_ART[z.art as StundenArt]?.text ?? z.art, z.km == null ? null : Number(z.km),
         z.projekte ? `${z.projekte.nummer} ${z.projekte.name}` : "", z.taetigkeit, z.regieberichte?.nummer ?? "", verrechnet(z) ? "ja" : "",
       ]),
       [],
-      ...personen.map((p) => [name(p.profil), "Summe", "", "", null, runden2(p.h), `${p.tage.size} Tage`]),
+      ...personen.map((p) => [name(p.profil), "Summe", "", "", null, runden2(p.h), "", null, `${p.tage.size} Tage`]),
     ];
     csvHerunterladen(`stunden-${monat == null ? jahr : `${jahr}-${String(monat + 1).padStart(2, "0")}`}.csv`, zeilen);
+  };
+
+  // Lohnverrechnung: je Person Soll/Ist, Arten, Abwesenheit, Taggeld, Kilometer. Nie über heute hinaus rechnen
+  const bisInkl = tageDazu(bisIso, -1) > isoTag() ? isoTag() : tageDazu(bisIso, -1);
+  // Auch Ausgeschiedene: ihre Stunden gehören in den Monat, in dem sie gearbeitet haben
+  const { data: mitarbeiterAlle = [] } = useQuery({
+    queryKey: ["mitarbeiter", "alle"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("*").order("vorname");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: abwesenheiten = [] } = useQuery({
+    queryKey: ["abwesenheiten", "auswertung", vonIso, bisIso],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("abwesenheiten").select("user_id, art, von, bis, stunden, status")
+        .eq("status", "genehmigt").lt("von", bisIso).gte("bis", vonIso);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const lohn = useMemo(() => mitarbeiterAlle.map((m) => {
+    const eigene = zeiten.filter((z) => z.user_id === m.id);
+    const ab = abwesenheiten.filter((a) => a.user_id === m.id);
+    return {
+      id: m.id, name: name(m), wochen: Number(m.wochenstunden), ab,
+      summe: lohnSumme(Number(m.wochenstunden), vonIso, bisInkl, eigene, ab, { taggeld: firma?.taggeld_satz, km: firma?.km_satz }),
+    };
+  }).filter((p) => p.summe.ist > 0), [mitarbeiterAlle, zeiten, abwesenheiten, vonIso, bisInkl, firma?.taggeld_satz, firma?.km_satz]);
+
+  const lohnlisteLaden = () => {
+    const artenAb = Object.keys(ABWESENHEIT_ART).filter((a) => a !== "abwesend") as AbwesenheitArt[];
+    csvHerunterladen(`lohnliste-${monat == null ? jahr : `${jahr}-${String(monat + 1).padStart(2, "0")}`}.csv`, [
+      ["Mitarbeiter", "Soll", "Ist", "Differenz", "Arbeit", "Fahrzeit", "Überstunden 50 %", "Überstunden 100 %", "Garantie",
+        ...artenAb.map((a) => `${ABWESENHEIT_ART[a].text} (Tage)`), "Taggeld (Tage)", "Taggeld €", "km", "Kilometergeld €"],
+      ...lohn.map(({ name: n, summe: s }) => [n, s.soll, s.ist, s.differenz, s.arbeit, s.fahrt, s.ue50, s.ue100, s.garantie,
+        ...artenAb.map((a) => s.abwesend[a]?.tage ?? 0), s.taggeldTage, s.taggeld, s.km, s.kmGeld]),
+    ]);
   };
 
   // Ein Klick: der ganze Monat (bzw. das Jahr) als Stundennachweis für die Lohnverrechnung
@@ -195,11 +236,16 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
     if (!firma) return;
     setPdfLaeuft(true);
     try {
-      const je = new Map<string, { name: string; zeilen: Parameters<typeof stundenPdf>[2][number]["zeilen"] }>();
+      const je = new Map<string, Parameters<typeof stundenPdf>[2][number]>();
+      lohn.forEach((p) => je.set(p.id, {
+        name: p.name, zeilen: [], summe: p.summe,
+        abwesend: p.ab.flatMap((a) => abwesenheitsTage(a, vonIso, bisInkl).map((d) => ({ datum: d, art: a.art, stunden: abwesenheitStunden(a, d, p.wochen) }))),
+      }));
       zeiten.forEach((z) => {
-        const e = je.get(z.user_id) ?? { name: name(z.profiles), zeilen: [] };
+        const e = je.get(z.user_id);
+        if (!e) return;
         e.zeilen.push({
-          datum: z.datum, von: z.von, bis: z.bis, pause_minuten: z.pause_minuten, stunden: Number(z.stunden), taetigkeit: z.taetigkeit,
+          datum: z.datum, von: z.von, bis: z.bis, pause_minuten: z.pause_minuten, stunden: Number(z.stunden), taetigkeit: z.taetigkeit, art: z.art,
           projekt: z.projekte ? `${z.projekte.nummer} ${z.projekte.name}` : "", regiebericht: z.regieberichte?.nummer ?? "",
         });
         je.set(z.user_id, e);
@@ -240,7 +286,10 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
         </div>
         <div className="ml-auto flex gap-2">
           <Button variant="outline" className="h-10 gap-1.5" onClick={stundenlisteLaden} disabled={zeiten.length === 0 || altesBild}>
-            <Download className="h-4 w-4" /> CSV
+            <Download className="h-4 w-4" /> Stunden-CSV
+          </Button>
+          <Button variant="outline" className="h-10 gap-1.5" onClick={lohnlisteLaden} disabled={lohn.length === 0 || altesBild}>
+            <Download className="h-4 w-4" /> Lohnliste
           </Button>
           <Button className="h-10 gap-1.5" onClick={stundenPdfLaden} disabled={zeiten.length === 0 || altesBild || pdfLaeuft}>
             {pdfLaeuft ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}

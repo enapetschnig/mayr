@@ -190,12 +190,16 @@ function Betrieb() {
     const kostensatz = kostenText ? dezimalLesen(kostenText) : null;
     if (kostenText && (kostensatz === null || kostensatz < 0 || kostensatz >= 10000)) return toast.error("Lohnkosten je Stunde bitte prüfen.");
 
+    const satzLesen = (v: unknown) => { const x = String(v ?? "").trim(); return x ? dezimalLesen(x) : null; };
+    const taggeld_satz = satzLesen(f.taggeld_satz), km_satz = satzLesen(f.km_satz);
+    if ((String(f.taggeld_satz ?? "").trim() && !(taggeld_satz !== null && taggeld_satz >= 0)) || (String(f.km_satz ?? "").trim() && !(km_satz !== null && km_satz >= 0))) return toast.error("Taggeld oder Kilometergeld bitte prüfen.");
+
     setSpeichert(true);
     const { error } = await supabase.from("firma").update({
       name: f.name.trim(), zusatz: leer(f.zusatz), inhaber: leer(f.inhaber), strasse: leer(f.strasse), plz: leer(f.plz),
       ort: leer(f.ort), land: f.land || "Österreich", telefon: leer(f.telefon), email: leer(f.email), website: leer(f.website),
       uid, firmenbuch: leer(f.firmenbuch), bank_name: leer(f.bank_name), iban, bic,
-      farbe: f.farbe, stundensatz, stundensaetze: saetze, kostensatz, material_aufschlag: aufschlag,
+      farbe: f.farbe, stundensatz, stundensaetze: saetze, kostensatz, taggeld_satz, km_satz, material_aufschlag: aufschlag,
       zahlungsziel_tage: ziel, angebot_gueltig_tage: gueltig,
       mahn_frist_tage: frist, mahn_spesen: spesen, verzugszinsen: zinsen,
       kleinunternehmer: f.kleinunternehmer, angebot_einleitung: leer(f.angebot_einleitung), angebot_schluss: leer(f.angebot_schluss),
@@ -289,11 +293,16 @@ function Betrieb() {
       <Karte titel="Kalkulation">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Feld label="Stundensatz € netto"><Input className="h-11" inputMode="decimal" value={String(f.stundensatz).replace(".", ",")} onChange={(e) => setF({ ...f, stundensatz: e.target.value as unknown as number })} /></Feld>
-          <Feld label="Lohnkosten € je Stunde (intern, für die Nachkalkulation)"><Input className="h-11" inputMode="decimal" value={String(f.kostensatz ?? "").replace(".", ",")} onChange={(e) => setF({ ...f, kostensatz: e.target.value as unknown as number })} /></Feld>
+          <Feld label="Lohnkosten € je Stunde"><Input className="h-11" inputMode="decimal" value={String(f.kostensatz ?? "").replace(".", ",")} onChange={(e) => setF({ ...f, kostensatz: e.target.value as unknown as number })} /></Feld>
+          <Feld label="Taggeld € je Tag"><Input className="h-11" inputMode="decimal" value={String(f.taggeld_satz ?? "").replace(".", ",")} onChange={(e) => setF({ ...f, taggeld_satz: e.target.value as unknown as number })} /></Feld>
+          <Feld label="Kilometergeld € je km"><Input className="h-11" inputMode="decimal" value={String(f.km_satz ?? "").replace(".", ",")} onChange={(e) => setF({ ...f, km_satz: e.target.value as unknown as number })} /></Feld>
           <Feld label="Materialaufschlag %"><Input className="h-11" inputMode="decimal" value={String(f.material_aufschlag).replace(".", ",")} onChange={(e) => setF({ ...f, material_aufschlag: e.target.value as unknown as number })} /></Feld>
           <Feld label="Zahlungsziel Tage"><Input className="h-11" inputMode="numeric" value={String(f.zahlungsziel_tage)} onChange={(e) => setF({ ...f, zahlungsziel_tage: e.target.value as unknown as number })} /></Feld>
           <Feld label="Angebot gültig Tage"><Input className="h-11" inputMode="numeric" value={String(f.angebot_gueltig_tage)} onChange={(e) => setF({ ...f, angebot_gueltig_tage: e.target.value as unknown as number })} /></Feld>
         </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Lohnkosten sind intern, für die Nachkalkulation. Taggeld und Kilometergeld sind ein Vorschlag für die Lohnliste, leer = aus. Bitte mit dem Kollektivvertrag abgleichen.
+        </p>
         <div className="mt-4 space-y-2">
           <p className="text-sm font-medium">Weitere Stundensätze <span className="font-normal text-muted-foreground">— z. B. Meister, Lehrling; im Angebot unter „Arbeitszeit“</span></p>
           {saetzeRoh(f.stundensaetze).map((z, i) => (
@@ -378,7 +387,7 @@ function Mitarbeiter() {
 
   const { firma: betrieb } = useSitzung();
   const saetze = stundensaetzeLesen(betrieb?.stundensaetze);
-  const aendern = async (p: Profil, daten: Partial<Pick<Profil, "aktiv" | "gesperrt" | "rolle" | "farbe" | "lohnart">>, meldung?: string) => {
+  const aendern = async (p: Profil, daten: Partial<Pick<Profil, "aktiv" | "gesperrt" | "rolle" | "farbe" | "lohnart" | "wochenstunden" | "urlaub_tage" | "konto_ab">>, meldung?: string) => {
     const { error } = await supabase.from("profiles").update(daten).eq("id", p.id);
     if (error) {
       toast.error("Nicht geändert", { description: error.message });
@@ -465,6 +474,7 @@ function Mitarbeiter() {
                     ))}
                   </div>
                 )}
+                <PersonalFelder p={p} onAendern={(daten) => aendern(p, daten)} />
                 <div className="flex flex-wrap gap-1.5" aria-label="Farbe">
                   {PERSONENFARBEN.map((c) => (
                     <button key={c} type="button" onClick={() => aendern(p, { farbe: c })} aria-label={`Farbe ${c}`}
@@ -611,6 +621,37 @@ function Konto() {
         onClick={async () => { await supabase.auth.signOut({ scope: "local" }); navigate("/auth"); }}>
         <LogOut className="h-4 w-4" /> Abmelden
       </Button>
+    </div>
+  );
+}
+
+/** Sollzeit und Konto eines Mitarbeiters — gespeichert beim Verlassen des Felds */
+function PersonalFelder({ p, onAendern }: { p: Profil; onAendern: (d: { wochenstunden?: number; urlaub_tage?: number; konto_ab?: string }) => void }) {
+  const [wochen, setWochen] = useState(String(p.wochenstunden).replace(".", ","));
+  const [urlaub, setUrlaub] = useState(String(p.urlaub_tage).replace(".", ","));
+  const [ab, setAb] = useState(p.konto_ab);
+  const zahlSpeichern = (text: string, alt: number, feld: "wochenstunden" | "urlaub_tage", max: number) => {
+    const n = dezimalLesen(text);
+    if (n === null || n < 0 || n > max) return toast.error("Bitte eine gültige Zahl eintragen.");
+    if (n !== Number(alt)) onAendern({ [feld]: n });
+  };
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <div className="space-y-1">
+        <Label htmlFor={`w-${p.id}`} className="text-xs">Wochenstunden</Label>
+        <Input id={`w-${p.id}`} className="h-9 w-24" inputMode="decimal" value={wochen} onChange={(e) => setWochen(e.target.value)}
+          onBlur={() => zahlSpeichern(wochen, p.wochenstunden, "wochenstunden", 80)} />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor={`u-${p.id}`} className="text-xs">Urlaub/Jahr</Label>
+        <Input id={`u-${p.id}`} className="h-9 w-20" inputMode="decimal" value={urlaub} onChange={(e) => setUrlaub(e.target.value)}
+          onBlur={() => zahlSpeichern(urlaub, p.urlaub_tage, "urlaub_tage", 60)} />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor={`k-${p.id}`} className="text-xs">Konto ab</Label>
+        <Input id={`k-${p.id}`} type="date" className="h-9 w-40" value={ab} onChange={(e) => setAb(e.target.value)}
+          onBlur={() => { if (ab && ab !== p.konto_ab) onAendern({ konto_ab: ab }); }} />
+      </div>
     </div>
   );
 }

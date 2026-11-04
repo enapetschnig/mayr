@@ -3,7 +3,7 @@ import { ChevronRight, ClipboardSignature, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, StatusPille } from "@/components/Bausteine";
 import { datumKurz, isoTag, stunden, uhrzeit } from "@/lib/format";
-import { name, type Profil, type Zeit } from "@/lib/types";
+import { name, STUNDEN_ART, type Profil, type StundenArt, type Zeit } from "@/lib/types";
 
 export type ZeitMitInfo = Zeit & {
   projekte: { nummer: string; name: string } | null;
@@ -77,13 +77,14 @@ export function ZeitenListe({
                         {z.von && z.bis && z.taetigkeit ? " · " : ""}
                         {z.taetigkeit}
                       </p>
-                      {(z.regieberichte || z.rechnung_id) && (
+                      {(z.regieberichte || z.rechnung_id || (z.art && z.art !== "arbeit")) && (
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {z.regieberichte && (
                             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                               <ClipboardSignature className="h-3 w-3" /> {z.regieberichte.nummer}
                             </span>
                           )}
+                          {z.art && z.art !== "arbeit" && <StatusPille eintrag={STUNDEN_ART[z.art as StundenArt]} />}
                           {z.rechnung_id && <StatusPille eintrag={{ ton: "lila", text: "verrechnet" }} />}
                         </div>
                       )}

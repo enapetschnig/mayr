@@ -24,6 +24,8 @@ export type ImportZeit = {
   name: string;
   /** Lohnart des Mitarbeiters (Name aus firma.stundensaetze), leer = normaler Stundensatz */
   lohnart?: string | null;
+  /** Stundenart: Fahrzeit und Überstunden bekommen eine eigene Zeile */
+  art?: string | null;
   regiebericht_id: string | null;
 };
 
@@ -122,7 +124,7 @@ export const ABGEGOLTEN_TEXT = "Arbeitszeit und Material sind im Angebotspreis e
 
 type ZeitZeile = {
   id: string; datum: string; stunden: number; taetigkeit: string | null; user_id: string;
-  regiebericht_id: string | null; profiles: { vorname: string; nachname: string; lohnart: string | null } | null;
+  regiebericht_id: string | null; art: string; profiles: { vorname: string; nachname: string; lohnart: string | null } | null;
 };
 type MaterialZeile = {
   id: string; art: string; menge: number; ek_preis: number | null; einheit: string | null; bezeichnung: string | null;
@@ -143,7 +145,7 @@ export async function importDatenLaden(projektId: string, belegId: string | null
   const [rb, zt, mt, an, ea, tr] = await Promise.all([
     supabase.from("regieberichte").select("id, nummer, datum, arbeiten, status, rechnung_id").eq("projekt_id", projektId).order("datum"),
     supabase.from("zeiten")
-      .select("id, datum, stunden, taetigkeit, user_id, regiebericht_id, profiles(vorname, nachname, lohnart)")
+      .select("id, datum, stunden, taetigkeit, user_id, regiebericht_id, art, profiles(vorname, nachname, lohnart)")
       .eq("projekt_id", projektId).or(frei).order("datum").order("created_at"),
     supabase.from("material_buchungen")
       .select("id, art, menge, ek_preis, einheit, bezeichnung, artikel_id, regiebericht_id, created_at, artikel(bezeichnung, einheit, vk_preis, ek_preis, listenpreis)")
@@ -179,8 +181,9 @@ export async function importDatenLaden(projektId: string, belegId: string | null
   }
   if (angebotDrin) verrechnet.add(angebotDrin);
 
+  // Garantie und Nacharbeit zahlt der Kunde nicht
   const zeiten: ImportZeit[] = zeitZeilen
-    .filter((z) => !belegt.zeiten.includes(z.id))
+    .filter((z) => !belegt.zeiten.includes(z.id) && z.art !== "garantie")
     .map((z) => ({
       id: z.id,
       datum: z.datum,
@@ -189,6 +192,7 @@ export async function importDatenLaden(projektId: string, belegId: string | null
       user_id: z.user_id,
       name: z.profiles ? `${z.profiles.vorname} ${z.profiles.nachname}`.trim() : "Mitarbeiter",
       lohnart: z.profiles?.lohnart ?? null,
+      art: z.art,
       regiebericht_id: z.regiebericht_id,
     }));
   const material: ImportMaterial[] = materialZeilen
@@ -318,6 +322,9 @@ export function zeitraumText(daten: string[]): string {
 
 const q = (werte: Partial<Quelle>): Quelle => ({ zeiten: [], material: [], regie: [], ...werte });
 
+/** Überstunden kosten den Kunden den Zuschlag mit — die Vorschau zeigt es, der Preis bleibt änderbar */
+const ZUSCHLAG: Record<string, number> = { ue50: 1.5, ue100: 2 };
+
 /** Arbeitszeit-Zeilen: je Mitarbeiter oder eine Zeile */
 export function arbeitszeitPositionen(zeiten: ImportZeit[], opt: ImportOptionen, mitDatum: boolean): EditorPosition[] {
   if (!zeiten.length) return [];
@@ -327,16 +334,18 @@ export function arbeitszeitPositionen(zeiten: ImportZeit[], opt: ImportOptionen,
     langtext: mitDatum ? zeitraumText(z.map((x) => x.datum)) : "",
     menge: zahlText(runden2(z.reduce((s, x) => s + x.stunden, 0))),
     einheit: "h",
-    einzelpreis: preisText(lohnart(z[0])?.satz ?? opt.stundensatz),
+    einzelpreis: preisText(runden2((lohnart(z[0])?.satz ?? opt.stundensatz) * (ZUSCHLAG[z[0].art ?? "arbeit"] ?? 1))),
     quelle: q({ zeiten: z.map((x) => x.id) }),
   });
   const je = new Map<string, ImportZeit[]>();
   // Eine Zeile je Mitarbeiter — sonst eine je Stundensatz
-  const schluessel = (z: ImportZeit) => (opt.stundenJeMitarbeiter ? z.user_id : lohnart(z)?.name ?? "");
+  const schluessel = (z: ImportZeit) => `${opt.stundenJeMitarbeiter ? z.user_id : lohnart(z)?.name ?? ""}|${z.art ?? "arbeit"}`;
   zeiten.forEach((z) => je.set(schluessel(z), [...(je.get(schluessel(z)) ?? []), z]));
   return [...je.values()].map((z) => {
     const l = lohnart(z[0]);
-    return zeile(opt.stundenJeMitarbeiter ? `Arbeitszeit ${z[0].name}` : l ? arbeitszeitText(l) : "Arbeitszeit", z);
+    const text = opt.stundenJeMitarbeiter ? `Arbeitszeit ${z[0].name}` : l ? arbeitszeitText(l) : "Arbeitszeit";
+    const art = z[0].art ?? "arbeit";
+    return zeile(art === "fahrt" ? text.replace("Arbeitszeit", "Fahrzeit") : art === "ue50" ? `${text}, Überstunden 50 %` : art === "ue100" ? `${text}, Überstunden 100 %` : text, z);
   });
 }
 

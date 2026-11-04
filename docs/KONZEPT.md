@@ -74,7 +74,9 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
 | `regieberichte` | Datum, Arbeiten, Unterschrift (Bild im Storage), `rechnung_id` |
 | `belege` + `beleg_positionen` | Angebot/Rechnung; Positionen mit `art` titel/leistung/artikel/arbeit/material/pauschale/text |
 | `dateien` | Fotos/Dokumente je Projekt (Bucket `projekt-dateien`) |
-| `termine` | Kalender; `mitarbeiter uuid[]` |
+| `termine` | Kalender und Einsätze; `mitarbeiter uuid[]`, `status` geplant/begonnen/erledigt, `dringend`, `geaendert_am` (Trigger, nur bei Zeit, Ort, Personen) |
+| `abwesenheiten` | Urlaub, Krank, Arzt, Berufsschule, Zeitausgleich, Sonstiges je Person; `status` beantragt/genehmigt/abgelehnt |
+| `konto_buchungen` | Korrekturen am Überstunden- und Urlaubskonto (Anfangsbestand, Auszahlung, Übertrag); nur der Chef schreibt |
 | `nummernkreise` | nur über `naechste_nummer()` |
 
 ### Materialbuchungen
@@ -222,6 +224,30 @@ Migration `20261103120000_anlagen.sql`:
   Rechnung storniert → wieder frei.
 - Startseite (Chef): „X Anlagen zu prüfen · Y überfällig“ (fällig = in den
   nächsten 30 Tagen).
+
+### Zeit und Personal (`lib/zeitkonto.ts`, `components/zeiten/`, Seite `/zeiten`)
+
+- **Art je Stunde** in `zeiten.art`: arbeit, fahrt, ue50, ue100, garantie; dazu `zeiten.km`. Auf der Rechnung
+  bekommen Fahrzeit und Überstunden eine eigene Zeile, Überstunden kosten ×1,5 und ×2 (Preis bleibt änderbar).
+  Garantie zählt fürs Konto, aber nie als offen und nie auf der Rechnung.
+- **Abwesenheiten sind keine Zeitbuchungen.** Das Konto rechnet genehmigte Tage mit der Sollzeit des Tages,
+  so landet Urlaub nie auf einer Rechnung. Zeitausgleich zählt nicht als Ist, er baut das Konto ab.
+- **Antrag:** Monteur beantragt, Chef entscheidet (Trigger `abwesenheit_regeln`). Krankmeldung und Einträge
+  vom Chef gelten sofort. Kollegen sehen über die View `abwesenheit_kalender` nur „abwesend“, nie den Grund.
+- **Konto** (`kontoRechnen`): Wochenstunden gleichmäßig auf Mo–Fr, österreichische Feiertage frei, Saldo bis
+  gestern, ab `profiles.konto_ab`. Urlaub je Kalenderjahr aus `urlaub_tage` plus Korrekturen.
+  Wird berechnet, nicht gespeichert — nur Korrekturen stehen in `konto_buchungen`.
+- **Lohnliste** (`lohnSumme`, Auswertung): CSV und Stundennachweis-PDF je Person mit Soll, Ist, Arten,
+  Abwesenheit, Taggeld und Kilometergeld. Taggeld ist ein Vorschlag: über 3 h ein Zwölftel je angefangene
+  Stunde von `firma.taggeld_satz`; die Sätze müssen zum Kollektivvertrag passen.
+
+### Einsätze am Handy (`components/einsatz/EinsatzBereich.tsx`)
+
+Ein Einsatz ist ein Termin mit Status. Die Startseite zeigt heute und den nächsten Arbeitstag mit Adresse, Navi,
+Telefon und den Schnellwegen zu Stunden, Material und Regie. Beginnen und Erledigt setzen die Zeiten per Trigger
+`termin_einsatz` und gelten nicht als Terminänderung. Verschiebt das Büro einen Termin, sieht der Monteur beim
+nächsten Öffnen „Termin geändert“; was schon gesehen wurde, merkt sich das Gerät (`elektro.termine.gesehen`). Der
+Chef sieht auf der Startseite Anträge und „erledigter Einsatz, noch nicht verrechnet“.
 
 ### Bestellungen beim Großhändler (`components/bestellung/`, Seite `/bestellungen`, nur Chef)
 

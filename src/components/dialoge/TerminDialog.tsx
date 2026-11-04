@@ -12,14 +12,15 @@ import {
   AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Avatar } from "@/components/Bausteine";
+import { Avatar, StatusPille } from "@/components/Bausteine";
+import { useKalenderAbwesenheit } from "@/components/zeiten/personalDaten";
 import { ProjektWahl } from "@/components/ProjektWahl";
 import { useBeimOeffnen } from "@/components/stamm/Felder";
 import { fehlerText } from "@/components/stamm/stammDaten";
 import { useMitarbeiter, useNeuLaden, useProjekte } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { isoTag } from "@/lib/format";
-import type { Termin } from "@/lib/types";
+import { EINSATZ_STATUS, type Termin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type TerminWerte = {
@@ -33,6 +34,7 @@ export type TerminWerte = {
   ort: string;
   beschreibung: string;
   dabei: string[];
+  dringend: boolean;
 };
 
 /** Was am Termin nicht stimmt — null, wenn er so gespeichert werden kann */
@@ -88,6 +90,7 @@ export function TerminDialog({
         ort: termin.ort || "",
         beschreibung: termin.beschreibung || "",
         dabei: termin.mitarbeiter ?? [],
+        dringend: termin.dringend,
       };
     } else {
       const p = projekte.find((x) => x.id === vorProjekt);
@@ -103,6 +106,9 @@ export function TerminDialog({
     setBasis(v);
     setLoeschFrage(false);
   });
+
+  const { data: abwesend = [] } = useKalenderAbwesenheit(open ? w.datum : undefined, open ? w.bisDatum || w.datum : undefined);
+  const abwesendeNamen = mitarbeiter.filter((m) => w.dabei.includes(m.id) && abwesend.some((a) => a.user_id === m.id)).map((m) => m.vorname || m.nachname);
 
   const projektWaehlen = (id: string) => {
     const p = projekte.find((x) => x.id === id);
@@ -129,6 +135,7 @@ export function TerminDialog({
       ort: w.ort.trim() || null,
       beschreibung: w.beschreibung.trim() || null,
       mitarbeiter: w.dabei,
+      dringend: w.dringend,
     };
     const { error } = termin
       ? await supabase.from("termine").update(daten).eq("id", termin.id)
@@ -136,6 +143,17 @@ export function TerminDialog({
     setSpeichert(false);
     if (error) return toast.error("Nicht gespeichert", { description: fehlerText(error) });
     toast.success("Termin gespeichert");
+    await neuLaden("termine");
+    onOpenChange(false);
+  };
+
+  const statusSetzen = async (status: string) => {
+    if (!termin) return;
+    setSpeichert(true);
+    const { error } = await supabase.from("termine").update({ status }).eq("id", termin.id);
+    setSpeichert(false);
+    if (error) return toast.error("Nicht gespeichert", { description: fehlerText(error) });
+    toast.success(EINSATZ_STATUS[status].text);
     await neuLaden("termine");
     onOpenChange(false);
   };
@@ -175,6 +193,16 @@ export function TerminDialog({
       }
     >
       <div className="max-w-xl space-y-5">
+        {termin && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-2.5">
+            <StatusPille eintrag={EINSATZ_STATUS[termin.status]} />
+            {termin.erledigt_am && <span className="text-xs text-muted-foreground">{new Date(termin.erledigt_am).toLocaleString("de-AT", { dateStyle: "short", timeStyle: "short" })}</span>}
+            <span className="flex-1" />
+            {termin.status !== "erledigt" && <Button variant="outline" className="h-11 bg-card" disabled={speichert} onClick={() => void statusSetzen("erledigt")}>Erledigt</Button>}
+            {termin.status === "geplant" && <Button variant="outline" className="h-11 bg-card" disabled={speichert} onClick={() => void statusSetzen("begonnen")}>Beginnen</Button>}
+            {termin.status !== "geplant" && <Button variant="ghost" className="h-11" disabled={speichert} onClick={() => void statusSetzen("geplant")}>Zurücksetzen</Button>}
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="t-projekt">Projekt <span className="font-normal text-muted-foreground">(optional)</span></Label>
           <ProjektWahl id="t-projekt" wert={w.projektId} onChange={projektWaehlen} leerText="Kein Projekt" />
@@ -236,6 +264,17 @@ export function TerminDialog({
           </div>
         </div>
 
+        {abwesendeNamen.length > 0 && (
+          <p className="rounded-md border border-status-gelb bg-status-gelb/40 px-3 py-2 text-sm" role="status">
+            {abwesendeNamen.join(", ")} {abwesendeNamen.length === 1 ? "ist" : "sind"} in dieser Zeit abwesend.
+          </p>
+        )}
+
+        <div className="flex items-center gap-3">
+          <Switch id="t-dringend" checked={w.dringend} onCheckedChange={(dringend) => setze({ dringend })} />
+          <Label htmlFor="t-dringend">Dringend (Kundendienst, Störung)</Label>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="t-ort">Ort</Label>
           <Input id="t-ort" className="h-12" value={w.ort} onChange={(e) => setze({ ort: e.target.value })} />
@@ -264,5 +303,5 @@ export function TerminDialog({
 }
 
 function leer(datum: string): TerminWerte {
-  return { titel: "", datum, bisDatum: "", ganztags: false, von: "07:00", bis: "15:30", projektId: "", ort: "", beschreibung: "", dabei: [] };
+  return { titel: "", datum, bisDatum: "", ganztags: false, von: "07:00", bis: "15:30", projektId: "", ort: "", beschreibung: "", dabei: [], dringend: false };
 }

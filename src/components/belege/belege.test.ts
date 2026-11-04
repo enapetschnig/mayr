@@ -394,3 +394,18 @@ describe("Arbeitszeit je Lohnart", () => {
     ]);
   });
 });
+
+describe("Stundenarten auf der Rechnung", () => {
+  const basis = { materialPauschale: false, stundensatz: 60, abgegolten: false, eingangAufschlag: 0, stundenJeMitarbeiter: false, lohnarten: [] };
+  const z = (art: string, stunden: number) => ({ id: art, datum: "2026-11-02", stunden, taetigkeit: null, user_id: "u1", name: "Max", art, regiebericht_id: null });
+
+  it("Fahrzeit und Überstunden bekommen eine eigene Zeile, Überstunden mit Zuschlag", () => {
+    const p = arbeitszeitPositionen([z("arbeit", 8), z("fahrt", 1), z("ue50", 2), z("ue100", 1)], basis, false);
+    expect(p.map((x) => [x.bezeichnung, x.menge, x.einzelpreis])).toEqual([
+      ["Arbeitszeit", "8", "60,00"],
+      ["Fahrzeit", "1", "60,00"],
+      ["Arbeitszeit, Überstunden 50 %", "2", "90,00"],
+      ["Arbeitszeit, Überstunden 100 %", "1", "120,00"],
+    ]);
+  });
+});

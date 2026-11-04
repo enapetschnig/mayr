@@ -4,18 +4,21 @@ import { CalendarPlus, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Avatar, Leer } from "@/components/Bausteine";
+import { Avatar, Leer, StatusPille } from "@/components/Bausteine";
+import { useKalenderAbwesenheit, type KalenderAbwesenheit } from "@/components/zeiten/personalDaten";
+import { feiertagName } from "@/lib/zeitkonto";
 import { TerminDialog } from "@/components/dialoge/TerminDialog";
 import { useIstPc } from "@/components/AppLayout";
 import { useMitarbeiter, useNeuLaden, useProjekte } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datum as datumText, isoTag, isoZuDatum, tageDazu, uhrzeit } from "@/lib/format";
-import type { Profil, Termin } from "@/lib/types";
+import { ABWESENHEIT_ART, EINSATZ_STATUS, name, type AbwesenheitArt, type Profil, type Termin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Ansicht = "woche" | "monat";
 const WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const ANSICHT_KEY = "elektro.kalender.ansicht";
+const abwesenheitText = (art: string) => ABWESENHEIT_ART[art as AbwesenheitArt]?.text ?? "Abwesend";
 
 /** Läuft der Termin an diesem Tag? (mehrtägige eingeschlossen) */
 const amTag = (t: Termin, tag: string) => t.datum <= tag && (t.bis_datum ?? t.datum) >= tag;
@@ -78,6 +81,7 @@ export default function Kalender() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const { data: abwesend = [] } = useKalenderAbwesenheit(von, bis);
   const sichtbar = nurMeine && profil ? termine.filter((t) => t.mitarbeiter.includes(profil.id)) : termine;
   const blaettern = (r: number) => {
     if (ansicht === "woche") return setBezug(tageDazu(bezug, r * 7));
@@ -102,7 +106,7 @@ export default function Kalender() {
       </div>
 
       {ansicht === "woche" && pc && (
-        <Plantafel tage={tage} termine={sichtbar} mitarbeiter={nurMeine ? mitarbeiter.filter((m) => m.id === profil?.id) : mitarbeiter}
+        <Plantafel tage={tage} termine={sichtbar} abwesend={abwesend} mitarbeiter={nurMeine ? mitarbeiter.filter((m) => m.id === profil?.id) : mitarbeiter}
           heute={heute} onTermin={(t) => setDialog({ termin: t })} onLeer={(datum, mitarbeiterId) => setDialog({ datum, mitarbeiterId })} />
       )}
 
@@ -117,9 +121,16 @@ export default function Kalender() {
                 <div className="flex items-center justify-between px-1 pb-1.5">
                   <h3 className={cn("text-sm font-semibold", tag === heute && "text-primary")}>
                     {tag === heute ? "Heute, " : `${WOCHENTAGE[i]}, `}{datumText(tag).slice(0, 6)}
+                    {feiertagName(tag) && <span className="font-normal text-muted-foreground"> · {feiertagName(tag)}</span>}
                   </h3>
                   <button type="button" className="-my-3 -mr-2 min-h-11 px-2 text-sm font-medium text-primary" onClick={() => setDialog({ datum: tag })}>+ Termin</button>
                 </div>
+                {abwesend.filter((a) => a.von <= tag && a.bis >= tag).map((a) => (
+                  <p key={a.id} className="mb-1.5 flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 text-sm text-muted-foreground">
+                    <Avatar profil={mitarbeiter.find((m) => m.id === a.user_id)} className="h-6 w-6 text-[10px]" />
+                    {name(mitarbeiter.find((m) => m.id === a.user_id))} · {abwesenheitText(a.art)}
+                  </p>
+                ))}
                 {liste.length === 0
                   ? <p className="rounded-lg border border-dashed px-3.5 py-2.5 text-sm text-muted-foreground">Nichts eingeteilt</p>
                   : <TerminListe termine={liste} mitarbeiter={mitarbeiter} onWahl={(t) => setDialog({ termin: t })} />}
@@ -156,10 +167,11 @@ function Segment({ werte, wert, onChange }: { werte: [string, string][]; wert: s
 
 /** Woche am PC: Zeilen = Mitarbeiter, Spalten = Tage. Leeres Feld antippen = Termin für diese Person. */
 function Plantafel({
-  tage, termine, mitarbeiter, heute, onTermin, onLeer,
+  tage, termine, abwesend, mitarbeiter, heute, onTermin, onLeer,
 }: {
   tage: string[];
   termine: Termin[];
+  abwesend: KalenderAbwesenheit[];
   mitarbeiter: Profil[];
   heute: string;
   onTermin: (t: Termin) => void;
@@ -181,6 +193,7 @@ function Plantafel({
             {tage.map((t, i) => (
               <th key={t} className={cn("px-2 py-2 text-left font-medium", t === heute && "text-primary", i >= 5 && "w-28")}>
                 {WOCHENTAGE[i]} {datumText(t).slice(0, 6)}
+                {feiertagName(t) && <span className="block truncate font-normal">{feiertagName(t)}</span>}
               </th>
             ))}
           </tr>
@@ -199,12 +212,15 @@ function Plantafel({
                 return (
                   <td key={tag} className={cn("h-20 border-l p-1 align-top", tag === heute && "bg-primary-soft/40")}>
                     <div className="flex h-full flex-col gap-1">
+                      {z.id && abwesend.filter((a) => a.user_id === z.id && a.von <= tag && a.bis >= tag).map((a) => (
+                        <span key={a.id} className="rounded-md bg-muted px-1.5 py-1 text-xs font-medium text-muted-foreground">{abwesenheitText(a.art)}</span>
+                      ))}
                       {liste.map((t) => {
                         const p = projekte.find((x) => x.id === t.projekt_id);
                         return (
                           <button key={t.id} type="button" onClick={() => onTermin(t)}
                             className="rounded-md border border-primary/25 bg-primary-soft px-1.5 py-1 text-left text-xs leading-tight text-primary hover:border-primary">
-                            <span className="block truncate font-semibold">{t.titel}</span>
+                            <span className="block truncate font-semibold">{t.dringend && t.status !== "erledigt" ? "! " : ""}{t.status === "erledigt" ? "✓ " : ""}{t.titel}</span>
                             <span className="block truncate opacity-80">{zeitText(t)}{p ? ` · ${p.nummer}` : ""}</span>
                           </button>
                         );
@@ -237,6 +253,12 @@ function TerminListe({ termine, mitarbeiter, onWahl }: { termine: Termin[]; mita
               <span className="w-16 shrink-0 pt-0.5 text-xs font-semibold">{t.ganztags ? "ganztags" : uhrzeit(t.von)}</span>
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="block text-sm font-semibold">{t.titel}</span>
+                {(t.status !== "geplant" || t.dringend) && (
+                  <span className="flex flex-wrap gap-1">
+                    {t.dringend && t.status !== "erledigt" && <StatusPille eintrag={{ ton: "rot", text: "Dringend" }} />}
+                    {t.status !== "geplant" && <StatusPille eintrag={EINSATZ_STATUS[t.status]} />}
+                  </span>
+                )}
                 <span className="block text-xs text-muted-foreground">
                   {zeitText(t)}{p ? ` · ${p.nummer} ${p.name}` : ""}
                 </span>

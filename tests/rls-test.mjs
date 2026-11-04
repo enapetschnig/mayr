@@ -518,6 +518,67 @@ console.log("\n— Konten —");
   ok(fr?.aktiv === true && fr?.gesperrt === false, "Freischalten hebt die Sperre auf");
 }
 
+console.log("\n— Abwesenheiten, Konto, Einsätze —");
+{
+  const { data: antrag, error: e1 } = await monteur.from("abwesenheiten").insert({ art: "urlaub", von: "2030-07-01", bis: "2030-07-05", status: "genehmigt" }).select("*").single();
+  ok(!e1 && antrag?.status === "beantragt", "Monteur beantragt Urlaub — bleibt „beantragt“, auch wenn er genehmigt schickt" + (e1 ? abgelehnt(e1) : ""));
+  const { error: e2 } = await monteur.from("abwesenheiten").update({ status: "genehmigt" }).eq("id", antrag.id);
+  ok(!!e2, "Selbst genehmigen geht nicht" + abgelehnt(e2));
+  const { data: krank } = await monteur.from("abwesenheiten").insert({ art: "krank", von: "2030-08-01", bis: "2030-08-02" }).select("*").single();
+  ok(krank?.status === "genehmigt", "Krankmeldung gilt sofort");
+  const { error: e3 } = await monteur.from("abwesenheiten").insert({ art: "urlaub", user_id: chefId, von: "2030-07-01", bis: "2030-07-01" });
+  ok(!!e3, "Abwesenheit für andere eintragen geht nur als Chef" + abgelehnt(e3));
+
+  const { data: chefEintrag, error: e4 } = await chef.from("abwesenheiten").insert({ art: "krank", user_id: chefId, von: "2030-09-02", bis: "2030-09-02" }).select("*").single();
+  ok(!e4 && chefEintrag?.status === "genehmigt", "Eintrag vom Chef gilt sofort" + (e4 ? abgelehnt(e4) : ""));
+  const { data: fremd } = await monteur.from("abwesenheiten").select("id").eq("id", chefEintrag.id);
+  ok(!fremd?.length, "Monteur liest fremde Abwesenheiten nicht direkt");
+  const { data: sicht } = await monteur.from("abwesenheit_kalender").select("art").eq("id", chefEintrag.id).single();
+  ok(sicht?.art === "abwesend", "Im Kalender sieht er nur „abwesend“, keinen Grund");
+  const { data: sichtEigen } = await monteur.from("abwesenheit_kalender").select("art").eq("id", krank.id).single();
+  ok(sichtEigen?.art === "krank", "Den eigenen Grund sieht er");
+  const { data: nichtDa } = await neu.from("abwesenheit_kalender").select("id");
+  ok(!nichtDa?.length, "Nicht Freigeschaltete sehen im Kalender keine Abwesenheiten");
+
+  const { data: gen, error: e5 } = await chef.from("abwesenheiten").update({ status: "genehmigt" }).eq("id", antrag.id).select("*").single();
+  ok(!e5 && gen?.entschieden_von === chefId && !!gen?.entschieden_am, "Chef genehmigt, Entscheidung wird festgehalten" + (e5 ? abgelehnt(e5) : ""));
+  const { data: wegM } = await monteur.from("abwesenheiten").delete().eq("id", antrag.id).select("id");
+  ok(!wegM?.length, "Genehmigten Urlaub löscht nur der Chef");
+
+  const { error: e6 } = await monteur.from("konto_buchungen").insert({ user_id: monteurId, art: "ueberstunden", menge: 100, text: "RLS-Test" });
+  ok(!!e6, "Konto buchen kann nur der Chef" + abgelehnt(e6));
+  const { data: ko, error: e7 } = await chef.from("konto_buchungen").insert({ user_id: chefId, art: "ueberstunden", menge: 1, text: "RLS-Test" }).select("id").single();
+  ok(!e7, "Chef bucht aufs Konto" + (e7 ? abgelehnt(e7) : ""));
+  const { data: koM } = await monteur.from("konto_buchungen").select("id").eq("id", ko.id);
+  ok(!koM?.length, "Fremdes Konto bleibt verborgen");
+  for (const [feld, wert] of [["wochenstunden", 1], ["urlaub_tage", 60], ["lohnart", "Meister"], ["konto_ab", "2030-01-01"]]) {
+    const { error } = await monteur.from("profiles").update({ [feld]: wert }).eq("id", monteurId);
+    ok(!!error, `Monteur ändert ${feld} nicht selbst` + abgelehnt(error));
+  }
+
+  const { data: pr2 } = await chef.from("projekte").insert({ name: "RLS-Test Status" }).select("id").single();
+  const { error: e8 } = await monteur.from("projekte").update({ status: "abgeschlossen" }).eq("id", pr2.id);
+  ok(!!e8, "Monteur schließt kein Projekt ab" + abgelehnt(e8));
+  const { error: e9 } = await monteur.from("projekte").update({ status: "verrechnen" }).eq("id", pr2.id);
+  ok(!e9, "Auf „Zu verrechnen“ stellen darf er" + (e9 ? abgelehnt(e9) : ""));
+
+  const { data: te } = await chef.from("termine").insert({ titel: "RLS-Test Einsatz", datum: "2030-07-01", projekt_id: pr2.id, mitarbeiter: [monteurId], von: "07:00" }).select("*").single();
+  ok(te?.status === "geplant" && !te?.geaendert_am, "Neuer Einsatz ist geplant");
+  const { data: t1 } = await monteur.from("termine").update({ status: "begonnen" }).eq("id", te.id).select("*").single();
+  ok(!!t1?.begonnen_am && !t1?.geaendert_am, "Beginnen hält die Zeit fest, gilt nicht als Terminänderung");
+  const { data: t2 } = await monteur.from("termine").update({ status: "erledigt" }).eq("id", te.id).select("*").single();
+  ok(!!t2?.erledigt_am && t2?.erledigt_von === monteurId, "Erledigt hält Zeit und Person fest");
+  const { data: t3 } = await chef.from("termine").update({ datum: "2030-07-02" }).eq("id", te.id).select("*").single();
+  ok(!!t3?.geaendert_am && t3?.geaendert_von === chefId, "Termin verschieben wird gemerkt");
+  const { data: t4 } = await chef.from("termine").update({ status: "geplant" }).eq("id", te.id).select("*").single();
+  ok(!t4?.erledigt_am && !t4?.begonnen_am, "Zurücksetzen räumt die Zeiten weg");
+
+  const { data: zg, error: e10 } = await monteur.from("zeiten").insert({ projekt_id: pr2.id, stunden: 3, art: "garantie", km: 12 }).select("id").single();
+  ok(!e10 && !!zg, "Garantiestunden buchen" + (e10 ? abgelehnt(e10) : ""));
+  const { data: za } = await chef.from("projekt_zahlen").select("stunden, stunden_offen").eq("projekt_id", pr2.id).single();
+  ok(Number(za?.stunden) === 3 && Number(za?.stunden_offen) === 0, "Garantiestunden zählen, aber nicht als offen");
+}
+
 console.log(fehlgeschlagen ? `\n✗ ${fehlgeschlagen} Prüfung(en) fehlgeschlagen` : "\n✓ Alle Prüfungen bestanden");
 console.log("Jetzt tests/rls-aufraeumen.sql ausführen.");
 process.exit(fehlgeschlagen ? 1 : 0);

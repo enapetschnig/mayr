@@ -1,17 +1,21 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Clock, Plus } from "lucide-react";
+import { CalendarOff, ChevronLeft, ChevronRight, Clock, Plus } from "lucide-react";
 import { Seite } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Avatar, Leer } from "@/components/Bausteine";
 import { ZeitDialog } from "@/components/dialoge/ZeitDialog";
+import { AbwesenheitDialog } from "@/components/zeiten/AbwesenheitDialog";
+import { AbwesenheitListe, AntraegeKarte, KontoKarte } from "@/components/zeiten/Personal";
+import { useKalenderAbwesenheit } from "@/components/zeiten/personalDaten";
+import { ABWESENHEIT_ART, type AbwesenheitArt } from "@/lib/types";
+import { abwesenheitStunden, feiertagName, sollZeitraum } from "@/lib/zeitkonto";
 import { ZeitenListe, useZeitenListe, type ZeitMitInfo } from "@/components/zeiten/ZeitenListe";
 import { useMitarbeiter } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datum, isoTag, isoZuDatum, stunden, tageDazu, zahl } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const SOLL_WOCHE = 40;
 const TAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
 function montagVon(iso: string): string {
@@ -43,11 +47,22 @@ export default function Zeiten() {
   const { data: zeiten = [], isLoading } = useZeitenListe({ von: montag, bis: sonntag, userId });
   const tage = Array.from({ length: 7 }, (_, i) => tageDazu(montag, i));
   const summe = zeiten.reduce((s, z) => s + Number(z.stunden), 0);
+  const [abwesenheitOffen, setAbwesenheitOffen] = useState(false);
+  const { data: abwesend = [] } = useKalenderAbwesenheit(montag, sonntag);
+  const gewaehlt = mitarbeiter.find((m) => m.id === (userId ?? "")) ?? (userId === profil?.id ? profil : null) ?? null;
+  const wochenstunden = (uid?: string) => Number((uid ? mitarbeiter.find((m) => m.id === uid) : gewaehlt)?.wochenstunden ?? 38.5);
+  const abwesendAm = (iso: string, uid: string) => abwesend.find((a) => a.user_id === uid && a.von <= iso && a.bis >= iso);
+  const abwesendStunden = (iso: string, uid: string) => {
+    const a = abwesendAm(iso, uid);
+    return a && a.art !== "zeitausgleich" ? abwesenheitStunden(a, iso, wochenstunden(uid)) : 0;
+  };
   const jeTag = (iso: string, uid?: string) =>
     zeiten.filter((z) => z.datum === iso && (!uid || z.user_id === uid)).reduce((s, z) => s + Number(z.stunden), 0);
   const heute = isoTag();
   const alle = istChef && person === "alle";
-  const max = Math.max(9, ...tage.map((t) => jeTag(t)));
+  const max = Math.max(9, ...tage.map((t) => jeTag(t) + (userId ? abwesendStunden(t, userId) : 0)));
+  const sollWoche = sollZeitraum(montag, sonntag, wochenstunden());
+  const abwesendSumme = userId ? tage.reduce((s, t) => s + abwesendStunden(t, userId), 0) : 0;
 
   const waehlen = (z: ZeitMitInfo) => {
     // Stunden aus einem Regiebericht gehören dorthin — dort werden sie geändert
@@ -87,13 +102,15 @@ export default function Zeiten() {
         </div>
       )}
 
+      {istChef && <AntraegeKarte />}
+
       {/* Wochenüberblick: Balken je Tag, beim Chef „Alle“ als Raster Person × Tag */}
       <section className="rounded-lg border bg-card p-4">
         <div className="flex items-baseline justify-between">
           <p className="text-sm font-medium text-muted-foreground">{alle ? "Alle Mitarbeiter" : "Woche"}</p>
           <p className="zahl text-xl font-bold">
-            {stunden(summe)}
-            {!alle && <span className="text-sm font-normal text-muted-foreground"> / {SOLL_WOCHE} h</span>}
+            {stunden(summe + abwesendSumme)}
+            {!alle && <span className="text-sm font-normal text-muted-foreground"> / {stunden(sollWoche)}</span>}
           </p>
         </div>
 
@@ -110,7 +127,8 @@ export default function Zeiten() {
               </thead>
               <tbody className="divide-y">
                 {mitarbeiter.map((m) => {
-                  const s = tage.reduce((x, t) => x + jeTag(t, m.id), 0);
+                  const s = tage.reduce((x, t) => x + jeTag(t, m.id) + abwesendStunden(t, m.id), 0);
+                  const mSoll = sollZeitraum(montag, sonntag, Number(m.wochenstunden));
                   return (
                     <tr key={m.id}>
                       <td className="pr-1">
@@ -120,9 +138,12 @@ export default function Zeiten() {
                       </td>
                       {tage.map((t) => {
                         const h = jeTag(t, m.id);
-                        return <td key={t} className={cn("zahl py-2 text-right", !h && "text-muted-foreground/50")}>{h ? zahl(h) : "–"}</td>;
+                        const ab = abwesendAm(t, m.id);
+                        const kurz = ab ? ABWESENHEIT_ART[ab.art as AbwesenheitArt]?.kurz ?? "–" : feiertagName(t) ? "F" : "–";
+                        return <td key={t} title={ab ? ABWESENHEIT_ART[ab.art as AbwesenheitArt]?.text : feiertagName(t) ?? undefined}
+                          className={cn("zahl py-2 text-right", !h && "text-muted-foreground/50", !h && ab && "font-semibold text-muted-foreground")}>{h ? zahl(h) : kurz}</td>;
                       })}
-                      <td className={cn("zahl py-2 text-right font-semibold", s < SOLL_WOCHE && montag < montagVon(heute) && "text-status-rot-fg")}>
+                      <td className={cn("zahl py-2 text-right font-semibold", s < mSoll && montag < montagVon(heute) && "text-status-rot-fg")}>
                         {zahl(s)}
                       </td>
                     </tr>
@@ -135,11 +156,15 @@ export default function Zeiten() {
           <div className="mt-3 grid grid-cols-7 gap-1.5">
             {tage.map((t, i) => {
               const h = jeTag(t);
+              const abw = userId ? abwesendStunden(t, userId) : 0;
+              const ft = feiertagName(t);
+              const ab = userId ? abwesendAm(t, userId) : undefined;
               return (
                 <button key={t} type="button" onClick={() => setDialog({ datum: t })}
-                  className="group flex flex-col items-center gap-1" aria-label={`${TAGE[i]}: ${stunden(h)} — Stunden buchen`}>
-                  <span className="zahl text-xs font-semibold">{h ? zahl(h) : ""}</span>
-                  <span className="flex h-20 w-full items-end overflow-hidden rounded-md bg-muted">
+                  className="group flex flex-col items-center gap-1" aria-label={`${TAGE[i]}: ${stunden(h)}${ab ? `, ${ABWESENHEIT_ART[ab.art as AbwesenheitArt]?.text ?? "abwesend"}` : ""}${ft ? `, ${ft}` : ""} — Stunden buchen`} title={ft ?? undefined}>
+                  <span className="zahl text-xs font-semibold">{h ? zahl(h) : ab ? ABWESENHEIT_ART[ab.art as AbwesenheitArt]?.kurz : ft ? "F" : ""}</span>
+                  <span className="flex h-20 w-full flex-col justify-end overflow-hidden rounded-md bg-muted">
+                    {abw > 0 && <span className="w-full bg-muted-foreground/30" style={{ height: `${(abw / max) * 100}%` }} />}
                     <span className={cn("w-full rounded-md transition-all", h ? "bg-primary" : "")} style={{ height: `${(h / max) * 100}%` }} />
                   </span>
                   <span className={cn("text-xs", t === heute ? "font-bold text-primary" : "text-muted-foreground")}>{TAGE[i]}</span>
@@ -150,6 +175,14 @@ export default function Zeiten() {
         )}
       </section>
 
+      {gewaehlt && !alle && <KontoKarte person={gewaehlt} onAbwesenheit={() => setAbwesenheitOffen(true)} />}
+      {userId && <AbwesenheitListe userId={userId} />}
+      {alle && (
+        <Button variant="outline" className="h-11 gap-1.5" onClick={() => setAbwesenheitOffen(true)}>
+          <CalendarOff className="h-4 w-4" /> Abwesenheit eintragen
+        </Button>
+      )}
+
       {!isLoading && zeiten.length === 0 ? (
         <Leer icon={Clock} text="In dieser Woche ist nichts gebucht.">
           <Button onClick={() => setDialog({})} className="gap-2"><Plus className="h-4 w-4" /> Stunden buchen</Button>
@@ -158,6 +191,7 @@ export default function Zeiten() {
         <ZeitenListe zeiten={zeiten} onWahl={waehlen} mitPerson={alle} />
       )}
 
+      <AbwesenheitDialog open={abwesenheitOffen} onOpenChange={setAbwesenheitOffen} userId={userId} />
       <ZeitDialog
         open={!!dialog}
         onOpenChange={(o) => !o && setDialog(null)}

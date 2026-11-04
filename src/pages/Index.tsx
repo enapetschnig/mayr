@@ -2,13 +2,14 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  CalendarClock, Navigation,
+  CalendarOff, CheckCircle2,
   BellRing, AlertTriangle, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
   ScanBarcode, ShieldCheck, ShoppingCart, UserCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KontoMenue } from "@/components/KontoMenue";
-import { Button } from "@/components/ui/button";
+import { EinsatzBereich } from "@/components/einsatz/EinsatzBereich";
+import { useAntraege } from "@/components/zeiten/personalDaten";
 import { FotoDialog } from "@/components/dialoge/FotoDialog";
 import { ZeitDialog } from "@/components/dialoge/ZeitDialog";
 import { ProjektDialog } from "@/components/dialoge/ProjektDialog";
@@ -69,17 +70,6 @@ export default function Index() {
   const [projektOffen, setProjektOffen] = useState(false);
 
   const heute = isoTag();
-  // „Wo muss ich heute hin?“ — eigene Einteilung
-  const { data: heuteTermine = [] } = useQuery({
-    queryKey: ["termine", "heute", profil?.id, heute],
-    enabled: !!profil?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("termine").select("id, titel, ort, von, bis, ganztags, projekt_id")
-        .contains("mitarbeiter", [profil!.id]).lte("datum", heute).or(`bis_datum.gte.${heute},datum.eq.${heute}`).order("von");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
   const montag = wochenbeginn(heute);
   const sonntag = tageDazu(montag, 6);
 
@@ -156,7 +146,29 @@ export default function Index() {
   const unterwegs = bestellungen.filter((b) => istOffen(b.status));
   const spaet = unterwegs.filter((b) => b.liefertermin && b.liefertermin < heuteIso).length;
 
+  // Monteur meldet erledigt, im Projekt ist noch nicht alles verrechnet
+  const { data: antraege = [] } = useAntraege(istChef);
+  const { data: erledigte = [] } = useQuery({
+    queryKey: ["termine", "erledigt"],
+    enabled: istChef,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("termine").select("id, projekt_id").eq("status", "erledigt").not("projekt_id", "is", null);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const erledigtOffen = [...new Set(erledigte.map((t) => t.projekt_id as string))].filter((id) => {
+    const z = zahlen[id];
+    return z && (Number(z.stunden_offen) > 0 || Number(z.regie_offen) > 0);
+  });
+
   const offenePunkte: Punkt[] = istChef && buero ? ([
+    antraege.length > 0 && { icon: CalendarOff, text: `${antraege.length} ${antraege.length === 1 ? "Antrag wartet" : "Anträge warten"} auf Entscheidung`, to: "/zeiten" },
+    erledigtOffen.length > 0 && {
+      icon: CheckCircle2,
+      text: `${erledigtOffen.length} ${erledigtOffen.length === 1 ? "Projekt" : "Projekte"} mit erledigtem Einsatz, noch nicht verrechnet`,
+      to: erledigtOffen.length === 1 ? `/projekte/${erledigtOffen[0]}` : "/projekte",
+    },
     buero.wartend > 0 && { icon: UserCheck, text: `${buero.wartend} ${buero.wartend === 1 ? "Mitarbeiter wartet" : "Mitarbeiter warten"} auf Freischaltung`, to: "/einstellungen?bereich=mitarbeiter", warn: true },
     buero.ueberfaellig > 0 && { icon: AlertTriangle, text: `${buero.ueberfaellig} ${buero.ueberfaellig === 1 ? "Rechnung ist" : "Rechnungen sind"} überfällig`, to: "/offene-posten?filter=ueberfaellig", warn: true },
     zuMahnen > 0 && { icon: BellRing, text: `${zuMahnen} ${zuMahnen === 1 ? "Rechnung" : "Rechnungen"} zu mahnen`, to: "/offene-posten", warn: true },
@@ -208,38 +220,7 @@ export default function Index() {
           </p>
         </div>
 
-        {heuteTermine.length > 0 && (
-          <section aria-label="Heute eingeteilt">
-            <Gruppentitel>Heute</Gruppentitel>
-            <ul className="space-y-2.5">
-              {heuteTermine.map((t) => (
-                <li key={t.id} className="rounded-lg border bg-card p-3">
-                  <p className="font-semibold leading-tight">{t.titel}</p>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    <CalendarClock className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
-                    {t.ganztags || !t.von ? "ganztägig" : `${t.von.slice(0, 5)}${t.bis ? `–${t.bis.slice(0, 5)}` : ""}`}{t.ort && ` · ${t.ort}`}
-                  </p>
-                  <div className="mt-2.5 grid grid-cols-2 gap-2 sm:flex">
-                    {t.ort && (
-                      <Button asChild variant="outline" className="h-11">
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.ort)}`} target="_blank" rel="noreferrer">
-                          <Navigation className="h-4 w-4" /> Hinfahren
-                        </a>
-                      </Button>
-                    )}
-                    {t.projekt_id && (
-                      <>
-                        <Button asChild variant="outline" className="h-11"><Link to={`/projekte/${t.projekt_id}`}><FolderKanban className="h-4 w-4" /> Projekt</Link></Button>
-                        <Button variant="outline" className="h-11" onClick={() => { setZeitProjekt(t.projekt_id ?? undefined); setZeitOffen(true); }}><Clock className="h-4 w-4" /> Stunden</Button>
-                        <Button asChild variant="outline" className="h-11"><Link to={`/scan?projekt=${t.projekt_id}`}><ScanBarcode className="h-4 w-4" /> Material</Link></Button>
-                      </>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <EinsatzBereich onStunden={(id) => { setZeitProjekt(id); setZeitOffen(true); }} />
 
         {/* Die häufigsten Handgriffe — groß, mit dem Daumen erreichbar */}
         <section>

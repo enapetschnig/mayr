@@ -45,6 +45,8 @@ begin
   delete from belege;
   delete from dateien;
   delete from termine;
+  delete from abwesenheiten;
+  delete from konto_buchungen;
   delete from projekte;
   delete from kunden;
   delete from leistung_material;
@@ -85,6 +87,8 @@ begin
     stundensatz = 72,
     stundensaetze = '[{"name": "Meister", "satz": 85}, {"name": "Lehrling", "satz": 42}]'::jsonb,
     kostensatz = 38,
+    taggeld_satz = 30,
+    km_satz = 0.50,
     material_aufschlag = 35,
     zahlungsziel_tage = 14,
     angebot_gueltig_tage = 30,

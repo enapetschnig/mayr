@@ -32,6 +32,8 @@ begin
   delete from public.termine where projekt_id = any(v_projekte) or user_id = any(v_user);
   delete from public.dateien where projekt_id = any(v_projekte) or user_id = any(v_user);
   delete from public.projekte where id = any(v_projekte);
+  delete from public.abwesenheiten where user_id = any(v_user);
+  delete from public.konto_buchungen where user_id = any(v_user);
   delete from auth.users where id = any(v_user);
 
   alter table public.zeiten enable trigger user;

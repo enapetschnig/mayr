@@ -1,7 +1,8 @@
-import { FUSS_PLATZ, RAND, fmtMenge, fusszeilen, pdfLaden, platzPruefen, titelZeile } from "@/lib/pdfBasis";
+import { FUSS_PLATZ, RAND, eur, fmt, fmtMenge, fusszeilen, pdfLaden, platzPruefen, titelZeile } from "@/lib/pdfBasis";
 import { pdfText } from "@/components/regie/regieLogik";
 import { uhrzeit } from "@/lib/format";
-import type { Firma } from "@/lib/types";
+import { ABWESENHEIT_ART, STUNDEN_ART, type AbwesenheitArt, type Firma, type StundenArt } from "@/lib/types";
+import type { LohnSumme } from "@/lib/zeitkonto";
 
 /**
  * Stundennachweis eines Monats (oder Jahres) als PDF — für die
@@ -16,11 +17,18 @@ export type StundenZeile = {
   pause_minuten: number | null;
   stunden: number;
   taetigkeit: string | null;
+  art: string | null;
   projekt: string;
   regiebericht: string;
 };
 
-export type StundenPerson = { name: string; zeilen: StundenZeile[] };
+export type StundenPerson = {
+  name: string;
+  zeilen: StundenZeile[];
+  /** Abwesend je Tag, steht in der Tagesliste zwischen den Stunden */
+  abwesend: { datum: string; art: string; stunden: number }[];
+  summe: LohnSumme;
+};
 
 const WOCHENTAG = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const tag = (iso: string) => {
@@ -51,19 +59,15 @@ export async function stundenPdf(firma: Firma, zeitraum: string, personen: Stund
 
   // Übersicht
   let y = kopf(`Stundennachweis ${zeitraum}`);
-  const summen = personen.map((p) => ({
-    name: p.name,
-    tage: new Set(p.zeilen.map((z) => z.datum)).size,
-    stunden: p.zeilen.reduce((s, z) => s + z.stunden, 0),
-    projekt: p.zeilen.filter((z) => z.projekt).reduce((s, z) => s + z.stunden, 0),
-  }));
+  const abwesendTage = (s: LohnSumme) => Object.values(s.abwesend).reduce((x, a) => x + a.tage, 0);
+  const summeAlle = (f: (s: LohnSumme) => number) => personen.reduce((x, p) => x + f(p.summe), 0);
   autoTable(pdf, {
     ...tabelle,
     startY: y,
-    head: [["Mitarbeiter", "Arbeitstage", "auf Projekten", "Stunden"]],
-    body: summen.map((s) => [pdfText(s.name), String(s.tage), h(s.projekt), h(s.stunden)]),
-    foot: [["Summe", "", h(summen.reduce((x, s) => x + s.projekt, 0)), h(summen.reduce((x, s) => x + s.stunden, 0))]],
-    columnStyles: { 1: { halign: "right", cellWidth: 28 }, 2: { halign: "right", cellWidth: 32 }, 3: { halign: "right", cellWidth: 28 } },
+    head: [["Mitarbeiter", "Soll", "Ist", "Differenz", "Abwesend", "Taggeld", "km"]],
+    body: personen.map((p) => [pdfText(p.name), h(p.summe.soll), h(p.summe.ist), h(p.summe.differenz), `${abwesendTage(p.summe)} T.`, fmt(p.summe.taggeld), fmtMenge(p.summe.km)]),
+    foot: [["Summe", h(summeAlle((s) => s.soll)), h(summeAlle((s) => s.ist)), h(summeAlle((s) => s.differenz)), `${summeAlle(abwesendTage)} T.`, fmt(summeAlle((s) => s.taggeld)), fmtMenge(summeAlle((s) => s.km))]],
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" } },
     didParseCell: (d) => { if (d.section !== "body" && d.column.index > 0) d.cell.styles.halign = "right"; },
   });
 
@@ -71,8 +75,14 @@ export async function stundenPdf(firma: Firma, zeitraum: string, personen: Stund
   for (const p of personen) {
     pdf.addPage();
     y = kopf(`${p.name} — ${zeitraum}`);
-    const zeilen = [...p.zeilen].sort((a, b) => a.datum.localeCompare(b.datum) || (a.von ?? "").localeCompare(b.von ?? ""));
-    const summe = zeilen.reduce((s, z) => s + z.stunden, 0);
+    const zeilen = [
+      ...p.zeilen.map((z) => ({ ...z, abw: false })),
+      ...p.abwesend.map((a) => ({
+        datum: a.datum, von: null, bis: null, pause_minuten: null, stunden: a.stunden, taetigkeit: null, art: null,
+        projekt: ABWESENHEIT_ART[a.art as AbwesenheitArt]?.text ?? a.art, regiebericht: "", abw: true,
+      })),
+    ].sort((a, b) => a.datum.localeCompare(b.datum) || (a.von ?? "").localeCompare(b.von ?? ""));
+    const s = p.summe;
     autoTable(pdf, {
       ...tabelle,
       startY: y,
@@ -82,12 +92,27 @@ export async function stundenPdf(firma: Firma, zeitraum: string, personen: Stund
         z.von && z.bis ? `${uhrzeit(z.von)} – ${uhrzeit(z.bis)}` : "",
         z.pause_minuten ? `${z.pause_minuten} Min.` : "",
         h(z.stunden),
-        pdfText([z.projekt || "Ohne Projekt", z.regiebericht && `(${z.regiebericht})`].filter(Boolean).join(" ")
+        pdfText([z.abw ? z.projekt : z.projekt || "Ohne Projekt", z.regiebericht && `(${z.regiebericht})`, z.art && z.art !== "arbeit" ? `· ${STUNDEN_ART[z.art as StundenArt]?.text ?? z.art}` : ""].filter(Boolean).join(" ")
           + (z.taetigkeit?.trim() ? `\n${z.taetigkeit.trim()}` : "")),
       ]),
-      foot: [["Summe", "", "", h(summe), `${new Set(zeilen.map((z) => z.datum)).size} Arbeitstage`]],
       columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 26 }, 2: { cellWidth: 18 }, 3: { cellWidth: 20, halign: "right" } },
-      didParseCell: (d) => { if (d.section !== "body" && d.column.index === 3) d.cell.styles.halign = "right"; },
+    });
+    // Summen für die Lohnverrechnung
+    const posten: [string, string][] = [
+      ["Soll", h(s.soll)], ["Ist (mit Abwesenheit)", h(s.ist)], ["Differenz", h(s.differenz)],
+      ...([["Arbeit", s.arbeit], ["Fahrzeit", s.fahrt], ["Überstunden 50 %", s.ue50], ["Überstunden 100 %", s.ue100], ["Garantie", s.garantie]] as [string, number][])
+        .filter(([, n]) => n > 0).map(([t, n]): [string, string] => [t, h(n)]),
+      ...Object.entries(s.abwesend).map(([a, w]): [string, string] => [ABWESENHEIT_ART[a as AbwesenheitArt]?.text ?? a, `${w.tage} T. / ${h(w.stunden)}`]),
+      ...(s.taggeld > 0 ? [[`Taggeld (${s.taggeldTage} Tage, Vorschlag)`, eur(s.taggeld)] as [string, string]] : []),
+      ...(s.km > 0 ? [[`Kilometer (${fmtMenge(s.km)} km)`, eur(s.kmGeld)] as [string, string]] : []),
+    ];
+    autoTable(pdf, {
+      ...tabelle,
+      startY: letztesY(pdf) + 5,
+      body: posten,
+      tableWidth: 95,
+      columnStyles: { 1: { halign: "right" } },
+      didParseCell: (d) => { if (d.row.index < 3) d.cell.styles.fontStyle = "bold"; },
     });
     // Unterschriften — nie über den Seitenumbruch
     y = platzPruefen(pdf, letztesY(pdf) + 18, 22);

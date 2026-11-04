@@ -7,8 +7,98 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.18"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
+      abwesenheiten: {
+        Row: {
+          art: string
+          bis: string
+          created_at: string
+          entschieden_am: string | null
+          entschieden_von: string | null
+          erstellt_von: string | null
+          id: string
+          notiz: string | null
+          status: string
+          stunden: number | null
+          user_id: string
+          von: string
+        }
+        Insert: {
+          art: string
+          bis: string
+          created_at?: string
+          entschieden_am?: string | null
+          entschieden_von?: string | null
+          erstellt_von?: string | null
+          id?: string
+          notiz?: string | null
+          status?: string
+          stunden?: number | null
+          user_id?: string
+          von: string
+        }
+        Update: {
+          art?: string
+          bis?: string
+          created_at?: string
+          entschieden_am?: string | null
+          entschieden_von?: string | null
+          erstellt_von?: string | null
+          id?: string
+          notiz?: string | null
+          status?: string
+          stunden?: number | null
+          user_id?: string
+          von?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "abwesenheiten_entschieden_von_fkey"
+            columns: ["entschieden_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "abwesenheiten_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       anlagen: {
         Row: {
           aktiv: boolean
@@ -790,6 +880,7 @@ export type Database = {
           id: number
           inhaber: string | null
           kleinunternehmer: boolean
+          km_satz: number | null
           kostensatz: number | null
           land: string
           logo_pfad: string | null
@@ -804,6 +895,7 @@ export type Database = {
           strasse: string | null
           stundensaetze: Json
           stundensatz: number
+          taggeld_satz: number | null
           telefon: string | null
           uid: string | null
           updated_at: string
@@ -826,6 +918,7 @@ export type Database = {
           id?: number
           inhaber?: string | null
           kleinunternehmer?: boolean
+          km_satz?: number | null
           kostensatz?: number | null
           land?: string
           logo_pfad?: string | null
@@ -840,6 +933,7 @@ export type Database = {
           strasse?: string | null
           stundensaetze?: Json
           stundensatz?: number
+          taggeld_satz?: number | null
           telefon?: string | null
           uid?: string | null
           updated_at?: string
@@ -862,6 +956,7 @@ export type Database = {
           id?: number
           inhaber?: string | null
           kleinunternehmer?: boolean
+          km_satz?: number | null
           kostensatz?: number | null
           land?: string
           logo_pfad?: string | null
@@ -876,6 +971,7 @@ export type Database = {
           strasse?: string | null
           stundensaetze?: Json
           stundensatz?: number
+          taggeld_satz?: number | null
           telefon?: string | null
           uid?: string | null
           updated_at?: string
@@ -885,6 +981,47 @@ export type Database = {
           zusatz?: string | null
         }
         Relationships: []
+      }
+      konto_buchungen: {
+        Row: {
+          art: string
+          created_at: string
+          datum: string
+          erstellt_von: string | null
+          id: string
+          menge: number
+          text: string
+          user_id: string
+        }
+        Insert: {
+          art: string
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          id?: string
+          menge: number
+          text: string
+          user_id: string
+        }
+        Update: {
+          art?: string
+          created_at?: string
+          datum?: string
+          erstellt_von?: string | null
+          id?: string
+          menge?: number
+          text?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "konto_buchungen_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       kunden: {
         Row: {
@@ -1247,12 +1384,15 @@ export type Database = {
           farbe: string | null
           gesperrt: boolean
           id: string
+          konto_ab: string
           lohnart: string | null
           nachname: string
           passwort_neu: boolean
           rolle: string
           telefon: string | null
+          urlaub_tage: number
           vorname: string
+          wochenstunden: number
         }
         Insert: {
           aktiv?: boolean
@@ -1261,12 +1401,15 @@ export type Database = {
           farbe?: string | null
           gesperrt?: boolean
           id: string
+          konto_ab?: string
           lohnart?: string | null
           nachname?: string
           passwort_neu?: boolean
           rolle?: string
           telefon?: string | null
+          urlaub_tage?: number
           vorname?: string
+          wochenstunden?: number
         }
         Update: {
           aktiv?: boolean
@@ -1275,12 +1418,15 @@ export type Database = {
           farbe?: string | null
           gesperrt?: boolean
           id?: string
+          konto_ab?: string
           lohnart?: string | null
           nachname?: string
           passwort_neu?: boolean
           rolle?: string
           telefon?: string | null
+          urlaub_tage?: number
           vorname?: string
+          wochenstunden?: number
         }
         Relationships: []
       }
@@ -1513,51 +1659,86 @@ export type Database = {
       }
       termine: {
         Row: {
+          begonnen_am: string | null
           beschreibung: string | null
           bis: string | null
           bis_datum: string | null
           created_at: string
           datum: string
+          dringend: boolean
+          erledigt_am: string | null
+          erledigt_von: string | null
           ganztags: boolean
+          geaendert_am: string | null
+          geaendert_von: string | null
           id: string
           mitarbeiter: string[]
           ort: string | null
           projekt_id: string | null
+          status: string
           titel: string
           user_id: string | null
           von: string | null
         }
         Insert: {
+          begonnen_am?: string | null
           beschreibung?: string | null
           bis?: string | null
           bis_datum?: string | null
           created_at?: string
           datum: string
+          dringend?: boolean
+          erledigt_am?: string | null
+          erledigt_von?: string | null
           ganztags?: boolean
+          geaendert_am?: string | null
+          geaendert_von?: string | null
           id?: string
           mitarbeiter?: string[]
           ort?: string | null
           projekt_id?: string | null
+          status?: string
           titel: string
           user_id?: string | null
           von?: string | null
         }
         Update: {
+          begonnen_am?: string | null
           beschreibung?: string | null
           bis?: string | null
           bis_datum?: string | null
           created_at?: string
           datum?: string
+          dringend?: boolean
+          erledigt_am?: string | null
+          erledigt_von?: string | null
           ganztags?: boolean
+          geaendert_am?: string | null
+          geaendert_von?: string | null
           id?: string
           mitarbeiter?: string[]
           ort?: string | null
           projekt_id?: string | null
+          status?: string
           titel?: string
           user_id?: string | null
           von?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "termine_erledigt_von_fkey"
+            columns: ["erledigt_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "termine_geaendert_von_fkey"
+            columns: ["geaendert_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "termine_projekt_id_fkey"
             columns: ["projekt_id"]
@@ -1631,11 +1812,13 @@ export type Database = {
       }
       zeiten: {
         Row: {
+          art: string
           bis: string | null
           created_at: string
           datum: string
           erstellt_von: string | null
           id: string
+          km: number | null
           pause_minuten: number
           projekt_id: string | null
           rechnung_id: string | null
@@ -1646,11 +1829,13 @@ export type Database = {
           von: string | null
         }
         Insert: {
+          art?: string
           bis?: string | null
           created_at?: string
           datum?: string
           erstellt_von?: string | null
           id?: string
+          km?: number | null
           pause_minuten?: number
           projekt_id?: string | null
           rechnung_id?: string | null
@@ -1661,11 +1846,13 @@ export type Database = {
           von?: string | null
         }
         Update: {
+          art?: string
           bis?: string | null
           created_at?: string
           datum?: string
           erstellt_von?: string | null
           id?: string
+          km?: number | null
           pause_minuten?: number
           projekt_id?: string | null
           rechnung_id?: string | null
@@ -1715,6 +1902,41 @@ export type Database = {
       }
     }
     Views: {
+      abwesenheit_kalender: {
+        Row: {
+          art: string | null
+          bis: string | null
+          id: string | null
+          stunden: number | null
+          user_id: string | null
+          von: string | null
+        }
+        Insert: {
+          art?: never
+          bis?: string | null
+          id?: string | null
+          stunden?: number | null
+          user_id?: string | null
+          von?: string | null
+        }
+        Update: {
+          art?: never
+          bis?: string | null
+          id?: string | null
+          stunden?: number | null
+          user_id?: string | null
+          von?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "abwesenheiten_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lagerbestand: {
         Row: {
           artikel_id: string | null
@@ -1990,8 +2212,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
-

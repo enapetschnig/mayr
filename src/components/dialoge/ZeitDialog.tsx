@@ -17,8 +17,9 @@ import { ProjektWahl } from "@/components/ProjektWahl";
 import { DiktatKnopf } from "@/components/DiktatKnopf";
 import { useMitarbeiter, useNeuLaden, useProjekte } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
-import { datum as datumText, isoTag, stunden as stundenText, stundenAusVonBis, ueberMitternacht, zahlLesen } from "@/lib/format";
+import { datum as datumText, isoTag, stunden as stundenText, stundenAusVonBis, ueberMitternacht, zahlLesen, dezimalLesen } from "@/lib/format";
 import { name, type Zeit } from "@/lib/types";
+import { STUNDEN_ART, type StundenArt } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { fehlerText } from "@/components/stamm/stammDaten";
 
@@ -75,6 +76,9 @@ export function ZeitDialog({
   const [bis, setBis] = useState("16:00");
   const [pause, setPause] = useState("30");
   const [taetigkeit, setTaetigkeit] = useState("");
+  const [art, setArt] = useState<StundenArt>("arbeit");
+  const [km, setKm] = useState("");
+  const [mehr, setMehr] = useState(false);
   const [speichert, setSpeichert] = useState(false);
 
   useEffect(() => {
@@ -92,6 +96,9 @@ export function ZeitDialog({
       setBis(eintrag.bis?.slice(0, 5) || "16:00");
       setPause(String(eintrag.pause_minuten ?? 0));
       setTaetigkeit(eintrag.taetigkeit || "");
+      setArt((eintrag.art as StundenArt) || "arbeit");
+      setKm(eintrag.km == null ? "" : String(eintrag.km).replace(".", ","));
+      setMehr((eintrag.art && eintrag.art !== "arbeit") || eintrag.km != null);
     } else {
       setUserId(profil?.id ?? "");
       setProjektId(vorProjekt || "");
@@ -100,6 +107,9 @@ export function ZeitDialog({
       setStd("");
       setStdGetippt(false);
       setTaetigkeit("");
+      setArt("arbeit");
+      setKm("");
+      setMehr(false);
     }
   }, [open, eintrag, vorProjekt, vorDatum, profil?.id]);
 
@@ -150,6 +160,7 @@ export function ZeitDialog({
     }
     if (pauseZuLang) return toast.error("Die Pause ist länger als die Arbeitszeit.");
     if (!(ergebnis > 0 && ergebnis <= 24)) return toast.error("Bitte die Stunden eintragen — mehr als 0 und höchstens 24.");
+    if (km.trim() && !((dezimalLesen(km) ?? -1) >= 0)) return toast.error("Kilometer bitte prüfen.");
     const wer = userId || profil!.id;
     setSpeichert(true);
     // Mehr als 24 h an einem Tag für eine Person geht nicht — meist doppelt gebucht
@@ -170,6 +181,8 @@ export function ZeitDialog({
       bis: modus === "vonbis" ? bis : null,
       pause_minuten: modus === "vonbis" ? Math.round(zahlLesen(pause)) : 0,
       taetigkeit: taetigkeit.trim() || null,
+      art,
+      km: km.trim() ? dezimalLesen(km) : null,
     };
     const { data: zeilen, error } = eintrag
       ? await supabase.from("zeiten").update(daten).eq("id", eintrag.id).select("id")
@@ -332,9 +345,35 @@ export function ZeitDialog({
           )}
         </div>
 
+        {tagHinweis && <p className="rounded-md border border-status-gelb bg-status-gelb/40 px-3 py-2 text-sm" role="status">{tagHinweis}</p>}
+
+        <div className="space-y-2">
+          {mehr ? (
+            <>
+              <Label>Art der Stunden</Label>
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Art der Stunden">
+                {(Object.keys(STUNDEN_ART) as StundenArt[]).map((a) => (
+                  <button key={a} type="button" role="radio" aria-checked={art === a} onClick={() => setArt(a)}
+                    className={cn("min-h-11 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                      art === a ? "border-primary bg-primary-soft text-primary" : "bg-card hover:bg-muted")}>
+                    {STUNDEN_ART[a].text}
+                  </button>
+                ))}
+              </div>
+              <div className="space-y-1 pt-1">
+                <Label htmlFor="z-km" className="text-xs">Kilometer mit dem eigenen Auto</Label>
+                <Input id="z-km" inputMode="decimal" className="h-12 w-32" value={km} onChange={(e) => setKm(e.target.value)} />
+              </div>
+            </>
+          ) : (
+            <button type="button" className="min-h-11 text-sm font-medium text-primary" onClick={() => setMehr(true)}>
+              Fahrzeit, Überstunden, Garantie, Kilometer …
+            </button>
+          )}
+        </div>
+
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            {tagHinweis && <p className="rounded-md border border-status-gelb bg-status-gelb/40 px-3 py-2 text-sm" role="status">{tagHinweis}</p>}
             <Label htmlFor="z-taetigkeit">Was wurde gemacht? <span className="font-normal text-muted-foreground">(optional)</span></Label>
             <DiktatKnopf onText={(t) => setTaetigkeit((alt) => `${alt}${alt && !alt.endsWith(" ") ? " " : ""}${t}`)} />
           </div>

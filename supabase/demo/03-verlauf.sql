@@ -358,10 +358,9 @@ begin
   insert into termine (titel, beschreibung, ort, datum, bis_datum, von, bis, ganztags, projekt_id, mitarbeiter, user_id) values
     ('Kirchenwirt – Gastgarten', null, 'Kirchenplatz 1, 4320 Perg', '2026-10-21', null, '08:00', '13:30', false, p5, array[v_max, v_lisa], v_chef),
     ('Berger – Aufmaß Bad/WC', null, 'Am Bach 4, 4210 Gallneukirchen', '2026-10-22', null, '16:00', '18:00', false, p4, array[v_chef], v_chef),
-    ('Huber – Installation OG und Dachboden', 'Leitungen Dachboden fertig, Dosen OG setzen', 'Musterstraße 12, 4020 Linz', '2026-10-26', '2026-10-28', '07:00', '15:30', false, p1, array[v_max, v_lisa], v_chef),
+    ('Huber – Installation OG und Dachboden', 'Leitungen Dachboden fertig, Dosen OG setzen', 'Musterstraße 12, 4020 Linz', '2026-10-26', '2026-10-28', '07:00', '15:30', false, p1, array[v_max], v_chef),
     ('Kirchenwirt – Saalbeleuchtung', 'Notlicht-Akku tauschen', 'Kirchenplatz 1, 4320 Perg', '2026-10-27', null, '14:00', '16:00', false, p5, array[v_max], v_chef),
     ('Gruber – Backstube fertigstellen', null, 'Hauptplatz 3, 4600 Wels', '2026-10-29', null, '07:00', '15:30', false, p2, array[v_chef, v_max], v_chef),
-    ('Berufsschule', null, null, '2026-10-30', null, null, null, true, null, array[v_lisa], v_chef),
     ('Berger – Angebot besprechen', 'Angebot AN-2026-001 mitnehmen', 'Am Bach 4, 4210 Gallneukirchen', '2026-10-30', null, '09:00', '10:00', false, p4, array[v_chef], v_chef),
     ('Huber – Verteiler fertig verdrahten', null, 'Musterstraße 12, 4020 Linz', '2026-11-02', '2026-11-03', '07:00', '15:30', false, p1, array[v_max], v_chef),
     ('Sonnenhof – Abnahme Zählerplatz mit Netzbetreiber', null, 'Sonnenweg 8, 4040 Linz', '2026-11-04', null, '10:00', '11:00', false, p3, array[v_chef], v_chef);
@@ -371,4 +370,32 @@ begin
     insert into termine (titel, beschreibung, ort, datum, von, bis, ganztags, projekt_id, mitarbeiter, user_id) values
       ('Huber – Installation OG', 'Dosen setzen, Leitungen einziehen', 'Musterstraße 12, 4020 Linz', current_date, '07:00', '15:30', false, p1, array[v_max], v_chef);
   end if;
+
+  -- ── Personal: Sollzeit, Konto, Abwesenheiten ─────────────────────────────
+  update profiles set konto_ab = '2026-10-05', wochenstunden = 38.5, urlaub_tage = 25 where id in (v_max, v_lisa);
+  update profiles set konto_ab = current_date where id = v_chef;
+  insert into konto_buchungen (user_id, art, datum, menge, text, erstellt_von) values
+    (v_max, 'ueberstunden', '2026-10-05', 18.5, 'Anfangsbestand', v_chef),
+    (v_lisa, 'ueberstunden', '2026-10-05', 22, 'Anfangsbestand', v_chef),
+    (v_max, 'urlaub', '2026-10-05', 3, 'Übertrag aus dem Vorjahr', v_chef);
+  insert into abwesenheiten (user_id, art, von, bis, status, notiz, entschieden_von, entschieden_am, erstellt_von) values
+    (v_lisa, 'berufsschule', '2026-10-30', '2026-10-30', 'genehmigt', null, v_chef, now(), v_chef),
+    (v_lisa, 'krank', '2026-10-26', '2026-10-27', 'genehmigt', null, v_chef, now(), v_lisa),
+    (v_max, 'urlaub', '2026-08-10', '2026-08-14', 'genehmigt', null, v_chef, now(), v_max),
+    (v_max, 'urlaub', '2026-11-23', '2026-11-27', 'beantragt', 'Woche vor dem Advent', null, null, v_max),
+    (v_lisa, 'zeitausgleich', '2026-11-13', '2026-11-13', 'beantragt', null, null, null, v_lisa);
+
+  -- Stundenarten und Kilometer am Verlauf
+  update zeiten set art = 'ue50' where user_id = v_max and datum = '2026-10-12' and rechnung_id is null and regiebericht_id is null;
+  update zeiten set km = 42 where user_id = v_max and datum in ('2026-10-07', '2026-10-08') and rechnung_id is null and regiebericht_id is null;
+  insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, art) values
+    (v_max, p5, '2026-10-27', 1.5, '15:30', '17:00', 0, 'Nacharbeit Steckdose Gastgarten', 'garantie'),
+    (v_max, p1, '2026-10-26', 0.5, '06:30', '07:00', 0, 'Fahrt zur Baustelle', 'fahrt');
+
+  -- ── Einsätze: Vergangenes ist erledigt, ein dringender Kundendienst steht an ──
+  update termine set status = 'erledigt', begonnen_am = (datum + time '07:05') at time zone 'Europe/Vienna',
+    erledigt_am = (coalesce(bis_datum, datum) + time '15:20') at time zone 'Europe/Vienna', erledigt_von = v_max
+    where coalesce(bis_datum, datum) < current_date;
+  insert into termine (titel, beschreibung, ort, datum, von, bis, ganztags, projekt_id, mitarbeiter, dringend, user_id) values
+    ('Kirchenwirt – FI löst aus', 'Küche ohne Strom, Kunde ruft um Rückruf', 'Kirchenplatz 1, 4320 Perg', current_date, '13:00', '15:00', false, p5, array[v_max], true, v_chef);
 end $$;
