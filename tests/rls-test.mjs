@@ -579,6 +579,44 @@ console.log("\n— Abwesenheiten, Konto, Einsätze —");
   ok(Number(za?.stunden) === 3 && Number(za?.stunden_offen) === 0, "Garantiestunden zählen, aber nicht als offen");
 }
 
+console.log("\n— Buchhaltung —");
+{
+  const { data: er, error: e1 } = await chef.from("eingangsrechnungen").insert({ lieferant: "RLS-Test Lieferant", nummer: "RLS-1", netto: 100, ust_satz: 20, ust: 20, brutto: 120 }).select("id").single();
+  ok(!e1, "Chef erfasst Eingangsrechnung" + (e1 ? abgelehnt(e1) : ""));
+  const { error: e2 } = await monteur.rpc("kreditor_konten_holen", { p_namen: ["RLS-Test Lieferant"] });
+  ok(!!e2, "Kreditoren holt nur der Chef" + abgelehnt(e2));
+  const { data: k1, error: e3 } = await chef.rpc("kreditor_konten_holen", { p_namen: ["RLS-Test Lieferant", " rls-test lieferant "] });
+  ok(!e3 && k1?.length === 1 && k1[0].konto >= 30001, "Kreditor bekommt eine Nummer, Schreibweise egal" + (e3 ? abgelehnt(e3) : ""));
+  const { data: k2 } = await chef.rpc("kreditor_konten_holen", { p_namen: ["RLS-Test Lieferant"] });
+  ok(k2?.[0]?.konto === k1?.[0]?.konto, "Die Nummer bleibt dieselbe");
+  const { data: mk } = await monteur.from("kreditor_konten").select("konto");
+  ok(!mk?.length, "Monteur sieht keine Kreditorenkonten");
+
+  const ueber = { p_von: "2030-01-01", p_bis: "2030-01-31", p_format: "bmd", p_belege: [] };
+  const { error: e4 } = await monteur.rpc("fibu_uebergeben", { ...ueber, p_eingaenge: [er.id] });
+  ok(!!e4, "Übergeben kann nur der Chef" + abgelehnt(e4));
+  const { error: e5 } = await chef.rpc("fibu_uebergeben", { ...ueber, p_eingaenge: [] });
+  ok(!!e5, "Leere Übergabe gibt es nicht" + abgelehnt(e5));
+  const { data: ue, error: e6 } = await chef.rpc("fibu_uebergeben", { ...ueber, p_eingaenge: [er.id] });
+  ok(!e6 && !!ue, "Chef übergibt" + (e6 ? abgelehnt(e6) : ""));
+  const { error: e7 } = await chef.rpc("fibu_uebergeben", { ...ueber, p_eingaenge: [er.id] });
+  ok(!!e7, "Derselbe Beleg geht nicht zweimal" + abgelehnt(e7));
+  const { data: mu } = await monteur.from("fibu_uebergaben").select("id");
+  ok(!mu?.length, "Monteur sieht keine Übergaben");
+
+  const { error: e8 } = await chef.from("eingangsrechnungen").update({ netto: 50, brutto: 60, ust: 10 }).eq("id", er.id);
+  ok(!!e8, "Übergebene Eingangsrechnung: Betrag bleibt" + abgelehnt(e8));
+  const { error: e9 } = await chef.from("eingangsrechnungen").delete().eq("id", er.id);
+  ok(!!e9, "Übergebene Eingangsrechnung: löschen geht nicht" + abgelehnt(e9));
+  const { error: e10 } = await chef.from("eingangsrechnungen").update({ bezahlt_am: "2030-02-01" }).eq("id", er.id);
+  ok(!e10, "Bezahlt setzen geht weiter" + (e10 ? abgelehnt(e10) : ""));
+  const { error: e11 } = await chef.from("fibu_uebergaben").delete().eq("id", ue);
+  ok(!e11, "Übergabe zurücknehmen" + (e11 ? abgelehnt(e11) : ""));
+  const { error: e12 } = await chef.from("eingangsrechnungen").delete().eq("id", er.id);
+  ok(!e12, "Danach lässt sie sich wieder löschen" + (e12 ? abgelehnt(e12) : ""));
+  await chef.from("kreditor_konten").delete().eq("schluessel", "rls-test lieferant");
+}
+
 console.log(fehlgeschlagen ? `\n✗ ${fehlgeschlagen} Prüfung(en) fehlgeschlagen` : "\n✓ Alle Prüfungen bestanden");
 console.log("Jetzt tests/rls-aufraeumen.sql ausführen.");
 process.exit(fehlgeschlagen ? 1 : 0);

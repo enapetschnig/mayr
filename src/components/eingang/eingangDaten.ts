@@ -59,7 +59,7 @@ export async function dateiAdresse(pfad: string): Promise<string> {
 }
 
 export type EingangKopf = Pick<Eingangsrechnung,
-  "lieferant" | "nummer" | "datum" | "faellig_am" | "netto" | "ust_satz" | "ust" | "brutto" | "kategorie" | "betrieb" | "bezahlt_am" | "notiz">;
+  "lieferant" | "nummer" | "datum" | "faellig_am" | "netto" | "ust_satz" | "ust" | "brutto" | "kategorie" | "reverse_charge" | "betrieb" | "bezahlt_am" | "notiz">;
 
 /**
  * Speichert Kopf, Datei und Aufteilung. Verrechnete Anteile bleiben, wie sie

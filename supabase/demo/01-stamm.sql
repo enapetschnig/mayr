@@ -35,6 +35,9 @@ begin
   delete from anlagen;
   delete from mahnungen;
   delete from zahlungen;
+  delete from fibu_uebergaben;
+  delete from kreditor_konten;
+  alter table kreditor_konten alter column konto restart with 30001;
   delete from eingang_anteile;
   delete from eingangsrechnungen;
   delete from beleg_positionen;

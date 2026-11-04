@@ -809,6 +809,7 @@ export type Database = {
           netto: number
           notiz: string | null
           nummer: string | null
+          reverse_charge: boolean
           updated_at: string
           ust: number
           ust_satz: number
@@ -830,6 +831,7 @@ export type Database = {
           netto?: number
           notiz?: string | null
           nummer?: string | null
+          reverse_charge?: boolean
           updated_at?: string
           ust?: number
           ust_satz?: number
@@ -851,6 +853,7 @@ export type Database = {
           netto?: number
           notiz?: string | null
           nummer?: string | null
+          reverse_charge?: boolean
           updated_at?: string
           ust?: number
           ust_satz?: number
@@ -858,6 +861,81 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "eingangsrechnungen_erstellt_von_fkey"
+            columns: ["erstellt_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fibu_uebergabe_belege: {
+        Row: {
+          beleg_id: string | null
+          eingang_id: string | null
+          uebergabe_id: string
+        }
+        Insert: {
+          beleg_id?: string | null
+          eingang_id?: string | null
+          uebergabe_id: string
+        }
+        Update: {
+          beleg_id?: string | null
+          eingang_id?: string | null
+          uebergabe_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fibu_uebergabe_belege_beleg_id_fkey"
+            columns: ["beleg_id"]
+            isOneToOne: true
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fibu_uebergabe_belege_eingang_id_fkey"
+            columns: ["eingang_id"]
+            isOneToOne: true
+            referencedRelation: "eingangsrechnungen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fibu_uebergabe_belege_uebergabe_id_fkey"
+            columns: ["uebergabe_id"]
+            isOneToOne: false
+            referencedRelation: "fibu_uebergaben"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fibu_uebergaben: {
+        Row: {
+          bis: string
+          created_at: string
+          erstellt_von: string | null
+          format: string
+          id: string
+          von: string
+        }
+        Insert: {
+          bis: string
+          created_at?: string
+          erstellt_von?: string | null
+          format: string
+          id?: string
+          von: string
+        }
+        Update: {
+          bis?: string
+          created_at?: string
+          erstellt_von?: string | null
+          format?: string
+          id?: string
+          von?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fibu_uebergaben_erstellt_von_fkey"
             columns: ["erstellt_von"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -874,6 +952,8 @@ export type Database = {
           bic: string | null
           email: string | null
           farbe: string
+          fibu_format: string
+          fibu_konten: Json
           firmenbuch: string | null
           fusszeile: string | null
           iban: string | null
@@ -912,6 +992,8 @@ export type Database = {
           bic?: string | null
           email?: string | null
           farbe?: string
+          fibu_format?: string
+          fibu_konten?: Json
           firmenbuch?: string | null
           fusszeile?: string | null
           iban?: string | null
@@ -950,6 +1032,8 @@ export type Database = {
           bic?: string | null
           email?: string | null
           farbe?: string
+          fibu_format?: string
+          fibu_konten?: Json
           firmenbuch?: string | null
           fusszeile?: string | null
           iban?: string | null
@@ -1022,6 +1106,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      kreditor_konten: {
+        Row: {
+          created_at: string
+          konto: number
+          name: string
+          schluessel: string
+        }
+        Insert: {
+          created_at?: string
+          konto?: number
+          name: string
+          schluessel: string
+        }
+        Update: {
+          created_at?: string
+          konto?: number
+          name?: string
+          schluessel?: string
+        }
+        Relationships: []
       }
       kunden: {
         Row: {
@@ -2069,8 +2174,25 @@ export type Database = {
       }
       beleg_fertigstellen: { Args: { p_id: string }; Returns: string }
       beleg_stornieren: { Args: { p_id: string }; Returns: string }
+      fibu_uebergeben: {
+        Args: {
+          p_belege: string[]
+          p_bis: string
+          p_eingaenge: string[]
+          p_format: string
+          p_von: string
+        }
+        Returns: string
+      }
       ist_aktiv: { Args: never; Returns: boolean }
       ist_chef: { Args: never; Returns: boolean }
+      kreditor_konten_holen: {
+        Args: { p_namen: string[] }
+        Returns: {
+          konto: number
+          schluessel: string
+        }[]
+      }
       naechste_nummer: {
         Args: { p_datum: string; p_typ: string }
         Returns: string

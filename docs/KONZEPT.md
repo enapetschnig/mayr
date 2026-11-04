@@ -76,6 +76,8 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
 | `dateien` | Fotos/Dokumente je Projekt (Bucket `projekt-dateien`) |
 | `termine` | Kalender und Einsätze; `mitarbeiter uuid[]`, `status` geplant/begonnen/erledigt, `dringend`, `geaendert_am` (Trigger, nur bei Zeit, Ort, Personen) |
 | `abwesenheiten` | Urlaub, Krank, Arzt, Berufsschule, Zeitausgleich, Sonstiges je Person; `status` beantragt/genehmigt/abgelehnt |
+| `fibu_uebergaben` + `fibu_uebergabe_belege` | Was an die Kanzlei ging, je Beleg einmal; zurücknehmen löscht die Übergabe |
+| `kreditor_konten` | Kreditorennummer je Lieferant (ab 30001), einmal vergeben; Lieferanten sind sonst freier Text |
 | `konto_buchungen` | Korrekturen am Überstunden- und Urlaubskonto (Anfangsbestand, Auszahlung, Übertrag); nur der Chef schreibt |
 | `nummernkreise` | nur über `naechste_nummer()` |
 
@@ -248,6 +250,27 @@ Telefon und den Schnellwegen zu Stunden, Material und Regie. Beginnen und Erledi
 `termin_einsatz` und gelten nicht als Terminänderung. Verschiebt das Büro einen Termin, sieht der Monteur beim
 nächsten Öffnen „Termin geändert“; was schon gesehen wurde, merkt sich das Gerät (`elektro.termine.gesehen`). Der
 Chef sieht auf der Startseite Anträge und „erledigter Einsatz, noch nicht verrechnet“.
+
+### Buchhaltung (`lib/fibu.ts`, Seite `/buchhaltung`)
+
+Ein ZIP je Monat: Buchungen, Personenkonten, Belegliste für Excel, Original-PDFs und ein LIESMICH für die Kanzlei.
+Das Format wählt der Betrieb (`firma.fibu_format`), die Konten stehen in `firma.fibu_konten` und sind nur ein
+Vorschlag. Kundenkonto = 20000 + Kundennummer.
+
+- **Quellen:** RZL „Handbuch Datenimport“ (Stand August 2026, Euro-Version, Kapitel 2 und 4); BMD „PR08/PR08A
+  Verbuchen Erfassungsfile“ (Version 5.B4, variabler Satzaufbau). Die Tests in `fibu.test.ts` prüfen gegen die
+  Beispiele der Hersteller. In ein echtes BMD oder RZL eingelesen wurde noch nichts: beim ersten Betrieb
+  einen Probelauf mit der Kanzlei machen.
+- **Steuerfälle:** normal (BMD Steuercode 03 / RZL Schlüssel = Satz), Bauleistung an Kunden (17 / Sondercode 14),
+  Kleinunternehmer (00 / Sondercode 22), Eingang normal (00), Eingang Bauleistung (29 / Sondercode 15).
+  Stornorechnungen haben negative Beträge und gehen als Gutschrift hinaus.
+- **Teil- und Schlussrechnungen** gehen als normale Rechnungen mit ihren eigenen Beträgen hinaus (die
+  Schlussrechnung ist schon gekürzt). Die Teilrechnungsautomatik von BMD und RZL nutzen wir nicht; die Belegliste
+  nennt die Fälle, die Kanzlei bucht bei Bedarf um.
+- **Einmal übergeben:** „Als übergeben merken“ nimmt die Belege aus dem nächsten Export. Eingangsrechnungen sind
+  dann gesperrt (Trigger `eingang_uebergeben_schutz`), bis die Übergabe zurückgenommen ist.
+- **Kontrollliste** (`kontrolle`): warnt vor fehlendem Kunden, UID, Original, Rechnungsnummer und falschen Summen.
+  Sie sperrt nichts, der Mensch entscheidet.
 
 ### Bestellungen beim Großhändler (`components/bestellung/`, Seite `/bestellungen`, nur Chef)
 

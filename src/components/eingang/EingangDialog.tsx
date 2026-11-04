@@ -27,7 +27,7 @@ const UST_SAETZE = ["20", "13", "10", "0"];
 
 type Kopf = {
   lieferant: string; nummer: string; datum: string; faellig_am: string; netto: string; brutto: string; ust_satz: string;
-  kategorie: string; betrieb: boolean; bezahlt: boolean; bezahlt_am: string; notiz: string;
+  kategorie: string; betrieb: boolean; bezahlt: boolean; bezahlt_am: string; notiz: string; reverse_charge: boolean;
 };
 
 const kopfAus = (r: EingangMitAnteilen | null, heute: string): Kopf => ({
@@ -43,6 +43,7 @@ const kopfAus = (r: EingangMitAnteilen | null, heute: string): Kopf => ({
   bezahlt: !!r?.bezahlt_am,
   bezahlt_am: r?.bezahlt_am ?? heute,
   notiz: r?.notiz ?? "",
+  reverse_charge: r?.reverse_charge ?? false,
 });
 
 const anteileAus = (r: EingangMitAnteilen | null): AnteilEntwurf[] =>
@@ -105,15 +106,20 @@ export function EingangDialog({
   // Netto ↔ Brutto: das andere Feld rechnet mit
   const nettoAendern = (v: string) => {
     const n = dezimalLesen(v);
-    setz({ netto: v, brutto: n === null ? "" : fmt(bruttoAusNetto(n, satz)) });
+    setz({ netto: v, brutto: n === null ? "" : fmt(bruttoAusNetto(n, k.reverse_charge ? 0 : satz)) });
   };
   const bruttoAendern = (v: string) => {
     const b = dezimalLesen(v);
-    setz({ brutto: v, netto: b === null ? "" : fmt(nettoAusBrutto(b, satz)) });
+    setz({ brutto: v, netto: b === null ? "" : fmt(nettoAusBrutto(b, k.reverse_charge ? 0 : satz)) });
   };
   const satzAendern = (v: string) => {
     const n = dezimalLesen(k.netto);
-    setz({ ust_satz: v, brutto: n === null ? k.brutto : fmt(bruttoAusNetto(n, dezimalLesen(v) ?? 0)) });
+    setz({ ust_satz: v, brutto: n === null ? k.brutto : fmt(bruttoAusNetto(n, k.reverse_charge ? 0 : dezimalLesen(v) ?? 0)) });
+  };
+  // Bauleistung vom Subunternehmer: die Rechnung ist netto, die Steuer entsteht erst in der Buchhaltung
+  const reverseChargeAendern = (an: boolean) => {
+    const n = dezimalLesen(k.netto);
+    setz({ reverse_charge: an, ust_satz: an && !satz ? "20" : k.ust_satz, brutto: n === null ? k.brutto : fmt(bruttoAusNetto(n, an ? 0 : satz)) });
   };
 
   const anteilAendern = (schluessel: string, teil: Partial<AnteilEntwurf>) =>
@@ -147,6 +153,7 @@ export function EingangDialog({
         ust: Math.round((brutto - netto) * 100) / 100,
         brutto,
         kategorie: k.kategorie,
+        reverse_charge: k.reverse_charge,
         betrieb: k.betrieb,
         bezahlt_am: k.bezahlt ? k.bezahlt_am || heute : null,
         notiz: leerNull(k.notiz),
@@ -282,6 +289,14 @@ export function EingangDialog({
             <SelectContent>{UST_SAETZE.map((x) => <SelectItem key={x} value={x}>{x} %</SelectItem>)}</SelectContent>
           </Select>
         </Feld>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3">
+        <Label htmlFor="e-rc" className="cursor-pointer">
+          <span className="block text-sm font-medium">Reverse Charge</span>
+          <span className="block text-xs font-normal text-muted-foreground">Bauleistung vom Subunternehmer, Rechnung ohne USt</span>
+        </Label>
+        <Switch id="e-rc" checked={k.reverse_charge} onCheckedChange={reverseChargeAendern} />
       </div>
 
       <div className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3">

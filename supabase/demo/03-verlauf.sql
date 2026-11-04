@@ -398,4 +398,8 @@ begin
     where coalesce(bis_datum, datum) < current_date;
   insert into termine (titel, beschreibung, ort, datum, von, bis, ganztags, projekt_id, mitarbeiter, dringend, user_id) values
     ('Kirchenwirt – FI löst aus', 'Küche ohne Strom, Kunde ruft um Rückruf', 'Kirchenplatz 1, 4320 Perg', current_date, '13:00', '15:00', false, p5, array[v_max], true, v_chef);
+
+  -- Subunternehmer: Bauleistung mit Reverse Charge, zeigt die Buchhaltung
+  insert into eingangsrechnungen (lieferant, nummer, datum, faellig_am, netto, ust_satz, ust, brutto, kategorie, reverse_charge, betrieb, notiz, erstellt_von) values
+    ('Kabelzug Hofer GmbH (Demo)', 'H-2026-118', '2026-10-14', '2026-10-28', 780, 20, 0, 780, 'fremdleistung', true, true, 'Kernbohrungen Bäckerei Gruber', v_chef);
 end $$;
