@@ -107,38 +107,38 @@ begin
          case v.wer when 'max' then v_max when 'lisa' then v_lisa else v_chef end,
          (v.tag::date + time '07:15') at time zone 'Europe/Vienna'
   from (values
-    ('ausfassung','p6','2026-09-22','max', 'haupt','LEDBULKHEAD11W840WT', 4),
+    ('ausfassung','p6','2026-09-22','max', 'haupt','LED BULKHEAD 11W 840 WT', 4),
     ('ausfassung','p6','2026-09-22','max', 'haupt','606015', 2),
-    ('ausfassung','p6','2026-09-22','max', 'haupt','XC020104JC', 60),
+    ('ausfassung','p6','2026-09-22','max', 'haupt','NYM-J 3X1,5 RE GR', 60),
     ('ausfassung','p6','2026-09-22','max', 'haupt','2273-203', 20),
-    ('ausfassung','p1','2026-10-05','max', 'haupt','GTPTXM20', 150),
-    ('ausfassung','p1','2026-10-05','max', 'haupt','1055-21', 60),
+    ('ausfassung','p1','2026-10-05','max', 'haupt','TXM20', 150),
+    ('ausfassung','p1','2026-10-05','max', 'haupt','1055-04', 60),
     ('ausfassung','p1','2026-10-05','max', 'haupt','2273-203', 100),
-    ('ausfassung','p1','2026-10-05','max', 'haupt','XC020104JC', 300),
-    ('ausfassung','p1','2026-10-05','max', 'haupt','XC020209JC', 60),
-    ('ausfassung','p1','2026-10-13','max', 'haupt','HSKP4233K1', 120),
-    ('ausfassung','p1','2026-10-13','max', 'haupt','211500004', 6),
-    ('ausfassung','p1','2026-10-14','max', 'haupt','302543', 1),
-    ('ausfassung','p1','2026-10-14','max', 'haupt','AM618116', 12),
-    ('ausfassung','p1','2026-10-14','max', 'haupt','AM618316', 1),
-    ('ausfassung','p1','2026-10-14','max', 'haupt','BC054103', 1),
-    ('ausfassung','p1','2026-10-14','max', 'haupt','AK668616', 2),
+    ('ausfassung','p1','2026-10-05','max', 'haupt','NYM-J 3X1,5 RE GR', 300),
+    ('ausfassung','p1','2026-10-05','max', 'haupt','NYM-J 5X2,5 RE GR', 60),
+    ('ausfassung','p1','2026-10-13','max', 'haupt','LKD7KS700100100', 120),
+    ('ausfassung','p1','2026-10-13','max', 'haupt','465706', 6),
+    ('ausfassung','p1','2026-10-14','max', 'haupt','VU36AT', 1),
+    ('ausfassung','p1','2026-10-14','max', 'haupt','MBN116', 12),
+    ('ausfassung','p1','2026-10-14','max', 'haupt','MBN316', 1),
+    ('ausfassung','p1','2026-10-14','max', 'haupt','CDA440D', 1),
+    ('ausfassung','p1','2026-10-14','max', 'haupt','ADS916D', 2),
     ('ausfassung','p1','2026-10-14','max', 'haupt','221-413', 40),
-    ('ausfassung','p3','2026-10-15','max', 'haupt','XC020209JC', 25),
-    ('ausfassung','p3','2026-10-15','max', 'haupt','AM618316', 2),
-    ('ausfassung','p3','2026-10-15','max', 'haupt','563020', 1),
-    ('ausfassung','p3','2026-10-15','max', 'haupt','80243001', 2),
+    ('ausfassung','p3','2026-10-15','max', 'haupt','NYM-J 5X2,5 RE GR', 25),
+    ('ausfassung','p3','2026-10-15','max', 'haupt','MBN316', 2),
+    ('ausfassung','p3','2026-10-15','max', 'haupt','563200', 1),
+    ('ausfassung','p3','2026-10-15','max', 'haupt','80242001', 2),
     ('ausfassung','p3','2026-10-15','max', 'haupt','2273-205', 10),
-    ('ausfassung','p3','2026-10-15','max', 'haupt','145806', 2),
-    ('ausfassung','p2','2026-10-19','max', 'haupt','DLUGRDN155PFM14W840', 6),
-    ('ausfassung','p2','2026-10-19','max', 'haupt','XC020104JC', 40),
+    ('ausfassung','p3','2026-10-15','max', 'haupt','263842', 2),
+    ('ausfassung','p2','2026-10-19','max', 'haupt','DL SLIM DN 155 12 W 4000 K WT', 6),
+    ('ausfassung','p2','2026-10-19','max', 'haupt','NYM-J 3X1,5 RE GR', 40),
     ('ausfassung','p2','2026-10-19','max', 'haupt','221-413', 12),
-    ('ausfassung','p2','2026-10-20','chef','haupt','DPCOMP1200V33W840PS', 4),
+    ('ausfassung','p2','2026-10-20','chef','haupt','DP COMP TH 1200 V 33W 840 IP66 PS', 4),
     ('ausfassung','p1','2026-10-20','lisa','bus1', '2273-203', 20),
     ('ausfassung','p1','2026-10-20','lisa','bus1', '138-00022', 1),
-    ('rueckgabe', 'p1','2026-10-22','max', 'haupt','GTPTXM20', 30),
-    ('rueckgabe', 'p1','2026-10-22','max', 'haupt','1055-21', 8),
-    ('rueckgabe', 'p2','2026-10-22','max', 'haupt','XC020104JC', 12)
+    ('rueckgabe', 'p1','2026-10-22','max', 'haupt','TXM20', 30),
+    ('rueckgabe', 'p1','2026-10-22','max', 'haupt','1055-04', 8),
+    ('rueckgabe', 'p2','2026-10-22','max', 'haupt','NYM-J 3X1,5 RE GR', 12)
   ) v(art, prj, tag, wer, ort, nr, menge)
   join artikel a on a.hersteller_nr = v.nr;
 
@@ -181,8 +181,8 @@ begin
                                   ek_preis, vorgang, notiz, user_id, created_at)
   select 'ausfassung', a.id, null, null, v.menge, case v.ort when 'bus1' then l_bus1 else l_haupt end, p5, rb2,
          a.ek_preis, rb2, null, v_max, timestamptz '2026-10-21 13:35 Europe/Vienna'
-  from (values ('LEDBULKHEAD11W840WT', 2, 'haupt'), ('80242001', 2, 'haupt'),
-               ('XC020104JC', 15, 'bus1'), ('221-413', 6, 'bus1')) v(nr, menge, ort)
+  from (values ('LED BULKHEAD 11W 840 WT', 2, 'haupt'), ('80242001', 2, 'haupt'),
+               ('NYM-J 3X1,5 RE GR', 15, 'bus1'), ('221-413', 6, 'bus1')) v(nr, menge, ort)
   join artikel a on a.hersteller_nr = v.nr;
   update regieberichte set status = 'unterschrieben', unterschrift_name = 'Josef Kern',
          unterschrift_pfad = p5 || '/unterschriften/' || rb2 || '.png',
@@ -200,7 +200,7 @@ begin
                                   ek_preis, vorgang, notiz, user_id, created_at)
   select 'ausfassung', a.id, null, null, 2, l_haupt, p5, rb3, a.ek_preis, rb3, null, v_max,
          timestamptz '2026-10-23 08:55 Europe/Vienna'
-  from artikel a where a.hersteller_nr = 'LEDCLA608.5827FRE27P';
+  from artikel a where a.hersteller_nr = 'VALUE CLA60 10W/827 230V FR E27';
 
   -- ── RE-2026-001: Regiebericht RB-2026-001, bezahlt ───────────────────────
   insert into belege (typ, status, projekt_id, kunde_id, empf_name, empf_zusatz, empf_strasse, empf_plz, empf_ort, empf_uid, empf_email,

@@ -77,7 +77,10 @@ Einzeln: `scripts/demo-dateien-loeschen.mjs`, dann `supabase/demo/01-stamm.sql`,
 danach `demo-dateien-loeschen.mjs --archiv` (abgelegte Rechnungs-PDFs — erst
 löschbar, wenn die Rechnung weg ist), `02-artikel.sql` (aus `artikel_sql.py`
 erzeugt), `03-verlauf.sql` je mit `scripts/sql.sh -f`, zuletzt
-`supabase/demo/unterschriften.py`. Unterschriften
+`supabase/demo/unterschriften.py`. Demo-Artikel: 158 echte Sonepar-Artikel
+(`artikel-sonepar.json`: Artikelnummer, EAN, Listenpreis samt Kupferzuschlag;
+Hager-Verteiler, Jung LS 990). EK ist ein Demo-Rabatt je Kategorie — echte
+Netto-Konditionen nie ins Repo (öffentlich). Unterschriften
 im Speicher lassen sich nicht löschen (Policy `unterschriften_bleiben`) — alte
 bleiben nach dem Zurücksetzen als verwaiste Dateien liegen, wenige KB.
 
