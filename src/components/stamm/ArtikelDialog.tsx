@@ -42,6 +42,7 @@ type Form = {
   vk_preis: string;
   lagerartikel: boolean;
   mindestbestand: string;
+  bestell_vpe: string;
   aktiv: boolean;
 };
 
@@ -65,6 +66,7 @@ function formAus(a: Partial<Artikel> | null | undefined): Form {
     vk_preis: zahlFeld(a?.vk_preis),
     lagerartikel: a?.lagerartikel ?? false,
     mindestbestand: zahlFeld(a?.mindestbestand),
+    bestell_vpe: zahlFeld(a?.bestell_vpe),
     aktiv: a?.aktiv ?? true,
   };
 }
@@ -239,7 +241,7 @@ export function ArtikelDialog({
   // ── Speichern ───────────────────────────────────────────────────────
   const speichern = async () => {
     if (!f.bezeichnung.trim()) return toast.error("Bitte eine Bezeichnung eingeben.");
-    const zahlen: [keyof Form, string][] = [["listenpreis", "Listenpreis"], ["ek_preis", "EK"], ["vk_preis", "VK"], ["mindestbestand", "Mindestbestand"]];
+    const zahlen: [keyof Form, string][] = [["listenpreis", "Listenpreis"], ["ek_preis", "EK"], ["vk_preis", "VK"], ["mindestbestand", "Mindestbestand"], ["bestell_vpe", "Packung"]];
     for (const [k, text] of zahlen) {
       const roh = String(f[k]).trim();
       const n = dezimalLesen(roh);
@@ -266,6 +268,7 @@ export function ArtikelDialog({
       vk_preis: dezimalLesen(f.vk_preis),
       lagerartikel: f.lagerartikel,
       mindestbestand: f.lagerartikel ? dezimalLesen(f.mindestbestand) : null,
+      bestell_vpe: dezimalLesen(f.bestell_vpe) || null,
       aktiv: f.aktiv,
     };
     const { data, error } = artikel
@@ -526,6 +529,12 @@ export function ArtikelDialog({
               <div className="grid gap-4 sm:grid-cols-2">
                 <Feld id="a-min" label="Mindestbestand" hinweis="Darunter erscheint der Artikel als „nachbestellen“.">
                   <Input id="a-min" className="zahl h-11" inputMode="decimal" value={f.mindestbestand} onChange={(e) => setze("mindestbestand", e.target.value)} />
+                </Feld>
+                <Feld id="a-vpe" label="Bestellt in Packungen zu" hinweis={`z. B. 100 bei Ring 100 m — der Bestellvorschlag rundet darauf auf.`}>
+                  <div className="flex items-center gap-2">
+                    <Input id="a-vpe" className="zahl h-11" inputMode="decimal" value={f.bestell_vpe} onChange={(e) => setze("bestell_vpe", e.target.value)} />
+                    <span className="text-sm text-muted-foreground">{f.einheit}</span>
+                  </div>
                 </Feld>
                 {!neu && (
                   <Feld label="Bestand gesamt">

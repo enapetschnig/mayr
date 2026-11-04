@@ -99,3 +99,19 @@ describe("Hochladen", () => {
     expect(max).toBe(3);
   });
 });
+
+describe("Kupferzuschlag beim Import", () => {
+  const kabel = {
+    artikelnummer: "1", bezeichnung: "NYM-J 3x1,5", langtext: null, einheit: "m", ean: null, hersteller: null, hersteller_nr: null,
+    warengruppe: null, rabattgruppe: "1010", listenpreis: 1.4575, netto: null, metall: { art: "CU", kgJe1: 0.045, basis: 130 },
+  };
+  it("kommt ohne Rabatt auf EK und Liste", () => {
+    const r = { gruppen: { 1010: 68 }, pauschal: null, nettoVorziehen: true, metallkurse: { CU: 1258 } };
+    expect(ekBerechnen(kabel, r)).toBe(Math.round((1.4575 * 0.32 + 0.5076) * 10000) / 10000);
+    const [z] = artikelZeilen([kabel], { lieferant: "S", quelle: "datanorm", rabatt: r }).zeilen;
+    expect(z.listenpreis).toBe(1.9651);
+  });
+  it("ohne Kurs bleibt der Preis wie in der Datei", () => {
+    expect(ekBerechnen(kabel, { gruppen: { 1010: 68 }, pauschal: null, nettoVorziehen: true })).toBe(0.4664);
+  });
+});

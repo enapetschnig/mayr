@@ -120,6 +120,22 @@ function Editor({ p }: { p: PruefungVoll }) {
     return () => window.removeEventListener("beforeunload", warnen);
   }, [dirty]);
 
+  // Sicherung im Gerät: Wischgeste „zurück“ oder leerer Akku dürfen die Messwerte nicht kosten
+  const sicherungKey = `elektro.pruefung.sicherung.${p.id}`;
+  const [sicherung, setSicherung] = useState<{ zeit: number; stand: Stand } | null>(() => {
+    try {
+      const roh = localStorage.getItem(sicherungKey);
+      const g = roh ? (JSON.parse(roh) as { zeit: number; stand: Stand }) : null;
+      return g && Array.isArray(g.stand?.zeilen) && ohneKeys(g.stand) !== basis ? g : null;
+    } catch { return null; }
+  });
+  useEffect(() => {
+    try {
+      if (dirty) localStorage.setItem(sicherungKey, JSON.stringify({ zeit: Date.now(), stand: s }));
+      else if (!sicherung) localStorage.removeItem(sicherungKey);
+    } catch { /* Speicher voll oder gesperrt — dann eben ohne */ }
+  }, [dirty, s, sicherungKey, sicherung]);
+
   const messungen = useMemo(() => s.zeilen.filter((z) => !zeileLeer(z)).map(messungAusZeile), [s.zeilen]);
   const fiIn = messungen.find((m) => m.fi_in)?.fi_in ?? null;
   const erderFehler = erderBewerten(dezimalLesen(s.erder), fiIn);
@@ -202,6 +218,15 @@ function Editor({ p }: { p: PruefungVoll }) {
         </>
       )}
     >
+      {sicherung && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary-soft p-3 text-sm" role="status">
+          <span>Ungespeicherte Eingaben vom {new Date(sicherung.zeit).toLocaleString("de-AT", { dateStyle: "short", timeStyle: "short" })} gefunden.</span>
+          <span className="flex gap-2">
+            <Button variant="outline" className="h-11" onClick={() => setSicherung(null)}>Verwerfen</Button>
+            <Button className="h-11" onClick={() => { setS(sicherung.stand); setSicherung(null); }}>Wiederherstellen</Button>
+          </span>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <StatusPille eintrag={REGIE_STATUS.entwurf} />
         {a && <Link to={`/anlagen/${a.id}`} className="text-sm text-primary hover:underline">{a.bezeichnung}{a.standort ? ` · ${a.standort}` : ""}</Link>}

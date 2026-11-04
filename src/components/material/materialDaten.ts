@@ -131,9 +131,9 @@ export function useAlleLagerorte() {
 export type ArtikelLager = Pick<
   Artikel,
   "id" | "bezeichnung" | "einheit" | "kategorie" | "hersteller" | "hersteller_nr" | "artikelnummer" | "ean"
-  | "mindestbestand" | "lagerartikel" | "aktiv" | "ek_preis" | "lieferant"
+  | "mindestbestand" | "lagerartikel" | "aktiv" | "ek_preis" | "lieferant" | "bestell_vpe"
 >;
-const ARTIKEL_LAGER = "id, bezeichnung, einheit, kategorie, hersteller, hersteller_nr, artikelnummer, ean, mindestbestand, lagerartikel, aktiv, ek_preis, lieferant";
+const ARTIKEL_LAGER = "id, bezeichnung, einheit, kategorie, hersteller, hersteller_nr, artikelnummer, ean, mindestbestand, lagerartikel, aktiv, ek_preis, lieferant, bestell_vpe";
 
 export type BestandZeile = { artikel_id: string; lagerort_id: string; bestand: number; artikel: ArtikelLager | null };
 

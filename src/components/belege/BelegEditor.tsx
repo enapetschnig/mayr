@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -347,11 +348,26 @@ export function BelegEditor({
   }, []);
 
   // ── Fertigstellen ──
+  const [teilHinweis, setTeilHinweis] = useState<string | null>(null);
   const warnungen = fertigHinweise(kopf, positionen, s.brutto, firma, heute);
 
-  const fertigFragen = () => {
+  const fertigFragen = async () => {
     if (!anzahl) { toast.error("Zuerst mindestens eine Position mit Betrag hinzufügen."); return; }
     if (!kopf.empf_name.trim()) { toast.error("Bitte zuerst den Empfänger (Kunde) eintragen."); return; }
+    // Schlussrechnung: jede Teilrechnung muss fertig und abgezogen sein — sonst wird doppelt verrechnet
+    setTeilHinweis(null);
+    if (!istAngebot && beleg?.angebot_id && beleg.teil_nr == null) {
+      const { data: teile, error } = await supabase.from("belege").select("nummer, status")
+        .eq("typ", "rechnung").eq("angebot_id", beleg.angebot_id).not("teil_nr", "is", null).neq("status", "storniert");
+      if (error) { toast.error(error.message); return; }
+      if ((teile ?? []).some((t) => t.status === "entwurf")) {
+        toast.error("Eine Teilrechnung ist noch Entwurf — erst fertigstellen und dann hier mit „Aus dem Projekt übernehmen“ abziehen.", { duration: 10_000 });
+        return;
+      }
+      if ((teile ?? []).length && !positionen.some((p) => p.art === "abzug")) {
+        setTeilHinweis(`${(teile ?? []).length === 1 ? "Eine Teilrechnung ist" : `${(teile ?? []).length} Teilrechnungen sind`} gestellt, aber nicht abgezogen — doppelt verrechnet?`);
+      }
+    }
     setFrage("fertig");
   };
   const fertigAusfuehren = () => gesperrt(async () => {
@@ -654,7 +670,7 @@ export function BelegEditor({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
         {entwurf && !pc && (
-          <MenuePunkt icon={Check} onClick={fertigFragen}>Fertigstellen</MenuePunkt>
+          <MenuePunkt icon={Check} onClick={() => void fertigFragen()}>Fertigstellen</MenuePunkt>
         )}
         {istAngebot && status === "offen" && !entsperrt && (
           <MenuePunkt icon={LockOpen} onClick={() => setFrage("entsperren")}>Angebot ändern</MenuePunkt>
@@ -700,7 +716,7 @@ export function BelegEditor({
         </Button>
       )}
       {entwurf && (
-        <Button className="h-10" onClick={fertigFragen} disabled={!!laeuft}>
+        <Button className="h-10" onClick={() => void fertigFragen()} disabled={!!laeuft}>
           <Check className="h-4 w-4" /> Fertigstellen
         </Button>
       )}
@@ -958,7 +974,7 @@ export function BelegEditor({
       </div>
 
       {entwurf && !pc && (
-        <Button variant="outline" className="h-12 w-full" onClick={fertigFragen} disabled={!!laeuft}>
+        <Button variant="outline" className="h-12 w-full" onClick={() => void fertigFragen()} disabled={!!laeuft}>
           <Check className="h-4 w-4" /> Fertigstellen — Nummer vergeben
         </Button>
       )}
@@ -1059,6 +1075,7 @@ export function BelegEditor({
                   ...(konflikte > 0 && !dirty
                     ? [`${konflikte} ${konflikte === 1 ? "Buchung steckt" : "Buchungen stecken"} schon in einer anderen Rechnung — doppelt verrechnet?`]
                     : []),
+                  ...(teilHinweis ? [teilHinweis] : []),
                   ...warnungen,
                 ].map((w) => (
                   <p key={w} className={cn("rounded-md px-2.5 py-1.5 text-xs font-medium", TON_KLASSE.gelb)}>{w}</p>

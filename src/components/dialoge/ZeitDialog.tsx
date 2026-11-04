@@ -31,7 +31,7 @@ import { fehlerText } from "@/components/stamm/stammDaten";
  * Der Chef kann auch für einen Monteur buchen.
  */
 
-const SCHNELLWAHL = [4, 6, 7, 8, 8.5, 9, 10];
+const SCHNELLWAHL = [1, 2, 4, 6, 7, 8, 8.5, 9, 10];
 const MODUS_KEY = "elektro.zeitmodus";
 type Modus = "stunden" | "vonbis";
 
@@ -115,6 +115,23 @@ export function ZeitDialog({
   const pauseZuLang = modus === "vonbis" && stundenAusVonBis(von, bis, 0) > 0 && ergebnis === 0;
   const nacht = modus === "vonbis" && ueberMitternacht(von, bis);
 
+  // Was an diesem Tag schon gebucht ist — Doppelbuchungen fallen sonst erst in der Abrechnung auf
+  const werSicht = eintrag?.user_id ?? (userId || profil?.id);
+  const { data: tagZeiten = [] } = useQuery({
+    queryKey: ["zeiten", "tag", werSicht, datum],
+    enabled: open && !!werSicht && !!datum,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("zeiten").select("id, stunden, projekt_id").eq("user_id", werSicht!).eq("datum", datum);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const andere = tagZeiten.filter((z) => z.id !== eintrag?.id);
+  const tagSumme = andere.reduce((s, z) => s + Number(z.stunden), 0);
+  const aufProjekt = andere.filter((z) => z.projekt_id === projektId).reduce((s, z) => s + Number(z.stunden), 0);
+  const tagHinweis = tagSumme <= 0 || nurAnsehen || gesperrt ? null
+    : `An diesem Tag schon ${stundenText(tagSumme)} gebucht${aufProjekt > 0 ? `, davon ${stundenText(aufProjekt)} auf diesem Projekt` : ""}${tagSumme + (ergebnis > 0 ? ergebnis : 0) > 12 ? " — zusammen über 12 Stunden" : ""}.`;
+
   const modusWechseln = (m: Modus) => {
     setModus(m);
     try { localStorage.setItem(MODUS_KEY, m); } catch { /* egal */ }
@@ -126,6 +143,11 @@ export function ZeitDialog({
     if (datum > isoTag()) return toast.error("Das Datum liegt in der Zukunft — Stunden erst buchen, wenn gearbeitet ist.");
     if (modus === "vonbis" && zahlLesen(pause) < 0) return toast.error("Die Pause kann nicht negativ sein.");
     if (modus === "vonbis" && von === bis) return toast.error("Von und Bis sind gleich.");
+    if (modus === "vonbis" && datum === isoTag() && !eintrag) {
+      const jetzt = new Date();
+      const inEinerStunde = `${String(Math.min(jetzt.getHours() + 1, 23)).padStart(2, "0")}:${String(jetzt.getMinutes()).padStart(2, "0")}`;
+      if (nacht || bis > inEinerStunde) return toast.error(`Die Arbeit endet erst um ${bis} — Stunden buchen, wenn gearbeitet ist.`);
+    }
     if (pauseZuLang) return toast.error("Die Pause ist länger als die Arbeitszeit.");
     if (!(ergebnis > 0 && ergebnis <= 24)) return toast.error("Bitte die Stunden eintragen — mehr als 0 und höchstens 24.");
     const wer = userId || profil!.id;
@@ -312,6 +334,7 @@ export function ZeitDialog({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
+            {tagHinweis && <p className="rounded-md border border-status-gelb bg-status-gelb/40 px-3 py-2 text-sm" role="status">{tagHinweis}</p>}
             <Label htmlFor="z-taetigkeit">Was wurde gemacht? <span className="font-normal text-muted-foreground">(optional)</span></Label>
             <DiktatKnopf onText={(t) => setTaetigkeit((alt) => `${alt}${alt && !alt.endsWith(" ") ? " " : ""}${t}`)} />
           </div>

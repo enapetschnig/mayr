@@ -10,7 +10,7 @@
 --  nicht anfassen).
 --
 --  Alle Firmen- und Kundendaten sind erfunden und als Demo erkennbar
---  (Musterstraße, .demo-Adressen, ungültige IBAN AT00…, UID ATU00000000).
+--  (Musterstraße, .demo-Adressen, Beispiel-IBAN aus der IBAN-Norm, UID ATU00000000).
 -- ============================================================================
 do $$
 declare
@@ -79,11 +79,12 @@ begin
     uid = 'ATU00000000',
     firmenbuch = 'FN 000000a (Demo)',
     bank_name = 'Demo Bank',
-    iban = 'AT00 0000 0000 0000 0000',
+    iban = 'AT61 1904 3002 3457 3201',
     bic = 'DEMOATW1',
     farbe = '#1D4ED8',
     stundensatz = 72,
     stundensaetze = '[{"name": "Meister", "satz": 85}, {"name": "Lehrling", "satz": 42}]'::jsonb,
+    kostensatz = 38,
     material_aufschlag = 35,
     zahlungsziel_tage = 14,
     angebot_gueltig_tage = 30,

@@ -1,3 +1,4 @@
+import { stundensaetzeLesen } from "@/lib/kalkulation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -185,12 +186,16 @@ function Betrieb() {
       else if (geaendert("uid")) return toast.error("UID-Nummer stimmt nicht — in Österreich ATU und 8 Ziffern.");
     }
 
+    const kostenText = String(f.kostensatz ?? "").trim();
+    const kostensatz = kostenText ? dezimalLesen(kostenText) : null;
+    if (kostenText && (kostensatz === null || kostensatz < 0 || kostensatz >= 10000)) return toast.error("Lohnkosten je Stunde bitte prüfen.");
+
     setSpeichert(true);
     const { error } = await supabase.from("firma").update({
       name: f.name.trim(), zusatz: leer(f.zusatz), inhaber: leer(f.inhaber), strasse: leer(f.strasse), plz: leer(f.plz),
       ort: leer(f.ort), land: f.land || "Österreich", telefon: leer(f.telefon), email: leer(f.email), website: leer(f.website),
       uid, firmenbuch: leer(f.firmenbuch), bank_name: leer(f.bank_name), iban, bic,
-      farbe: f.farbe, stundensatz, stundensaetze: saetze, material_aufschlag: aufschlag,
+      farbe: f.farbe, stundensatz, stundensaetze: saetze, kostensatz, material_aufschlag: aufschlag,
       zahlungsziel_tage: ziel, angebot_gueltig_tage: gueltig,
       mahn_frist_tage: frist, mahn_spesen: spesen, verzugszinsen: zinsen,
       kleinunternehmer: f.kleinunternehmer, angebot_einleitung: leer(f.angebot_einleitung), angebot_schluss: leer(f.angebot_schluss),
@@ -284,6 +289,7 @@ function Betrieb() {
       <Karte titel="Kalkulation">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Feld label="Stundensatz € netto"><Input className="h-11" inputMode="decimal" value={String(f.stundensatz).replace(".", ",")} onChange={(e) => setF({ ...f, stundensatz: e.target.value as unknown as number })} /></Feld>
+          <Feld label="Lohnkosten € je Stunde (intern, für die Nachkalkulation)"><Input className="h-11" inputMode="decimal" value={String(f.kostensatz ?? "").replace(".", ",")} onChange={(e) => setF({ ...f, kostensatz: e.target.value as unknown as number })} /></Feld>
           <Feld label="Materialaufschlag %"><Input className="h-11" inputMode="decimal" value={String(f.material_aufschlag).replace(".", ",")} onChange={(e) => setF({ ...f, material_aufschlag: e.target.value as unknown as number })} /></Feld>
           <Feld label="Zahlungsziel Tage"><Input className="h-11" inputMode="numeric" value={String(f.zahlungsziel_tage)} onChange={(e) => setF({ ...f, zahlungsziel_tage: e.target.value as unknown as number })} /></Feld>
           <Feld label="Angebot gültig Tage"><Input className="h-11" inputMode="numeric" value={String(f.angebot_gueltig_tage)} onChange={(e) => setF({ ...f, angebot_gueltig_tage: e.target.value as unknown as number })} /></Feld>
@@ -370,7 +376,9 @@ function Mitarbeiter() {
     },
   });
 
-  const aendern = async (p: Profil, daten: Partial<Pick<Profil, "aktiv" | "gesperrt" | "rolle" | "farbe">>, meldung?: string) => {
+  const { firma: betrieb } = useSitzung();
+  const saetze = stundensaetzeLesen(betrieb?.stundensaetze);
+  const aendern = async (p: Profil, daten: Partial<Pick<Profil, "aktiv" | "gesperrt" | "rolle" | "farbe" | "lohnart">>, meldung?: string) => {
     const { error } = await supabase.from("profiles").update(daten).eq("id", p.id);
     if (error) {
       toast.error("Nicht geändert", { description: error.message });
@@ -446,6 +454,17 @@ function Mitarbeiter() {
                     </button>
                   ))}
                 </div>
+                {saetze.length > 0 && (
+                  <div className="flex h-9 overflow-hidden rounded-md border text-sm" role="group" aria-label={`Stundensatz ${p.vorname}`}>
+                    {[null, ...saetze.map((l) => l.name)].map((n, i) => (
+                      <button key={n ?? "standard"} type="button" onClick={() => aendern(p, { lohnart: n })} aria-pressed={(p.lohnart ?? null) === n}
+                        className={cn("px-3 font-medium transition-colors", i > 0 && "border-l",
+                          (p.lohnart ?? null) === n ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
+                        {n ?? "Normal"}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1.5" aria-label="Farbe">
                   {PERSONENFARBEN.map((c) => (
                     <button key={c} type="button" onClick={() => aendern(p, { farbe: c })} aria-label={`Farbe ${c}`}

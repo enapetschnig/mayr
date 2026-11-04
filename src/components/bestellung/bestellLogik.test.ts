@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bedarfAusAngebot, bestellSumme, offeneMenge, positionFuerArtikel, vorschlagAusBedarf, vorschlagAusLager } from "./bestellLogik";
+import { bedarfAusAngebot, bestellSumme, offeneMenge, positionFuerArtikel, vorschlagAusBedarf, vorschlagAusLager, aufBestellungenVerteilen, aufPackung } from "./bestellLogik";
 
 const art = (id: string, lieferant: string | null, bezeichnung = id, ek: number | null = 1) => ({ id, lieferant, ek_preis: ek, bezeichnung });
 
@@ -54,5 +54,31 @@ describe("Mengen", () => {
   });
   it("Summe", () => {
     expect(bestellSumme([{ menge: 3, ek_preis: 1.115 }, { menge: 2, ek_preis: null }])).toBe(3.35);
+  });
+});
+
+describe("aufBestellungenVerteilen", () => {
+  const offen = [
+    { id: "p1", artikel_id: "a", menge: 10, geliefert: 6 },
+    { id: "p2", artikel_id: "b", menge: 5, geliefert: 0 },
+    { id: "p3", artikel_id: "a", menge: 20, geliefert: 0 },
+  ];
+  it("älteste Bestellung zuerst, Rest auf die nächste", () => {
+    expect(aufBestellungenVerteilen("a", 10, offen)).toEqual([{ position: "p1", menge: 4 }, { position: "p3", menge: 6 }]);
+  });
+  it("mehr als bestellt: Überschuss ohne Bestellung ins Lager", () => {
+    expect(aufBestellungenVerteilen("a", 30, offen)).toEqual([{ position: "p1", menge: 4 }, { position: "p3", menge: 20 }, { position: null, menge: 6 }]);
+  });
+  it("nichts bestellt: eine Buchung ohne Bestellung", () => {
+    expect(aufBestellungenVerteilen("x", 2.5, offen)).toEqual([{ position: null, menge: 2.5 }]);
+  });
+});
+
+describe("aufPackung", () => {
+  it("rundet auf ganze Packungen", () => {
+    expect(aufPackung(432.5, 100)).toBe(500);
+    expect(aufPackung(300, 100)).toBe(300);
+    expect(aufPackung(7.2, null)).toBe(8);
+    expect(aufPackung(0.5, 0.25)).toBe(0.5);
   });
 });

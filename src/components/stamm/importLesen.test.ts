@@ -77,9 +77,9 @@ describe("Datanorm lesen", () => {
     expect(g.uebergangen).toEqual(["liesmich.txt"]);
     expect(g.artikel).toEqual([
       { artikelnummer: "100", bezeichnung: "TEST Steckdose weiß", langtext: null, einheit: "Stk", ean: null, hersteller: null,
-        hersteller_nr: null, warengruppe: "H1", rabattgruppe: "R1", listenpreis: 2.5, netto: null },
+        hersteller_nr: null, warengruppe: "H1", rabattgruppe: "R1", listenpreis: 2.5, netto: null, metall: null },
       { artikelnummer: "200", bezeichnung: "TEST Leerrohr M20", langtext: null, einheit: "m", ean: null, hersteller: null,
-        hersteller_nr: null, warengruppe: "H2", rabattgruppe: "R2", listenpreis: 1.25, netto: null },
+        hersteller_nr: null, warengruppe: "H2", rabattgruppe: "R2", listenpreis: 1.25, netto: null, metall: null },
     ]);
     expect(rabattgruppenAus(g.artikel, g.ergebnis.rabattgruppen)).toEqual([
       { code: "R1", name: "Schalterprogramme", anzahl: 1, rabatt: 35 },

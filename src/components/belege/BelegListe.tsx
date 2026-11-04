@@ -42,7 +42,7 @@ export function BelegListe({
               <th className="py-2.5 pl-4 text-left font-medium">Nummer</th>
               <th className="py-2.5 pr-3 text-left font-medium">Datum</th>
               <th className="py-2.5 pr-3 text-left font-medium">Empfänger · Betreff</th>
-              {mitProjekt && <th className="py-2.5 pr-3 text-left font-medium">Projekt</th>}
+              {mitProjekt && <th className="hidden py-2.5 pr-3 text-left font-medium xl:table-cell">Projekt</th>}
               <th className="py-2.5 pr-3 text-left font-medium">Termin</th>
               <th className="py-2.5 pr-3 text-left font-medium">Status</th>
               <th className="py-2.5 pr-4 text-right font-medium">Brutto</th>
@@ -63,16 +63,16 @@ export function BelegListe({
                   <td className="py-2.5 pl-4">
                     <span className="flex items-center gap-2">
                       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-label={typName(b.typ)} />
-                      <span className={cn("zahl font-medium", !b.nummer && "text-muted-foreground")}>{b.nummer ?? `${typName(b.typ)} (Entwurf)`}</span>
+                      <span className={cn("zahl whitespace-nowrap font-medium", !b.nummer && "text-muted-foreground")}>{b.nummer ?? `${typName(b.typ)} (Entwurf)`}</span>
                     </span>
                   </td>
-                  <td className="zahl py-2.5 pr-3 text-muted-foreground">{datum(b.datum)}</td>
-                  <td className="max-w-[22rem] py-2.5 pr-3">
+                  <td className="zahl whitespace-nowrap py-2.5 pr-3 text-muted-foreground">{datum(b.datum)}</td>
+                  <td className="w-full max-w-0 py-2.5 pr-3">
                     <p className="truncate font-medium">{b.empf_name || "Ohne Empfänger"}</p>
                     {b.betreff && <p className="truncate text-xs text-muted-foreground">{b.betreff}</p>}
                   </td>
                   {mitProjekt && (
-                    <td className="max-w-[14rem] py-2.5 pr-3">
+                    <td className="hidden max-w-[14rem] py-2.5 pr-3 xl:table-cell">
                       {b.projekte ? (
                         <p className="truncate text-muted-foreground"><span className="zahl">{b.projekte.nummer}</span> {b.projekte.name}</p>
                       ) : <span className="text-muted-foreground">–</span>}

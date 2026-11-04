@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   HAEPPCHEN, PROBLEME_MAX, dateiText, datanormDateiart, datanormDateienLesen, datanormLesen, datanormLesenMehrere, einheitNorm,
   istDatanorm, kurztextVerbinden, versionAusVorlauf, zeichensatzErkennen, zeichensatzErkennenStueckweise,
-  zeilenStueckweise,
+  metallZuschlag, metallkurseLesen, zeilenStueckweise,
 } from "./datanorm";
 
 // Nur selbst gebaute Zeilen im Aufbau der Formate — keine Lieferantendateien.
@@ -264,5 +264,34 @@ describe("DATANORM 5", () => {
     expect(e.artikel[0].bezeichnung).toMatch(/^ZZ Abzweigdose 0 grün x+$/);
     expect(anteile.at(-1)).toBeCloseTo(1);
     expect(anteile.every((a, i) => i === 0 || a >= anteile[i - 1])).toBe(true);
+  });
+});
+
+describe("Datanorm 5: Hersteller und Kupferzuschlag", () => {
+  const datei = [
+    "V;050;A;20261104;EUR;DN Artikeldaten;;;Sonepar Österreich GmbH;",
+    "A;N;120120624;LS-Schalter 16A/1pol/B 6kA; MBN116;PCE;1;1;710;A822;A8;A822;MBN116;;;HAGER;MBN116;MBN116;3250614310096;;1;;4;T120120624;;;;;;",
+    "A;N;12015982433;PVC-Mantelleitungen NYM-J 3X1,5 RE GR;Ring 100 m;MTR;1;1;146;1010;10;1010;NYM;;;KABEL-LEITUNG;NYM-J 3X1,5 RE GR;NYM-J;9008024100011;;1;;4;;;;;;;",
+    "Z;N;12015982433;01;3;CU;2;1000;13000;10;4500;1000;",
+  ].join("\n");
+
+  it("übernimmt Hersteller und Herstellernummer aus Feld 15/16", () => {
+    const a = datanormLesen(datei).artikel.find((x) => x.artikelnummer === "120120624")!;
+    expect(a.hersteller).toBe("HAGER");
+    expect(a.herstellerNr).toBe("MBN116");
+    expect(a.metall).toBeNull();
+  });
+
+  it("liest den Metallanteil aus dem Z-Satz: 45 kg je 1000 m, Basis 130 €/100 kg", () => {
+    const a = datanormLesen(datei).artikel.find((x) => x.artikelnummer === "12015982433")!;
+    expect(a.metall).toEqual({ art: "CU", kgJe1: 0.045, basis: 130 });
+    // Kurs 1258 €/100 kg → 0,045 kg × 11,28 €/kg
+    expect(metallZuschlag(a.metall!, 1258)).toBe(0.5076);
+  });
+
+  it("liest die Metallbasis-Datei (Kurs in € je Tonne)", () => {
+    expect(metallkurseLesen("Metallart;Kurs;Startdatum;\nAL;3450.0000;2026.10.30;\nCU;12580.0000000;2026.10.30;\n"))
+      .toEqual({ AL: 345, CU: 1258 });
+    expect(metallkurseLesen("Artikel;Preis\n1;2")).toBeNull();
   });
 });

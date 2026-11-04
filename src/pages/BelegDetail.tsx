@@ -12,7 +12,7 @@ import { useSitzung } from "@/hooks/useSitzung";
 import { isoTag } from "@/lib/format";
 
 /**
- * /belege/neu?typ=angebot|rechnung[&projekt=<id>][&sprache=1][&import=1]
+ * /belege/neu?typ=angebot|rechnung[&projekt=<id>|&kunde=<id>][&sprache=1][&import=1]
  * /belege/:id
  *
  * Neu: Startwerte aus Firma (Texte), Projekt und dessen Kunde. Gespeichert
@@ -70,6 +70,9 @@ function NeuerBeleg({ params }: { params: URLSearchParams }) {
     kopf.projekt_id = projekt.id;
     kopf.betreff = projekt.name;
     const kunde = kunden?.find((k) => k.id === projekt.kunde_id) ?? null;
+    if (kunde) Object.assign(kopf, empfaengerAusKunde(kunde));
+  } else if (params.get("kunde")) {
+    const kunde = kunden?.find((k) => k.id === params.get("kunde")) ?? null;
     if (kunde) Object.assign(kopf, empfaengerAusKunde(kunde));
   }
 

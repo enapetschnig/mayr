@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Mail, Navigation, Pencil, Phone } from "lucide-react";
+import { ChevronRight, FileText, Mail, Navigation, Pencil, Phone, Receipt } from "lucide-react";
 import { Karte, Kennzahl, ProjektStatusBadge, StatusBadge } from "@/components/Bausteine";
 import { Button } from "@/components/ui/button";
 import type { ProjektMitKunde } from "@/hooks/useDaten";
@@ -58,6 +58,12 @@ export function KundeDetail({
             <Button variant="outline" className="h-11 shrink-0" onClick={onBearbeiten}>
               <Pencil className="h-4 w-4" /> Bearbeiten
             </Button>
+          </div>
+        )}
+        {istChef && (
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <Button asChild className="h-11"><Link to={`/belege/neu?typ=angebot&kunde=${kunde.id}`}><FileText className="h-4 w-4" /> Neues Angebot</Link></Button>
+            <Button asChild variant="outline" className="h-11"><Link to={`/belege/neu?typ=rechnung&kunde=${kunde.id}`}><Receipt className="h-4 w-4" /> Neue Rechnung</Link></Button>
           </div>
         )}
         <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">

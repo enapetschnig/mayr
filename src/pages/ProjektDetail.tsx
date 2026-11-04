@@ -157,7 +157,7 @@ export default function ProjektDetail() {
             <DropdownMenuItem onClick={() => setDialog("bearbeiten")}><Pencil className="mr-2 h-4 w-4" /> Bearbeiten</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Status</DropdownMenuLabel>
-            {(Object.keys(PROJEKT_STATUS) as ProjektStatus[]).map((s) => (
+            {(istChef ? (Object.keys(PROJEKT_STATUS) as ProjektStatus[]) : projekt.status === "abgeschlossen" ? [] : (["aktiv", "verrechnen"] as ProjektStatus[])).map((s) => (
               <DropdownMenuItem key={s} disabled={projekt.status === s} onClick={() => statusSetzen(s)}>
                 <ProjektStatusBadge status={s} />
               </DropdownMenuItem>
@@ -345,6 +345,12 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
   const personen = [...jePerson.values()].sort((a, b) => b.h - a.h);
 
   const satz = stundensatzFuer({ stundensatz }, firma);
+  const materialEk = runden2((material ?? []).reduce((s, m) => {
+    const vz = m.art === "rueckgabe" ? -1 : 1;
+    return s + vz * Number(m.menge) * Number(m.ek_preis ?? m.artikel?.ek_preis ?? 0);
+  }, 0));
+  const fremd = runden2(eingang.filter((a) => a.eingangsrechnungen?.kategorie !== "material").reduce((s, a) => s + Number(a.betrag), 0));
+  const kostensatz = Number(firma?.kostensatz ?? 0);
   const materialVk = runden2((material ?? []).reduce((s, m) => {
     const vz = m.art === "rueckgabe" ? -1 : 1;
     return s + vz * Number(m.menge) * buchungVk(m, firma);
@@ -354,12 +360,16 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
   const angebot = belege.filter((b) => b.typ === "angebot" && (b.status === "offen" || b.status === "angenommen")).reduce((s, b) => s + Number(b.netto), 0);
   const verrechnet = belege.filter((b) => b.typ === "rechnung" && (b.status === "offen" || b.status === "bezahlt")).reduce((s, b) => s + Number(b.netto), 0);
   const anteil = angebot > 0 ? Math.min(100, (geleistet / angebot) * 100) : 0;
+  const lohnkosten = runden2(stundenGesamt * kostensatz);
+  const ertrag = runden2(geleistet - materialEk - lohnkosten - fremd);
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Kennzahl titel="Stunden" wert={stunden(stundenGesamt)} unter={z && Number(z.stunden_offen) > 0 ? `${stunden(Number(z.stunden_offen))} offen` : undefined} />
-        <Kennzahl titel="Material" wert={euro(materialVk)} unter="Verkaufswert" />
+        {istChef
+          ? <Kennzahl titel="Material" wert={euro(materialVk)} unter="Verkaufswert" />
+          : <Kennzahl titel="Material" wert={String((material ?? []).length)} unter="Buchungen" />}
         <Kennzahl titel="Regieberichte" wert={String(Number(z?.regie_offen ?? 0) + Number(z?.regie_entwurf ?? 0))}
           unter={z ? `${z.regie_entwurf} Entwurf · ${z.regie_offen} unterschrieben` : undefined} />
         {istChef
@@ -376,12 +386,30 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
               <span className="zahl font-medium">{euro(geleistet)}</span>
             </div>
             <p className="text-xs text-muted-foreground">{stunden(stundenGesamt)} × {euro(satz)} + Material {euro(materialVk)}</p>
-            {einkauf !== 0 && (
+            <div className="space-y-1 border-t pt-2">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Eingangsrechnungen (Einkauf)</span>
-                <span className="zahl font-medium">{euro(einkauf)}</span>
+                <span className="text-muted-foreground">Material (Einkauf)</span>
+                <span className="zahl font-medium">− {euro(materialEk)}</span>
               </div>
-            )}
+              {kostensatz > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Lohnkosten ({stunden(stundenGesamt)} × {euro(kostensatz)})</span>
+                  <span className="zahl font-medium">− {euro(lohnkosten)}</span>
+                </div>
+              )}
+              {fremd !== 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Fremdleistung, Sonstiges</span>
+                  <span className="zahl font-medium">− {euro(fremd)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t pt-1 font-semibold">
+                <span>{kostensatz > 0 ? "Ertrag" : "Ertrag vor Lohnkosten"}</span>
+                <span className={cn("zahl", ertrag < 0 && "text-destructive")}>{euro(ertrag)}{geleistet > 0 && ` · ${Math.round((ertrag / geleistet) * 100)} %`}</span>
+              </div>
+              {!(kostensatz > 0) && <p className="text-xs text-muted-foreground">Lohnkosten je Stunde in den Einstellungen eintragen, dann zählen sie mit.</p>}
+              {einkauf !== fremd && <p className="text-xs text-muted-foreground">Eingangsrechnungen für Material zählen nicht extra — es zählt, was aufs Projekt gebucht ist.</p>}
+            </div>
             {angebot > 0 && (
               <div className="pt-1">
                 <div className="h-2.5 overflow-hidden rounded-full bg-muted">

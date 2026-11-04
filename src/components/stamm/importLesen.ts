@@ -4,7 +4,7 @@ import {
   type CsvAuswertung, type Trennzeichen, type Zuordnung,
 } from "@/lib/csvImport";
 import {
-  datanormDateiart, datanormDateienLesen, dateiText, textStueckweise, zeichensatzErkennenStueckweise,
+  datanormDateiart, datanormDateienLesen, dateiText, metallkurseLesen, textStueckweise, zeichensatzErkennenStueckweise,
   type DatanormArtikel, type DatanormErgebnis, type Fortschritt, type Zeichensatz,
 } from "@/lib/datanorm";
 
@@ -73,6 +73,10 @@ export interface DatanormGelesen {
   zeichensatz: Zeichensatz;
   /** Dateien, die keine Datanorm-Dateien sind (Liesmich o. ä.) — übergangen */
   uebergangen: string[];
+  /** Tageskurse aus der Metallbasis-Datei (€ je 100 kg), null = keine dabei */
+  metallkurse: Record<string, number> | null;
+  /** Artikel mit Metallzuschlag (Z-Satz) */
+  mitMetall: number;
 }
 
 export interface CsvGelesen {
@@ -104,12 +108,13 @@ export const datanormZuImport = (a: DatanormArtikel): ImportArtikel => ({
   langtext: null,
   einheit: a.einheit,
   ean: a.ean || null,
-  hersteller: null,
-  hersteller_nr: null,
+  hersteller: a.hersteller || null,
+  hersteller_nr: a.herstellerNr || null,
   warengruppe: a.warengruppeName || a.warengruppe || null,
   rabattgruppe: a.rabattgruppe || null,
   listenpreis: a.listenpreis,
   netto: a.netto,
+  metall: a.metall,
 });
 
 export async function importLesen(dateien: RohDatei[], opt: LeseOptionen = {}): Promise<Gelesen> {
@@ -138,12 +143,21 @@ export async function importLesen(dateien: RohDatei[], opt: LeseOptionen = {}): 
         : "Das sind nur Preise, Rabatte oder Warengruppen. Bitte die Artikeldatei (meist .001) mit auswählen — die Preise werden dann zugeordnet.");
     }
     const { artikel, zeichensaetze, ...rest } = e;
+    // Die Metallbasis (Kupferkurs) liefert der Händler als eigene kleine CSV mit
+    let metallkurse: Record<string, number> | null = null;
+    const metallDateien = text.filter((d) => {
+      const k = d.daten.length < 64 * 1024 ? metallkurseLesen(dateiText(d.daten)) : null;
+      if (k) metallkurse = { ...metallkurse, ...k };
+      return !!k;
+    });
     return {
       art: "datanorm",
       ergebnis: rest,
       artikel: artikel.map(datanormZuImport),
       zeichensatz: zeichensaetze[0],
-      uebergangen: [...text, ...fremd.map((x) => x.d)].map((d) => d.name),
+      uebergangen: [...text.filter((d) => !metallDateien.includes(d)), ...fremd.map((x) => x.d)].map((d) => d.name),
+      metallkurse,
+      mitMetall: artikel.filter((a) => a.metall).length,
     };
   }
 

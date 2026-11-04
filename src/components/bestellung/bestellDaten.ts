@@ -227,7 +227,7 @@ export async function projektBedarfLaden(projektId: string): Promise<{ angebot: 
   const ids = [...bedarf.keys()];
   const artikel: { id: string; lieferant: string; ek_preis: number | null; bezeichnung: string }[] = [];
   for (let i = 0; i < ids.length; i += 200) {
-    const { data, error: e4 } = await supabase.from("artikel").select("id, lieferant, ek_preis, bezeichnung").eq("aktiv", true).in("id", ids.slice(i, i + 200));
+    const { data, error: e4 } = await supabase.from("artikel").select("id, lieferant, ek_preis, bezeichnung, bestell_vpe").eq("aktiv", true).in("id", ids.slice(i, i + 200));
     if (e4) throw e4;
     artikel.push(...(data ?? []));
   }

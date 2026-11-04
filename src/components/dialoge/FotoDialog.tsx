@@ -1,3 +1,5 @@
+import { useLetzteProjekte } from "@/components/dialoge/ZeitDialog";
+import { useSitzung } from "@/hooks/useSitzung";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Camera, FileUp, ImagePlus, Loader2, Trash2, Upload } from "lucide-react";
@@ -27,6 +29,8 @@ export function FotoDialog({
   const neuLaden = useNeuLaden();
   const [projektId, setProjektId] = useState("");
   const [dateien, setDateien] = useState<File[]>([]);
+  const { profil } = useSitzung();
+  const { data: letzte = [] } = useLetzteProjekte(profil?.id);
   const [vorschauen, setVorschauen] = useState<string[]>([]);
   const [beschreibung, setBeschreibung] = useState("");
   const [laedt, setLaedt] = useState(false);
@@ -46,6 +50,11 @@ export function FotoDialog({
     setVorschauen(neu);
     return () => neu.forEach((u) => u && URL.revokeObjectURL(u));
   }, [dateien]);
+
+  // Ohne Vorgabe: zuletzt benutztes Projekt, wie bei den Stunden
+  useEffect(() => {
+    if (open && !vorProjekt && !projektId && letzte[0]) setProjektId(letzte[0]);
+  }, [open, vorProjekt, projektId, letzte]);
 
   const dazu = (liste: FileList | File[] | null) => {
     if (!liste || !liste.length) return;

@@ -20,7 +20,10 @@ const runden2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Netto aus Brutto und umgekehrt — die USt ergibt sich als Differenz */
 export const nettoAusBrutto = (brutto: number, satz: number) => runden2(brutto / (1 + satz / 100));
-export const bruttoAusNetto = (netto: number, satz: number) => runden2(netto * (1 + satz / 100));
+export const bruttoAusNetto = (netto: number, satz: number) => {
+  const n = runden2(netto);
+  return runden2(n + runden2(n * satz / 100));
+};
 
 export type Zuordnung = "zuzuordnen" | "teilweise" | "zugeordnet";
 

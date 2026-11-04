@@ -12,7 +12,7 @@ import { useLagerorte, useNeuLaden } from "@/hooks/useDaten";
 import { euro, isoTag, zahl } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { bestellungenAnlegen, projektBedarfLaden, useLieferanten, useOffeneBestellMengen, type Ziel } from "./bestellDaten";
-import { bestellSumme, vorschlagAusLager, type Vorschlag } from "./bestellLogik";
+import { bestandFuerMindest, bestellSumme, vorschlagAusLager, type Vorschlag } from "./bestellLogik";
 
 export type NeuModus = "lager" | "projekt" | "leer";
 
@@ -58,15 +58,18 @@ export function NeueBestellungDialog({ open, onOpenChange, startModus = "lager",
     if (open) { setModus(startModus); setAus(new Set()); setProjektId(""); setProjekt(null); setLieferant(""); }
   }, [open, startModus]);
 
-  // Mindestbestand gilt für alle aktiven Lagerorte zusammen (wie die Lagerseite)
+  // Mindestbestand gilt fürs Lager, nicht für die Busse (wie die Lagerseite)
   const lagerVorschlag = useMemo(() => {
     if (!offen) return [];
-    const aktiv = new Set(orte.map((o) => o.id));
-    const gesamt = new Map<string, number>();
-    for (const b of bestand) if (aktiv.has(b.lagerort_id)) gesamt.set(b.artikel_id, runden3((gesamt.get(b.artikel_id) ?? 0) + b.bestand));
+    const jeArtikel = new Map<string, Map<string, number>>();
+    for (const b of bestand) {
+      const m = jeArtikel.get(b.artikel_id) ?? new Map<string, number>();
+      m.set(b.lagerort_id, runden3((m.get(b.lagerort_id) ?? 0) + b.bestand));
+      jeArtikel.set(b.artikel_id, m);
+    }
     const zeilen = lagerArtikel
       .filter((a) => a.mindestbestand != null)
-      .map((a) => ({ artikel: a, fehlt: runden3(Number(a.mindestbestand) - Math.max(0, gesamt.get(a.id) ?? 0)) }))
+      .map((a) => ({ artikel: a, fehlt: runden3(Number(a.mindestbestand) - bestandFuerMindest(jeArtikel.get(a.id) ?? new Map(), orte)) }))
       .filter((z) => z.fehlt > 0);
     return vorschlagAusLager(zeilen, offen);
   }, [bestand, lagerArtikel, orte, offen]);

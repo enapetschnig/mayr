@@ -85,6 +85,15 @@ BUS = {
     "80242001": 4, "ADS916D": 2,
 }
 
+# Packungsgröße beim Großhändler — der Bestellvorschlag rundet darauf auf
+VPE = {
+    "NYM-J 3X1,5 RE GR": 100, "NYM-J 3X2,5 RE GR": 100, "NYM-J 5X1,5 RE GR": 100, "NYM-J 5X2,5 RE GR": 100,
+    "H07V-K 1,5 BL (YF)": 100, "H07V-K 1,5 GNGE (YF)": 100, "J-Y(ST)Y 2X2X0,8 GR": 100, "LKD7KS700100100": 500,
+    "21510025": 100, "TXM20": 50, "TXM25": 50, "TXM32": 25,
+    "221-412": 100, "221-413": 50, "221-415": 25, "2273-202": 100, "2273-203": 100, "2273-204": 100, "2273-205": 100,
+    "1055-04": 25, "1555-04": 25, "138-00022": 100, "111-01919": 100, "077765": 50, "077763": 50,
+}
+
 # Leistung (Nummer) → [(Herstellernummer, Menge)]
 LEISTUNG_MATERIAL = {
     "01.01": [("1055-04", 1), ("LS1520", 1), ("LS981W", 1)],
@@ -114,7 +123,7 @@ LEISTUNG_MATERIAL = {
 }
 
 nummern = {a["hersteller_nr"] for a in ARTIKEL}
-for liste in (HAUPTLAGER, MINDEST, BUS):
+for liste in (HAUPTLAGER, MINDEST, BUS, VPE):
     fehlt = set(liste) - nummern
     assert not fehlt, fehlt
 for teile in LEISTUNG_MATERIAL.values():
@@ -132,7 +141,7 @@ for a in ARTIKEL:
             q(a["sonepar_nr"]), q(LIEFERANT), q(a["hersteller"]), q(nr), q(a["ean"]), q(a["bezeichnung"]), q(a.get("langtext")),
             q(a["einheit"]), q(a["kategorie"]), q(a["warengruppe"]), q(a["rabattgruppe"]), n(liste), n(ek),
             "true" if nr in HAUPTLAGER else "false",
-            n(MINDEST.get(nr)), q("demo"),
+            n(MINDEST.get(nr)), n(VPE.get(nr)), q("demo"),
         ]) + ")"
     )
 
@@ -149,7 +158,7 @@ declare
   v_vorgang uuid := gen_random_uuid();
 begin
   insert into artikel (artikelnummer, lieferant, hersteller, hersteller_nr, ean, bezeichnung, langtext,
-                       einheit, kategorie, warengruppe, rabattgruppe, listenpreis, ek_preis, lagerartikel, mindestbestand, quelle) values""")
+                       einheit, kategorie, warengruppe, rabattgruppe, listenpreis, ek_preis, lagerartikel, mindestbestand, bestell_vpe, quelle) values""")
 print(",\n".join("    " + z for z in zeilen) + ";")
 
 # Scanner liefern UPC-A (12 Stellen) oder dasselbe als EAN-13 mit führender 0

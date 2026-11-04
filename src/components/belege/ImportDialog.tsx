@@ -1,3 +1,4 @@
+import { lohnarten as lohnartenFuer } from "@/lib/kalkulation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
@@ -83,7 +84,7 @@ export function ImportDialog({
   const vorschau = useMemo(
     () => (data
       ? importPositionen(data, auswahl, {
-        stundenJeMitarbeiter: jeMitarbeiter, materialPauschale: pauschale, stundensatz: zahlLesen(satz), abgegolten,
+        stundenJeMitarbeiter: jeMitarbeiter, materialPauschale: pauschale, stundensatz: zahlLesen(satz), lohnarten: lohnartenFuer(firma, zahlLesen(satz)), abgegolten,
         eingangAufschlag: zahlLesen(aufschlag),
       }, firma, vorhandeneTitel)
       : null),

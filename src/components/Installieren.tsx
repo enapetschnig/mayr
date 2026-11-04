@@ -71,8 +71,13 @@ export function InstallHinweis() {
     try { gezeigt = localStorage.getItem(GEZEIGT) !== null; } catch { /* egal */ }
     if (gezeigt || laeuftAlsApp() || schonEinmalInstalliert() || imHandyRahmen()) return;
     // kurz warten — Chrome liefert sein Installationsangebot erst nach dem Laden
-    const t = window.setTimeout(() => setOffen(true), 1200);
-    return () => window.clearTimeout(t);
+    // und nie über ein offenes Formular legen
+    const t = window.setInterval(() => {
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      window.clearInterval(t);
+      setOffen(true);
+    }, 1200);
+    return () => window.clearInterval(t);
   }, [session, firma]);
 
   const schliessen = () => {

@@ -347,6 +347,13 @@ begin
       (e2, p2, 320.00, 'Kernbohrungen Backstube', '2026-10-17 07:41+02');
   end;
 
+  -- Diese Woche (scripts/demo-zuruecksetzen.sh verschiebt den Rest auf die letzten Wochen)
+  insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, erstellt_von, created_at)
+  select v_max, p1, d::date, 8, '07:00', '15:30', 30, 'Dosen und Leitungen OG', v_max, (d::date + time '16:30') at time zone 'Europe/Vienna'
+  from generate_series(date_trunc('week', current_date)::date, current_date - 1, interval '1 day') d
+  where extract(isodow from d) < 6;
+  update profiles set lohnart = 'Lehrling' where id = v_lisa;
+
   -- ── Kalender ─────────────────────────────────────────────────────────────
   insert into termine (titel, beschreibung, ort, datum, bis_datum, von, bis, ganztags, projekt_id, mitarbeiter, user_id) values
     ('Kirchenwirt – Gastgarten', null, 'Kirchenplatz 1, 4320 Perg', '2026-10-21', null, '08:00', '13:30', false, p5, array[v_max, v_lisa], v_chef),
@@ -358,4 +365,10 @@ begin
     ('Berger – Angebot besprechen', 'Angebot AN-2026-001 mitnehmen', 'Am Bach 4, 4210 Gallneukirchen', '2026-10-30', null, '09:00', '10:00', false, p4, array[v_chef], v_chef),
     ('Huber – Verteiler fertig verdrahten', null, 'Musterstraße 12, 4020 Linz', '2026-11-02', '2026-11-03', '07:00', '15:30', false, p1, array[v_max], v_chef),
     ('Sonnenhof – Abnahme Zählerplatz mit Netzbetreiber', null, 'Sonnenweg 8, 4040 Linz', '2026-11-04', null, '10:00', '11:00', false, p3, array[v_chef], v_chef);
+
+  -- Max hat immer einen Termin heute — die Startseite zeigt, wo es hingeht
+  if not exists (select 1 from termine where v_max = any(mitarbeiter) and current_date between datum and coalesce(bis_datum, datum)) then
+    insert into termine (titel, beschreibung, ort, datum, von, bis, ganztags, projekt_id, mitarbeiter, user_id) values
+      ('Huber – Installation OG', 'Dosen setzen, Leitungen einziehen', 'Musterstraße 12, 4020 Linz', current_date, '07:00', '15:30', false, p1, array[v_max], v_chef);
+  end if;
 end $$;

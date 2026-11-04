@@ -1,3 +1,4 @@
+import { pdfText } from "@/components/regie/regieLogik";
 import type { CellHookData, RowInput } from "jspdf-autotable";
 import { ohneBetrag, positionsNummern, zwischensummen } from "@/components/belege/editor";
 import { schlussAufstellung } from "@/components/belege/teilrechnung";
@@ -154,7 +155,7 @@ export async function belegPdfErstellen({ beleg, positionen: allePositionen, fir
   };
   const mitLangtext = (p: PdfPosition) => {
     const lang = p.langtext?.trim();
-    return lang ? `${p.bezeichnung}\n${lang}` : p.bezeichnung;
+    return pdfText(lang ? `${p.bezeichnung}\n${lang}` : p.bezeichnung);
   };
 
   positionen.forEach((p, i) => {
@@ -175,7 +176,7 @@ export async function belegPdfErstellen({ beleg, positionen: allePositionen, fir
       zeilen.push({
         zeile: [
           { content: "" },
-          { content: [p.bezeichnung, p.langtext?.trim()].filter(Boolean).join("\n"), colSpan: 5, styles: { fontStyle: "italic", textColor: [80, 80, 80] as [number, number, number] } },
+          { content: pdfText([p.bezeichnung, p.langtext?.trim()].filter(Boolean).join("\n")), colSpan: 5, styles: { fontStyle: "italic", textColor: [80, 80, 80] as [number, number, number] } },
         ],
       });
       return;

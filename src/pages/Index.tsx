@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
+  CalendarClock, Navigation,
   BellRing, AlertTriangle, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
   ScanBarcode, ShieldCheck, ShoppingCart, UserCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KontoMenue } from "@/components/KontoMenue";
+import { Button } from "@/components/ui/button";
 import { FotoDialog } from "@/components/dialoge/FotoDialog";
 import { ZeitDialog } from "@/components/dialoge/ZeitDialog";
 import { ProjektDialog } from "@/components/dialoge/ProjektDialog";
@@ -63,9 +65,21 @@ export default function Index() {
   const { data: zahlen = {} } = useProjektZahlen();
   const [fotoOffen, setFotoOffen] = useState(false);
   const [zeitOffen, setZeitOffen] = useState(false);
+  const [zeitProjekt, setZeitProjekt] = useState<string | undefined>();
   const [projektOffen, setProjektOffen] = useState(false);
 
   const heute = isoTag();
+  // „Wo muss ich heute hin?“ — eigene Einteilung
+  const { data: heuteTermine = [] } = useQuery({
+    queryKey: ["termine", "heute", profil?.id, heute],
+    enabled: !!profil?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("termine").select("id, titel, ort, von, bis, ganztags, projekt_id")
+        .contains("mitarbeiter", [profil!.id]).lte("datum", heute).or(`bis_datum.gte.${heute},datum.eq.${heute}`).order("von");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
   const montag = wochenbeginn(heute);
   const sonntag = tageDazu(montag, 6);
 
@@ -194,12 +208,45 @@ export default function Index() {
           </p>
         </div>
 
+        {heuteTermine.length > 0 && (
+          <section aria-label="Heute eingeteilt">
+            <Gruppentitel>Heute</Gruppentitel>
+            <ul className="space-y-2.5">
+              {heuteTermine.map((t) => (
+                <li key={t.id} className="rounded-lg border bg-card p-3">
+                  <p className="font-semibold leading-tight">{t.titel}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    <CalendarClock className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
+                    {t.ganztags || !t.von ? "ganztägig" : `${t.von.slice(0, 5)}${t.bis ? `–${t.bis.slice(0, 5)}` : ""}`}{t.ort && ` · ${t.ort}`}
+                  </p>
+                  <div className="mt-2.5 grid grid-cols-2 gap-2 sm:flex">
+                    {t.ort && (
+                      <Button asChild variant="outline" className="h-11">
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.ort)}`} target="_blank" rel="noreferrer">
+                          <Navigation className="h-4 w-4" /> Hinfahren
+                        </a>
+                      </Button>
+                    )}
+                    {t.projekt_id && (
+                      <>
+                        <Button asChild variant="outline" className="h-11"><Link to={`/projekte/${t.projekt_id}`}><FolderKanban className="h-4 w-4" /> Projekt</Link></Button>
+                        <Button variant="outline" className="h-11" onClick={() => { setZeitProjekt(t.projekt_id ?? undefined); setZeitOffen(true); }}><Clock className="h-4 w-4" /> Stunden</Button>
+                        <Button asChild variant="outline" className="h-11"><Link to={`/scan?projekt=${t.projekt_id}`}><ScanBarcode className="h-4 w-4" /> Material</Link></Button>
+                      </>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* Die häufigsten Handgriffe — groß, mit dem Daumen erreichbar */}
         <section>
           <Gruppentitel>Schnell festhalten</Gruppentitel>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <SchnellKnopf icon={Camera} titel="Foto" unter="zum Projekt" primaer onClick={() => setFotoOffen(true)} />
-            <SchnellKnopf icon={Clock} titel="Stunden" unter="buchen" onClick={() => setZeitOffen(true)} />
+            <SchnellKnopf icon={Clock} titel="Stunden" unter="buchen" onClick={() => { setZeitProjekt(undefined); setZeitOffen(true); }} />
             <SchnellKnopf icon={ScanBarcode} titel="Material" unter="scannen" onClick={() => navigate("/scan")} />
             <SchnellKnopf icon={ClipboardSignature} titel="Regiebericht" unter="mit Unterschrift" onClick={() => navigate("/regie/neu")} />
           </div>
@@ -311,7 +358,7 @@ export default function Index() {
                 {eintraege.map((e) => (
                   <li key={e.pfad}>
                     <Link to={e.pfad} data-kachel={e.titel}
-                      className="group flex w-full flex-col gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/50 active:scale-[0.99]">
+                      className="group flex min-h-20 w-full flex-col justify-center rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary/50 active:scale-[0.99]">
                       <span className="flex items-center gap-3">
                         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
                           <e.icon className="h-6 w-6" />
@@ -320,9 +367,7 @@ export default function Index() {
                           <span className="block text-lg font-semibold leading-tight">{e.titel}</span>
                           <span className="block text-sm text-muted-foreground">{(!istChef && e.textMonteur) || e.text}</span>
                         </span>
-                      </span>
-                      <span className="flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-primary text-sm font-medium text-primary-foreground group-hover:bg-primary-hover">
-                        {e.titel} öffnen <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary" />
                       </span>
                     </Link>
                   </li>
@@ -342,7 +387,7 @@ export default function Index() {
       </main>
 
       <FotoDialog open={fotoOffen} onOpenChange={setFotoOffen} />
-      <ZeitDialog open={zeitOffen} onOpenChange={setZeitOffen} />
+      <ZeitDialog open={zeitOffen} onOpenChange={setZeitOffen} projektId={zeitProjekt} />
       <ProjektDialog open={projektOffen} onOpenChange={setProjektOffen} />
     </div>
   );

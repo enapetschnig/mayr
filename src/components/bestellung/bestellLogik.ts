@@ -30,7 +30,18 @@ export const offeneMenge = (p: { menge: number | string; geliefert: number | str
 export type VorschlagPosition = { artikel_id: string; menge: number; ek_preis: number | null; bezeichnung?: string };
 export type Vorschlag = { lieferant: string; positionen: VorschlagPosition[] };
 
-type ArtikelMitLieferant = { id: string; lieferant: string | null; ek_preis: number | string | null; bezeichnung: string };
+type ArtikelMitLieferant = {
+  id: string; lieferant: string | null; ek_preis: number | string | null; bezeichnung: string;
+  /** Packungsgröße beim Großhändler (100-m-Ring, 100er-Beutel), leer = ganze Einheiten */
+  bestell_vpe?: number | string | null;
+};
+
+/** Auf ganze Packungen aufrunden: 432,5 m bei Ringen à 100 m → 500 m */
+export function aufPackung(menge: number, vpe: number | string | null | undefined): number {
+  const v = Number(vpe);
+  if (!(v > 0)) return Math.ceil(runden3(menge));
+  return runden3(Math.ceil(runden3(menge / v)) * v);
+}
 
 /** Nach Lieferant gruppieren (alphabetisch, „Eigen“ zuletzt), Positionen nach Bezeichnung. */
 function gruppieren(zeilen: { artikel: ArtikelMitLieferant; menge: number }[]): Vorschlag[] {
@@ -60,7 +71,7 @@ export function vorschlagAusLager(
   schonBestellt: Map<string, number>,
 ): Vorschlag[] {
   return gruppieren(zeilen
-    .map((z) => ({ artikel: z.artikel, menge: Math.ceil(runden3(z.fehlt - (schonBestellt.get(z.artikel.id) ?? 0))) }))
+    .map((z) => ({ artikel: z.artikel, menge: aufPackung(runden3(z.fehlt - (schonBestellt.get(z.artikel.id) ?? 0)), z.artikel.bestell_vpe) }))
     .filter((z) => z.menge > 0));
 }
 
@@ -91,7 +102,7 @@ export function vorschlagAusBedarf(bedarf: Map<string, number>, artikel: Artikel
   const karte = new Map(artikel.map((a) => [a.id, a]));
   return gruppieren([...bedarf.entries()]
     .filter(([id, m]) => m > 0 && karte.has(id))
-    .map(([id, menge]) => ({ artikel: karte.get(id)!, menge })));
+    .map(([id, menge]) => ({ artikel: karte.get(id)!, menge: aufPackung(menge, karte.get(id)!.bestell_vpe) })));
 }
 
 /**
@@ -110,3 +121,37 @@ export function positionFuerArtikel<T extends { artikel_id: string; menge: numbe
 /** Summe EK netto einer Bestellung (Positionen ohne Preis zählen 0) */
 export const bestellSumme = (positionen: { menge: number | string; ek_preis: number | string | null }[]) =>
   Math.round(positionen.reduce((s, p) => s + Number(p.menge) * Number(p.ek_preis ?? 0), 0) * 100) / 100;
+
+export type OffenePosition = { id: string; artikel_id: string; menge: number | string; geliefert: number | string };
+
+/**
+ * Wareneingang ohne Bestellung im Kopf (Scanner, Modus „Wareneingang“):
+ * die Menge der Reihe nach auf offene Bestellpositionen desselben Artikels
+ * verteilen — älteste zuerst, wie übergeben. Was übrig bleibt, geht ohne
+ * Bestellung ins Lager (`position: null`).
+ */
+export function aufBestellungenVerteilen(artikelId: string, menge: number, offen: OffenePosition[]): { position: string | null; menge: number }[] {
+  const teile: { position: string | null; menge: number }[] = [];
+  let rest = runden3(menge);
+  for (const p of offen) {
+    if (rest <= 0) break;
+    if (p.artikel_id !== artikelId) continue;
+    const m = Math.min(rest, offeneMenge(p));
+    if (m <= 0) continue;
+    teile.push({ position: p.id, menge: runden3(m) });
+    rest = runden3(rest - m);
+  }
+  if (rest > 0 || !teile.length) teile.push({ position: null, menge: rest });
+  return teile;
+}
+
+/**
+ * Bestand, der für den Mindestbestand zählt: nur Lagerorte der Art „lager“
+ * (die Busse füllt man aus dem Lager nach, nicht beim Großhändler), je Ort
+ * negativ auf 0 — ein Buchungsfehler im Bus darf das Lager nicht leerrechnen.
+ * Gibt es kein Lager, zählen alle Orte.
+ */
+export function bestandFuerMindest(jeOrt: Map<string, number>, orte: { id: string; art: string }[]): number {
+  const lager = orte.filter((o) => o.art === "lager");
+  return runden3((lager.length ? lager : orte).reduce((s, o) => s + Math.max(0, jeOrt.get(o.id) ?? 0), 0));
+}

@@ -110,6 +110,7 @@ export type Database = {
         Row: {
           aktiv: boolean
           artikelnummer: string | null
+          bestell_vpe: number | null
           bezeichnung: string
           created_at: string
           ean: string | null
@@ -133,6 +134,7 @@ export type Database = {
         Insert: {
           aktiv?: boolean
           artikelnummer?: string | null
+          bestell_vpe?: number | null
           bezeichnung: string
           created_at?: string
           ean?: string | null
@@ -156,6 +158,7 @@ export type Database = {
         Update: {
           aktiv?: boolean
           artikelnummer?: string | null
+          bestell_vpe?: number | null
           bezeichnung?: string
           created_at?: string
           ean?: string | null
@@ -787,6 +790,7 @@ export type Database = {
           id: number
           inhaber: string | null
           kleinunternehmer: boolean
+          kostensatz: number | null
           land: string
           logo_pfad: string | null
           mahn_frist_tage: number
@@ -822,6 +826,7 @@ export type Database = {
           id?: number
           inhaber?: string | null
           kleinunternehmer?: boolean
+          kostensatz?: number | null
           land?: string
           logo_pfad?: string | null
           mahn_frist_tage?: number
@@ -857,6 +862,7 @@ export type Database = {
           id?: number
           inhaber?: string | null
           kleinunternehmer?: boolean
+          kostensatz?: number | null
           land?: string
           logo_pfad?: string | null
           mahn_frist_tage?: number
@@ -1241,6 +1247,7 @@ export type Database = {
           farbe: string | null
           gesperrt: boolean
           id: string
+          lohnart: string | null
           nachname: string
           passwort_neu: boolean
           rolle: string
@@ -1254,6 +1261,7 @@ export type Database = {
           farbe?: string | null
           gesperrt?: boolean
           id: string
+          lohnart?: string | null
           nachname?: string
           passwort_neu?: boolean
           rolle?: string
@@ -1267,6 +1275,7 @@ export type Database = {
           farbe?: string | null
           gesperrt?: boolean
           id?: string
+          lohnart?: string | null
           nachname?: string
           passwort_neu?: boolean
           rolle?: string
@@ -1801,6 +1810,7 @@ export type Database = {
         Returns: {
           aktiv: boolean
           artikelnummer: string | null
+          bestell_vpe: number | null
           bezeichnung: string
           created_at: string
           ean: string | null

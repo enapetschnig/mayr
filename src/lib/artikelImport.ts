@@ -5,6 +5,7 @@
  * Speicherfunktion von außen, damit er ohne Datenbank testbar bleibt.
  */
 import type { TablesInsert } from "@/integrations/supabase/types";
+import { metallZuschlag, type DatanormMetall } from "@/lib/datanorm";
 import { normalisieren } from "@/lib/strichcode";
 
 /** Ein Artikel aus einer Importdatei, Preise schon je 1 Einheit. */
@@ -21,6 +22,8 @@ export interface ImportArtikel {
   listenpreis: number | null;
   /** Nettopreis aus der Datei (Datanorm PK 2 / Preisdatei, CSV-Spalte EK) */
   netto: number | null;
+  /** Metallgehalt (Datanorm Z-Satz) — der Zuschlag kommt ohne Rabatt auf Liste und EK */
+  metall?: DatanormMetall | null;
 }
 
 export interface RabattEinstellung {
@@ -34,6 +37,14 @@ export interface RabattEinstellung {
    * ein Rabatt für die ganze Gruppe.
    */
   nettoVorziehen: boolean;
+  /** Tageskurse je Metall (CU, AL) in € je 100 kg; fehlt einer, bleibt der Preis ohne Zuschlag */
+  metallkurse?: Record<string, number | null | undefined>;
+}
+
+/** Metallzuschlag je Einheit, 0 = keiner oder kein Kurs */
+export function zuschlagFuer(a: Pick<ImportArtikel, "metall">, r: Pick<RabattEinstellung, "metallkurse">): number {
+  const kurs = a.metall ? r.metallkurse?.[a.metall.art] : null;
+  return a.metall && kurs != null && Number.isFinite(kurs) && kurs > 0 ? metallZuschlag(a.metall, kurs) : 0;
 }
 
 export const runden4 = (n: number) => Math.round(n * 10000) / 10000;
@@ -46,13 +57,14 @@ export function rabattFuer(a: Pick<ImportArtikel, "rabattgruppe">, r: RabattEins
 }
 
 /** EK je Einheit: Liste − Rabatt (falls Rabatt), sonst der Nettopreis aus der Datei. */
-export function ekBerechnen(a: Pick<ImportArtikel, "rabattgruppe" | "listenpreis" | "netto">, r: RabattEinstellung): number | null {
-  if (r.nettoVorziehen && a.netto != null) return runden4(a.netto);
+export function ekBerechnen(a: Pick<ImportArtikel, "rabattgruppe" | "listenpreis" | "netto" | "metall">, r: RabattEinstellung): number | null {
+  const z = zuschlagFuer(a, r);
+  if (r.nettoVorziehen && a.netto != null) return runden4(a.netto + z);
   const rabatt = rabattFuer(a, r);
   if (rabatt != null && a.listenpreis != null) {
-    return runden4(a.listenpreis * (1 - Math.min(100, Math.max(0, rabatt)) / 100));
+    return runden4(a.listenpreis * (1 - Math.min(100, Math.max(0, rabatt)) / 100) + z);
   }
-  return a.netto != null ? runden4(a.netto) : null;
+  return a.netto != null ? runden4(a.netto + z) : null;
 }
 
 export type ArtikelZeile = TablesInsert<"artikel">;
@@ -93,7 +105,7 @@ export function artikelZeilen(
       hersteller_nr: a.hersteller_nr?.trim() || null,
       warengruppe: a.warengruppe?.trim() || null,
       rabattgruppe: a.rabattgruppe?.trim() || null,
-      listenpreis: a.listenpreis != null ? runden4(a.listenpreis) : null,
+      listenpreis: a.listenpreis != null ? runden4(a.listenpreis + zuschlagFuer(a, opt.rabatt)) : null,
       ek_preis: ekBerechnen(a, opt.rabatt),
     };
     const z: ArtikelZeile = { lieferant, artikelnummer: nr, bezeichnung: bez, einheit: a.einheit?.trim() || "Stk", quelle: opt.quelle };

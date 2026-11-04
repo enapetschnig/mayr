@@ -4,6 +4,10 @@ import { toast } from "sonner";
 import { BellRing, ChevronRight, HandCoins, Loader2, Search, Wallet, X } from "lucide-react";
 import { Seite } from "@/components/PageHeader";
 import { Kennzahl, Leer, StatusPille } from "@/components/Bausteine";
+import {
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useIstPc } from "@/components/AppLayout";
@@ -16,6 +20,7 @@ import { passtSuche } from "@/components/regie/regieLogik";
 import { useNeuLaden } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datum, euro, isoTag } from "@/lib/format";
+import { mahnGesamt } from "@/lib/mahnPdf";
 import { pdfTeilenOderLaden } from "@/lib/pdfBasis";
 import { BELEG_STATUS } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -80,8 +85,10 @@ export default function OffenePosten() {
     setParams(neu, { replace: true });
   };
 
+  const [mahnFrage, setMahnFrage] = useState<(typeof zeilen)[number] | null>(null);
   const mahnen = async (z: (typeof zeilen)[number]) => {
     if (!z.vorschlag || !firma) return;
+    setMahnFrage(null);
     setLaeuft(z.b.id);
     try {
       const m = await mahnungAnlegen(z.b.id, z.vorschlag, heute);
@@ -167,7 +174,7 @@ export default function OffenePosten() {
                   <Wallet className="h-4 w-4" /> Zahlung
                 </Button>
                 {z.zuMahnen && z.vorschlag ? (
-                  <Button className="h-11 gap-1.5" onClick={() => void mahnen(z)} disabled={!!laeuft}>
+                  <Button className="h-11 gap-1.5" onClick={() => setMahnFrage(z)} disabled={!!laeuft}>
                     {laeuft === z.b.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
                     {z.vorschlag.stufe === 1 ? "Erinnern" : z.vorschlag.stufe === 2 ? "Mahnen" : "Letzte Mahnung"}
                   </Button>
@@ -182,6 +189,28 @@ export default function OffenePosten() {
         <ZahlungDialog belegId={zahlung.id} nummer={zahlung.nummer} offen={offenBetrag(zahlung.brutto, zahlung.zahlungen)}
           open={!!zahlung} onOpenChange={(o) => { if (!o) setZahlung(null); }} />
       )}
+      <AlertDialog open={!!mahnFrage} onOpenChange={(o) => { if (!o) setMahnFrage(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{mahnFrage?.vorschlag ? STUFE_TEXT[mahnFrage.vorschlag.stufe] : ""} erstellen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {mahnFrage?.vorschlag && `${mahnFrage.b.nummer} · ${mahnFrage.b.empf_name ?? ""} — seit ${mahnFrage.vorschlag.tage} ${mahnFrage.vorschlag.tage === 1 ? "Tag" : "Tagen"} überfällig. Neue Frist: ${datum(mahnFrage.vorschlag.frist_bis)}.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {mahnFrage?.vorschlag && (
+            <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
+              <dt>Offen</dt><dd className="zahl text-right">{euro(mahnFrage.vorschlag.offen)}</dd>
+              {mahnFrage.vorschlag.zinsen > 0 && <><dt>Verzugszinsen</dt><dd className="zahl text-right">{euro(mahnFrage.vorschlag.zinsen)}</dd></>}
+              {mahnFrage.vorschlag.spesen > 0 && <><dt>Mahnspesen</dt><dd className="zahl text-right">{euro(mahnFrage.vorschlag.spesen)}</dd></>}
+              <dt className="font-semibold">Zu zahlen</dt><dd className="zahl text-right font-semibold">{euro(mahnGesamt(mahnFrage.vorschlag))}</dd>
+            </dl>
+          )}
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="h-11">Abbrechen</AlertDialogCancel>
+            <Button className="h-11" onClick={() => mahnFrage && void mahnen(mahnFrage)}>Erstellen und PDF</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <PdfVorschau datei={vorschau} onClose={() => setVorschau(null)} />
     </Seite>
   );

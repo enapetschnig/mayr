@@ -47,6 +47,13 @@ const prozent = (t: string): number | null => {
   return n !== null && n >= 0 && n <= 100 ? n : NaN;
 };
 
+/** Metallkurs in € je 100 kg: leer = keiner, ungültig = NaN */
+const kurs = (t: string): number | null => {
+  if (!t.trim()) return null;
+  const n = dezimalLesen(t);
+  return n !== null && n > 0 && n < 100000 ? n : NaN;
+};
+
 // ── Rabatte je Lieferant merken (nur dieses Gerät — reiner Komfort) ──────
 type Gemerkt = { gruppen: Record<string, string>; pauschal: string };
 const merkSchluessel = (l: string) => `artikelimport.rabatte.${l.trim().toLowerCase()}`;
@@ -125,6 +132,8 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [pauschalText, setPauschalText] = useState("");
   const [gruppenTexte, setGruppenTexte] = useState<Record<string, string>>({});
   const [nettoVorziehen, setNettoVorziehen] = useState(true);
+  /** Kupferkurs (DEL) in € je 100 kg — aus der Metallbasis-Datei vorbelegt */
+  const [kupferText, setKupferText] = useState("");
 
   const [upload, setUpload] = useState({ erledigt: 0, gesamt: 0 });
   const [bericht, setBericht] = useState<Bericht | null>(null);
@@ -149,6 +158,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     setPauschalText("");
     setGruppenTexte({});
     setNettoVorziehen(true);
+    setKupferText("");
     setBericht(null);
   };
 
@@ -186,7 +196,9 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         setRechnet(false);
       }
       if (ersterLauf && g.art === "datanorm") {
-        setLieferant(g.ergebnis.firma.slice(0, 80));
+        // „Sonepar Österreich GmbH“ in der Datei, „Sonepar“ im Stamm: den vorhandenen Namen nehmen
+        setLieferant(lieferantVorschlag(g.ergebnis.firma, lieferanten).slice(0, 80));
+        setKupferText(g.metallkurse?.CU ? zahlFeld(g.metallkurse.CU) : "");
         const vor: Record<string, string> = {};
         for (const r of g.ergebnis.rabattgruppen) if (r.rabatt > 0) vor[r.code] = zahlFeld(r.rabatt);
         setGruppenTexte(vor);
@@ -276,11 +288,13 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     gruppen: Object.fromEntries(gruppen.map((g) => [g.code, prozent(gruppenTexte[g.code] ?? "")])),
     pauschal: prozent(pauschalText),
     nettoVorziehen,
-  }), [gruppen, gruppenTexte, pauschalText, nettoVorziehen]);
+    metallkurse: { CU: kurs(kupferText) },
+  }), [gruppen, gruppenTexte, pauschalText, nettoVorziehen, kupferText]);
 
   const ungueltig = [
     ...(Number.isNaN(rabatt.pauschal) ? ["Rabatt für alle"] : []),
     ...gruppen.filter((g) => Number.isNaN(rabatt.gruppen[g.code])).map((g) => `Gruppe ${g.code}`),
+    ...(Number.isNaN(rabatt.metallkurse?.CU) ? ["Kupferkurs"] : []),
   ];
   const rabattGesetzt = rabatt.pauschal != null || Object.values(rabatt.gruppen).some((v) => v != null);
 
@@ -294,7 +308,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       return count ?? 0;
     },
   });
-  const aehnlich = lieferanten.find((x) => x !== lieferant.trim() && x.toLowerCase() === lieferant.trim().toLowerCase());
+  const aehnlich = lieferanten.find((x) => x !== lieferant.trim() && lieferantGleich(x, lieferant));
   const gemerkt = useMemo(() => (schritt === "vorschau" ? gemerkteRabatte(lieferantQ) : null), [lieferantQ, schritt]);
   const gemerktAnders = !!gemerkt && (
     gemerkt.pauschal !== pauschalText.trim()
@@ -562,7 +576,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             </Feld>
             {aehnlich && (
               <Hinweis ton="gelb" icon={Info}>
-                Es gibt schon „{aehnlich}“ (andere Schreibweise).{" "}
+                Es gibt schon „{aehnlich}“. Unter einem anderen Namen würden alle Artikel ein zweites Mal angelegt.{" "}
                 <button type="button" className="font-semibold underline underline-offset-2" onClick={() => setLieferant(aehnlich)}>Diesen Namen nehmen</button>
               </Hinweis>
             )}
@@ -622,6 +636,21 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             )}
           </section>
 
+          {gelesen.art === "datanorm" && gelesen.mitMetall > 0 && (
+            <section className="space-y-3">
+              <Gruppentitel className="px-0 pb-0">Kupferzuschlag</Gruppentitel>
+              <p className="text-sm text-muted-foreground">
+                <span className="zahl">{zahl(gelesen.mitMetall)}</span> Artikel (Kabel, Leitungen) haben einen Kupferanteil. Der Zuschlag
+                = kg Kupfer × (Tageskurs − Basis im Preis) kommt ohne Rabatt auf Listenpreis und EK.
+                {gelesen.metallkurse?.CU ? " Kurs aus der Metallbasis-Datei." : " Die Metallbasis-Datei des Händlers war nicht dabei — Kurs (DEL-Notiz) selbst eintragen, sonst bleibt der Zuschlag weg."}
+              </p>
+              <Feld id="imp-kupfer" label="Kupferkurs in € je 100 kg">
+                <Input id="imp-kupfer" inputMode="decimal" className="h-12 w-40 text-base sm:text-sm" value={kupferText}
+                  onChange={(e) => setKupferText(e.target.value)} placeholder="z. B. 1258" autoComplete="off" />
+              </Feld>
+            </section>
+          )}
+
           <Vorschau artikel={artikel} rabatt={rabatt} mitNetto={statistik.mitNetto > 0} mitGruppe={gruppen.length > 0} rechnet={rechnet} />
         </div>
       )}
@@ -642,6 +671,22 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 }
 
 // ── Bausteine ──────────────────────────────────────────────────────────
+
+/** Firmenkern ohne Rechtsform und Land: „Sonepar Österreich GmbH“ → „sonepar“ */
+const firmenKern = (s: string) =>
+  s.toLowerCase().replace(/\b(gmbh|ges\.?m\.?b\.?h\.?|ag|kg|og|co|& co|e\.?u\.?|österreich|austria|deutschland|handel|elektrogroßhandel)\b/g, " ")
+    .replace(/[^a-z0-9äöüß]+/g, " ").trim();
+
+function lieferantGleich(a: string, b: string): boolean {
+  const x = firmenKern(a);
+  const y = firmenKern(b);
+  if (!x || !y) return false;
+  return x === y || x.split(" ")[0] === y.split(" ")[0];
+}
+
+/** Vorhandenen Lieferanten mit demselben Firmenkern vorziehen, sonst den Namen aus der Datei */
+const lieferantVorschlag = (firma: string, vorhanden: string[]) =>
+  vorhanden.find((l) => l.trim().toLowerCase() === firma.trim().toLowerCase()) ?? vorhanden.find((l) => lieferantGleich(l, firma)) ?? firma;
 
 function Hinweis({ ton, icon: I, children }: { ton: "rot" | "gelb" | "grau"; icon: typeof Info; children: ReactNode }) {
   return (

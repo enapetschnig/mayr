@@ -1,3 +1,4 @@
+import { arbeitszeitPositionen } from "./importieren";
 import { describe, expect, it, vi } from "vitest";
 
 // importieren.ts lädt den Supabase-Client — im Test nicht nötig (und ohne localStorage nicht ladbar)
@@ -369,5 +370,27 @@ describe("Runden wie die Datenbank", () => {
     const r = belegSummen(rechnung, 20, false);
     const st = belegSummen(storno, 20, false);
     expect(st).toEqual({ netto: -r.netto, ust: -r.ust, brutto: -r.brutto });
+  });
+});
+
+describe("Arbeitszeit je Lohnart", () => {
+  const zeit = (id: string, user: string, name: string, lohnart: string | null, stunden: number) =>
+    ({ id, datum: "2026-11-02", stunden, taetigkeit: null, user_id: user, name, lohnart, regiebericht_id: null });
+  const zeiten = [zeit("a", "max", "Max", null, 8), zeit("b", "lisa", "Lisa", "Lehrling", 6), zeit("c", "max", "Max", null, 2)];
+  const lohnarten = [{ name: "Stunde", satz: 72, standard: true }, { name: "Lehrling", satz: 42 }];
+  const basis = { materialPauschale: false, stundensatz: 72, abgegolten: false, eingangAufschlag: 0, lohnarten };
+
+  it("verrechnet je Mitarbeiter zum Satz seiner Lohnart", () => {
+    const p = arbeitszeitPositionen(zeiten, { ...basis, stundenJeMitarbeiter: true }, false);
+    expect(p.map((x) => [x.bezeichnung, x.menge, x.einzelpreis])).toEqual([
+      ["Arbeitszeit Max", "10", "72,00"], ["Arbeitszeit Lisa", "6", "42,00"],
+    ]);
+  });
+
+  it("ohne Aufteilung: eine Zeile je Stundensatz statt alles zum Monteursatz", () => {
+    const p = arbeitszeitPositionen(zeiten, { ...basis, stundenJeMitarbeiter: false }, false);
+    expect(p.map((x) => [x.bezeichnung, x.menge, x.einzelpreis])).toEqual([
+      ["Arbeitszeit", "10", "72,00"], ["Arbeitszeit Lehrling", "6", "42,00"],
+    ]);
   });
 });

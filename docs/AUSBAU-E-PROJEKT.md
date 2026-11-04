@@ -53,3 +53,17 @@ Grundlage der Reihenfolge ab 5: der Detailvergleich aller Hilfeseiten in `E-PROJ
 Die aus `KONZEPT.md`: jeder Klick ist Aufwand, nichts doppelt erfassen, ein Mensch bestätigt, nichts
 erfinden. Neue Bereiche folgen dem Design „Werkbank“ (Startseite = Menü, Vollbild-Formulare, Blau als
 einzige Aktionsfarbe) und den Rechten: Chef sieht Geld, Monteur sieht Arbeit.
+
+## Abgleich mit e-projekt vom 04.11.2026 (Klicktests, e-projekt-Seite laut `E-PROJEKT-VERGLEICH.md`)
+
+Nachgezogen: Wareneingang per Scan hakt offene Bestellungen ab (älteste zuerst, Rest ohne Bestellung),
+Umbuchen/„Bus auffüllen“, Bestellpackungen (`artikel.bestell_vpe`), Datanorm mit Hersteller und Kupferzuschlag,
+Mindestbestand zählt nur das Lager, Lohnart je Mitarbeiter (Lehrling zum Lehrlingssatz), Nachkalkulation mit
+Material-EK, Lohnkosten (`firma.kostensatz`) und Ertrag, Rückfragen vor Mahnung und bei auffälliger Menge,
+Hinweis auf schon gebuchte Stunden, Schlussrechnung gesperrt solange eine Teilrechnung Entwurf ist,
+Termin „Heute“ auf der Startseite (Vorgriff auf #6), Sicherung im Prüfprotokoll, Monteur sieht keinen Materialwert
+und darf nicht abschließen (auch per Trigger).
+
+Noch offen aus dem Abgleich: echter Endrabatt im Summenblock und Wahlpositionen (#7), Skonto und Haftrücklass auf
+der Rechnung, Mahntexte und Mahnsperre, Mängel mit Frist (#11), Plantafel ziehen, Einsatz annehmen/abschließen (#6),
+UID-Prüfung und PLZ→Ort (#10), Bewegungsliste je Artikel, Inventur-PDF.

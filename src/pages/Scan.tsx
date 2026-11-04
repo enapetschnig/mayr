@@ -27,6 +27,7 @@ import {
   type ProjektMaterialZeile,
 } from "@/components/material/materialDaten";
 import { alleZeilen } from "@/lib/abfrage";
+import { aufBestellungenVerteilen, type OffenePosition } from "@/components/bestellung/bestellLogik";
 import { useLagerorte, useNeuLaden, useProjekte } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { dezimalLesen, zahl, zahlLesen } from "@/lib/format";
@@ -44,7 +45,8 @@ import { cn } from "@/lib/utils";
  * verhindert, dass ein zweiter Versuch nach einem Funkloch doppelt bucht.
  */
 
-type Modus = Extract<BuchungsArt, "ausfassung" | "rueckgabe" | "direkt" | "zugang" | "korrektur">;
+/** „umbuchung“ = Abgang am einen und Zugang am anderen Lagerort (Bus auffüllen) */
+type Modus = Extract<BuchungsArt, "ausfassung" | "rueckgabe" | "direkt" | "zugang" | "korrektur"> | "umbuchung";
 
 type ModusInfo = {
   kurz: string;
@@ -75,12 +77,16 @@ const MODI: Record<Modus, ModusInfo> = {
     kurz: "Wareneingang", erklaerung: "Lieferung ins Lager einbuchen", projekt: false, lager: true, nurChef: true,
     lagerFrage: "Wohin?", verb: "einbuchen", gebucht: "Eingebucht",
   },
+  umbuchung: {
+    kurz: "Umbuchen", erklaerung: "Vom Lager in den Bus — oder zurück", projekt: false, lager: true, nurChef: false,
+    lagerFrage: "Von", verb: "umbuchen", gebucht: "Umgebucht",
+  },
   korrektur: {
     kurz: "Inventur", erklaerung: "Zählen und den Bestand richtigstellen", projekt: false, lager: true, nurChef: true,
     lagerFrage: "Was wird gezählt?", verb: "", gebucht: "Bestand korrigiert",
   },
 };
-const REIHENFOLGE: Modus[] = ["ausfassung", "rueckgabe", "direkt", "zugang", "korrektur"];
+const REIHENFOLGE: Modus[] = ["ausfassung", "rueckgabe", "direkt", "umbuchung", "zugang", "korrektur"];
 
 function modusLesen(roh: string | null | undefined, istChef: boolean): Modus | null {
   const m = REIHENFOLGE.find((x) => x === roh);
@@ -162,8 +168,11 @@ type Differenz = { zeile: Zeile; ist: number; gezaehlt: number; diff: number };
 
 const ungezaehltText = (n: number) => (n === 1 ? "1 nicht gezählter Artikel bleibt unverändert." : `${n} nicht gezählte Artikel bleiben unverändert.`);
 
+/** Mengen, die man misst statt zählt — ein Scan findet nur den Artikel */
+const MASS_EINHEITEN = new Set(["m", "kg", "l", "m²"]);
+
 type BuchungNeu = {
-  art: Modus;
+  art: BuchungsArt;
   artikel_id: string | null;
   bezeichnung: string | null;
   einheit: string | null;
@@ -175,6 +184,7 @@ type BuchungNeu = {
   vorgang: string;
   notiz: string | null;
   user_id: string;
+  bestellposition_id: string | null;
 };
 
 export default function Scan() {
@@ -208,6 +218,8 @@ export default function Scan() {
   const [modus, setModus] = useState<Modus>(e0?.modus ?? anfang.urlModus ?? "ausfassung");
   const [projektId, setProjektId] = useState(e0 ? e0.projektId : anfang.urlProjekt || anfang.gemerkt);
   const [lagerortId, setLagerortId] = useState(e0?.lagerortId || anfang.urlLager);
+  /** Umbuchen: wohin */
+  const [zielortId, setZielortId] = useState("");
   const [notiz, setNotiz] = useState(e0?.notiz ?? "");
   const [wiederhergestellt, setWiederhergestellt] = useState<{ zeit: number; konflikt: boolean } | null>(
     e0 ? { zeit: e0.zeit, konflikt: anfang.konflikt } : null,
@@ -237,9 +249,11 @@ export default function Scan() {
   const info = MODI[modus];
   const projekt = projekte.find((p) => p.id === projektId);
   const lagerort = orte.find((o) => o.id === lagerortId);
+  const zielort = orte.find((o) => o.id === zielortId && o.id !== lagerortId);
 
   const bestandAbfrage = useBestandAmLagerort(info.lager && lagerortId ? lagerortId : null);
   const bestand = bestandAbfrage.data;
+  const [zuViel, setZuViel] = useState<string | null>(null);
   const projektMaterialAbfrage = useProjektMaterial(modus === "rueckgabe" && projektId ? projektId : null);
   const projektMaterial = projektMaterialAbfrage.data;
   const verbrauchtJeArtikel = useMemo(() => verbrauchtKarte(projektMaterial), [projektMaterial]);
@@ -247,6 +261,15 @@ export default function Scan() {
   const setScanOffen = (o: boolean) => {
     scanOffenRef.current = o;
     setScanOffenZustand(o);
+    // Zuletzt gescannt in Meter (Kabel, Rohr): gleich ins Mengenfeld, statt 1 m zu buchen
+    const z = listeRef.current[0];
+    if (!o && z && MASS_EINHEITEN.has(z.einheit) && modus !== "korrektur") {
+      setTimeout(() => {
+        const feld = document.querySelector<HTMLInputElement>(`input[aria-label="${CSS.escape(`Menge ${z.bezeichnung}`)}"]`);
+        feld?.focus();
+        feld?.select();
+      }, 350);
+    }
   };
 
   const listeAendern = useCallback((fn: (alt: Zeile[]) => Zeile[]) => {
@@ -274,6 +297,14 @@ export default function Scan() {
     const std = standardLagerort(orte, uid);
     if (std) setLagerortId(std.id);
   }, [orte, lagerortId, uid]);
+
+  // Umbuchen (auch direkt über die URL): Ziel vorbelegen — mein Bus, sonst der erste andere Ort
+  useEffect(() => {
+    if (modus !== "umbuchung" || !orte.length || (zielortId && zielortId !== lagerortId && orte.some((o) => o.id === zielortId))) return;
+    const andere = orte.filter((o) => o.id !== lagerortId);
+    const ziel = andere.find((o) => o.art === "fahrzeug" && o.user_id === uid) ?? andere.find((o) => o.art === "fahrzeug") ?? andere[0];
+    if (ziel) setZielortId(ziel.id);
+  }, [modus, orte, lagerortId, zielortId, uid]);
 
   // Gemerktes Projekt nur, wenn es das noch gibt (und es nicht abgeschlossen ist)
   const projektGeprueft = useRef(false);
@@ -341,6 +372,19 @@ export default function Scan() {
     return zeile;
   }, [listeAendern]);
 
+  /** Rückgabe: ausgefassten Artikel antippen statt scannen */
+  const ausgefasstDazu = async (id: string) => {
+    let a = artikelCache.current.get(id) ?? null;
+    try {
+      a = a ?? await artikelKurzLaden(id);
+    } catch (e) {
+      return toast.error("Artikel nicht geladen", { description: fehlerText(e) });
+    }
+    if (!a) return;
+    artikelCache.current.set(a.id, a);
+    artikelDazu(a, 1);
+  };
+
   const mengeSetzen = (schluessel: string, text: string) => {
     listeAendern((alt) => alt.map((z) => (z.schluessel === schluessel ? { ...z, menge: text, vorbelegt: false } : z)));
   };
@@ -407,6 +451,13 @@ export default function Scan() {
       setWechselZu(neu);
       return;
     }
+    // Umbuchen: meistens vom Lager in den eigenen Bus
+    if (neu === "umbuchung") {
+      const lager = orte.find((o) => o.art === "lager");
+      const bus = orte.find((o) => o.art === "fahrzeug" && o.user_id === uid) ?? orte.find((o) => o.art === "fahrzeug");
+      if (lager) setLagerortId(lager.id);
+      if (bus && bus.id !== lager?.id) setZielortId(bus.id);
+    }
     setModus(neu);
   };
 
@@ -425,6 +476,10 @@ export default function Scan() {
           ton: "warnung",
         };
       }
+    }
+    // Kabel hat keinen Code je Meter: Scan = Artikel gefunden, die Meter tippt man danach
+    if (MASS_EINHEITEN.has(z.einheit) && packung === 1) {
+      return { text: z.bezeichnung, unter: `${mengeText(n, z.einheit)} — die genaue Menge nach dem Schließen eintragen` };
     }
     return { text: z.bezeichnung, unter: `${plus}jetzt ${mengeText(n, z.einheit)} in der Liste` };
   };
@@ -547,6 +602,10 @@ export default function Scan() {
       toast.error("Bitte einen Lagerort wählen.");
       return false;
     }
+    if (modus === "umbuchung" && !zielort) {
+      toast.error("Bitte wählen, wohin umgebucht wird.");
+      return false;
+    }
     const l = listeRef.current;
     if (!l.length) return false;
     const frei = l.find((z) => !z.artikel);
@@ -606,7 +665,7 @@ export default function Scan() {
    * Vorgang schon da ist: Funkloch nach dem Absenden → die Liste blieb
    * stehen, die Buchung ist aber angekommen. Dann nicht noch einmal.
    */
-  const sammelBuchen = async (zeilen: Zeile[], bauen: (z: Zeile, ek: number | null) => BuchungNeu) => {
+  const sammelBuchen = async (zeilen: Zeile[], bauen: (z: Zeile, ek: number | null) => BuchungNeu | BuchungNeu[]) => {
     const vorgang = vorgangRef.current;
     const art = modus;
     const p = projekt;
@@ -621,11 +680,15 @@ export default function Scan() {
       } else {
         // erst nach der Probe: ist die Rückgabe schon angekommen, wäre der Verbrauch schon kleiner
         if (art === "rueckgabe" && !(await rueckgabeOk(zeilen))) return;
-        const { error } = await supabase.from("material_buchungen").insert(zeilen.map((z) => bauen(z, ekFuer(z))));
+        const reihen = zeilen.flatMap((z) => bauen(z, ekFuer(z)));
+        const { error } = await supabase.from("material_buchungen").insert(reihen);
         if (error) throw error;
         const n = zeilen.length;
+        const aufBestellung = reihen.filter((r) => r.bestellposition_id).length;
         toast.success(`${MODI[art].gebucht} · ${n} ${n === 1 ? "Position" : "Positionen"}`, {
-          description: MODI[art].projekt && p ? `${p.nummer} · ${p.name}` : lagerort?.name,
+          description: [MODI[art].projekt && p ? `${p.nummer} · ${p.name}` : art === "umbuchung" ? `${lagerort?.name} → ${zielort?.name}` : lagerort?.name,
+            aufBestellung ? `${aufBestellung === 1 ? "1 Position" : `${aufBestellung} Positionen`} offener Bestellungen abgehakt` : ""]
+            .filter(Boolean).join(" · "),
           action: MODI[art].projekt && p ? { label: "Zum Projekt", onClick: () => navigate(`/projekte/${p.id}`) } : undefined,
         });
       }
@@ -643,25 +706,65 @@ export default function Scan() {
     }
   };
 
-  const buchen = async () => {
+  const buchen = async (trotzdem = false) => {
     if (bucht || !pruefen()) return;
     if (modus === "korrektur") return inventurPruefen();
+    // Der Bestand in der App kann abweichen, darum keine Sperre — aber ein Tippfehler (999 statt 9) fällt auf
+    if (!trotzdem && (modus === "ausfassung" || modus === "umbuchung") && bestand) {
+      const auffaellig = listeRef.current.find((z) => {
+        if (!z.artikel) return false;
+        const m = zahlLesen(z.menge), b = Math.max(0, bestand.get(z.artikel.id) ?? 0);
+        return m - b >= 10 && m > 2 * b;
+      });
+      if (auffaellig) {
+        setZuViel(`${zahl(zahlLesen(auffaellig.menge))} ${auffaellig.einheit} ${auffaellig.bezeichnung} — in ${lagerort?.name ?? "diesem Lager"} sind laut App nur ${zahl(Math.max(0, bestand.get(auffaellig.artikel!.id) ?? 0))} ${auffaellig.einheit}.`);
+        return;
+      }
+    }
+    setZuViel(null);
     const text = notiz.trim() || null;
+    // Wareneingang: gehört die Ware zu einer offenen Bestellung dieses Lagers, wird sie dort abgehakt
+    let offen: OffenePosition[] = [];
+    if (modus === "zugang" && istChef && lagerortId) {
+      const ids = [...new Set(listeRef.current.flatMap((z) => (z.artikel ? [z.artikel.id] : [])))];
+      if (ids.length) {
+        const { data, error } = await supabase.from("bestell_positionen")
+          .select("id, artikel_id, menge, geliefert, bestellungen!inner(status, lagerort_id, bestellt_am, nummer)")
+          .in("artikel_id", ids).eq("bestellungen.lagerort_id", lagerortId).in("bestellungen.status", ["bestellt", "teilgeliefert"]);
+        if (error) {
+          toast.error("Offene Bestellungen nicht geladen", { description: fehlerText(error) });
+          return;
+        }
+        offen = [...(data ?? [])].sort((a, b) =>
+          (a.bestellungen.bestellt_am ?? "").localeCompare(b.bestellungen.bestellt_am ?? "") || a.bestellungen.nummer.localeCompare(b.bestellungen.nummer));
+      }
+    }
     // Sammel-Insert: JEDE Zeile mit denselben Feldern (sonst NULL statt Standardwert)
-    await sammelBuchen(listeRef.current, (z, ek) => ({
-      art: modus,
-      artikel_id: z.artikel?.id ?? null,
-      bezeichnung: z.bezeichnung,
-      einheit: z.einheit,
-      menge: runden3(zahlLesen(z.menge)),
-      lagerort_id: modus === "direkt" ? null : lagerortId,
-      projekt_id: info.projekt ? projektId : null,
-      regiebericht_id: null,
-      ek_preis: ek,
-      vorgang: vorgangRef.current,
-      notiz: text,
-      user_id: uid,
-    }));
+    await sammelBuchen(listeRef.current, (z, ek) => {
+      const zeile: BuchungNeu = {
+        art: modus === "umbuchung" ? "abgang" : modus,
+        artikel_id: z.artikel?.id ?? null,
+        bezeichnung: z.bezeichnung,
+        einheit: z.einheit,
+        menge: runden3(zahlLesen(z.menge)),
+        lagerort_id: modus === "direkt" ? null : lagerortId,
+        projekt_id: info.projekt ? projektId : null,
+        regiebericht_id: null,
+        ek_preis: ek,
+        vorgang: vorgangRef.current,
+        notiz: text,
+        user_id: uid,
+        bestellposition_id: null,
+      };
+      if (modus === "umbuchung") {
+        // In den Bewegungen soll man sehen, dass Abgang und Zugang zusammengehören
+        const n = `Umbuchung ${lagerort?.name ?? ""} → ${zielort?.name ?? ""}${zeile.notiz ? ` · ${zeile.notiz}` : ""}`;
+        return [{ ...zeile, art: "abgang", notiz: n }, { ...zeile, art: "zugang", lagerort_id: zielortId, notiz: n }];
+      }
+      if (!offen.length || !z.artikel) return zeile;
+      return aufBestellungenVerteilen(z.artikel.id, zeile.menge, offen)
+        .map((t) => ({ ...zeile, menge: t.menge, bestellposition_id: t.position }));
+    });
   };
 
   /** Inventur: Bestand frisch holen, Differenzen zeigen — gebucht wird erst nach Bestätigung. */
@@ -715,6 +818,7 @@ export default function Scan() {
       vorgang: vorgangRef.current,
       notiz: text,
       user_id: uid,
+      bestellposition_id: null,
     }));
   };
 
@@ -729,6 +833,7 @@ export default function Scan() {
     rueckgabe: `${projektText} → ${lagerText}`,
     direkt: `→ ${projektText}`,
     zugang: `→ ${lagerText}`,
+    umbuchung: `${lagerText} → ${zielort?.name ?? "Ziel fehlt"}`,
     korrektur: `Inventur · ${lagerText}`,
   }[modus];
   const scanTitel = `${info.kurz}${info.projekt ? (projekt ? ` · ${projekt.nummer}` : "") : lagerort ? ` · ${lagerort.name}` : ""}`;
@@ -767,12 +872,11 @@ export default function Scan() {
         <div className="space-y-5">
           <div className="space-y-2">
             <div role="radiogroup" aria-label="Was wird gebucht?"
-              className={cn("grid gap-1 rounded-lg border bg-secondary p-1", istChef ? "grid-cols-6" : "grid-cols-3")}>
-              {sichtbareModi.map((m, i) => (
+              className={cn("grid gap-1 rounded-lg border bg-secondary p-1", istChef ? "grid-cols-3" : "grid-cols-4")}>
+              {sichtbareModi.map((m) => (
                 <button key={m} type="button" role="radio" aria-checked={modus === m} onClick={() => modusWaehlen(m)}
                   className={cn(
                     "h-11 min-w-0 truncate rounded-md px-1 text-sm font-medium transition-colors",
-                    istChef && (i < 3 ? "col-span-2" : "col-span-3"),
                     modus === m ? "bg-card font-semibold text-primary ring-1 ring-primary/30" : "text-muted-foreground hover:text-foreground",
                   )}>
                   {MODI[m].kurz}
@@ -800,11 +904,45 @@ export default function Scan() {
                   </button>
                 ))}
               </div>
+              {modus === "umbuchung" && (
+                <>
+                  <Label className="block pt-2">Nach</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {orte.filter((o) => o.id !== lagerortId).map((o) => (
+                      <button key={o.id} type="button" onClick={() => setZielortId(o.id)} aria-pressed={zielort?.id === o.id}
+                        className={cn("h-11 max-w-full truncate rounded-full border px-4 text-sm font-medium transition-colors",
+                          zielort?.id === o.id ? "border-primary bg-primary-soft text-primary" : "bg-card hover:bg-muted")}>
+                        {o.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               {!orte.length && !orteLaden && (
                 <p className="text-sm text-muted-foreground">
                   Noch kein Lagerort angelegt{istChef ? " — unter „Lager“ anlegen." : " — der Chef legt sie unter „Lager“ an."}
                 </p>
               )}
+            </div>
+          )}
+
+          {modus === "rueckgabe" && projektId && (projektMaterial ?? []).some((m) => m.artikel_id && Number(m.verbraucht) > 0) && (
+            <div className="space-y-2">
+              <Label>Auf dem Projekt ausgefasst — antippen</Label>
+              <div className="flex flex-wrap gap-2">
+                {(projektMaterial ?? []).filter((m) => m.artikel_id && Number(m.verbraucht) > 0).map((m) => {
+                  const drin = liste.some((z) => z.schluessel === m.artikel_id);
+                  return (
+                    <button key={m.artikel_id} type="button" disabled={drin}
+                      onClick={() => void ausgefasstDazu(m.artikel_id!)}
+                      className={cn("min-h-11 max-w-full rounded-lg border bg-card px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted",
+                        drin && "border-primary bg-primary-soft text-primary")}>
+                      <span className="line-clamp-1 font-medium">{m.bezeichnung}</span>
+                      <span className="zahl block text-xs text-muted-foreground">{mengeText(Number(m.verbraucht), m.einheit ?? "Stk")} ausgefasst{drin ? " · in der Liste" : ""}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -978,6 +1116,18 @@ export default function Scan() {
         </div>
       </FormularDialog>
 
+      <AlertDialog open={!!zuViel} onOpenChange={(o) => { if (!o) setZuViel(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Wirklich so viel?</AlertDialogTitle>
+            <AlertDialogDescription>{zuViel}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-11">Menge ändern</AlertDialogCancel>
+            <AlertDialogAction className="h-11" onClick={() => void buchen(true)}>Trotzdem buchen</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={!!wechselZu} onOpenChange={(o) => { if (!o) setWechselZu(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1050,7 +1200,7 @@ function ZeileAnzeige({
   } else if (modus === "rueckgabe" && z.artikel && verbraucht !== undefined && n > verbraucht) {
     // Sperrt beim Buchen — deshalb rot
     hinweis = <StatusPille eintrag={{ ton: "rot", text: verbraucht > 0 ? `nur ${zahl(verbraucht)} ausgefasst` : "hier nicht ausgefasst" }} />;
-  } else if (modus === "ausfassung" && z.artikel && bestand !== undefined && n > bestand) {
+  } else if ((modus === "ausfassung" || modus === "umbuchung") && z.artikel && bestand !== undefined && n > bestand) {
     hinweis = (
       <p className="text-xs text-muted-foreground">
         laut App {bestand > 0 ? <>nur <span className="zahl">{zahl(bestand)}</span></> : "nichts"} {lagerName ? `in „${lagerName}“` : "da"}

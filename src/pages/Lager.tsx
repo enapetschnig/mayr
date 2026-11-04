@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  ChevronDown, ChevronRight, ClipboardCheck, Download, History, Loader2, Package, PackagePlus, Plus, Search, ShoppingCart, Truck, Warehouse,
+  ArrowRightLeft, ChevronDown, ChevronRight, ClipboardCheck, Download, History, Loader2, Package, PackagePlus, Plus, Search, ShoppingCart, Truck, Warehouse,
 } from "lucide-react";
 import { Seite } from "@/components/PageHeader";
 import { Abschnitt, AktionsKachel, Kennzahl, Leer, StatusPille } from "@/components/Bausteine";
@@ -20,6 +20,7 @@ import { useSitzung } from "@/hooks/useSitzung";
 import { alsText, csvHerunterladen } from "@/lib/abfrage";
 import { euro, isoTag, zahl } from "@/lib/format";
 import { runden2 } from "@/lib/preise";
+import { bestandFuerMindest } from "@/components/bestellung/bestellLogik";
 import { BUCHUNGS_ART, KATEGORIEN_ARTIKEL, name, type BuchungsArt, type Lagerort } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -86,8 +87,8 @@ export default function Lager() {
     });
     karte.forEach((z) => {
       const min = z.artikel.mindestbestand;
-      // Negativer Bestand (mehr ausgefasst als gebucht) ist ein Buchungsfehler, keine Bestellmenge
-      z.fehlt = min != null ? runden3(Number(min) - Math.max(0, z.gesamt)) : 0;
+      // Mindestbestand gilt fürs Lager (Busse werden daraus aufgefüllt); negativ zählt als 0
+      z.fehlt = min != null ? runden3(Number(min) - bestandFuerMindest(z.jeOrt, orte)) : 0;
     });
     return [...karte.values()].sort((a, b) => a.artikel.bezeichnung.localeCompare(b.artikel.bezeichnung, "de"));
   }, [bestand, lagerArtikel, orte]);
@@ -268,13 +269,17 @@ export default function Lager() {
 
   return (
     <Seite titel="Lager" untertitel={ortName ? `Bestand · ${ortName}` : "Bestand über alle Lagerorte"} breit>
-      {istChef && (
-        <div className="grid grid-cols-2 gap-3 lg:max-w-3xl lg:grid-cols-3">
-          <AktionsKachel icon={PackagePlus} titel="Wareneingang" unter="Lieferung einbuchen" to={`/scan?modus=zugang${lagerParam}`} />
-          <AktionsKachel icon={ClipboardCheck} titel="Inventur" unter="Zählen, korrigieren" to={`/scan?modus=korrektur${lagerParam}`} />
-          <AktionsKachel icon={ShoppingCart} titel="Bestellungen" unter="Beim Großhändler bestellen" to="/bestellungen" className="col-span-2 lg:col-span-1" />
-        </div>
-      )}
+      <div className={cn("grid grid-cols-2 gap-3", istChef ? "lg:max-w-4xl lg:grid-cols-4" : "lg:max-w-md")}>
+        <AktionsKachel icon={ArrowRightLeft} titel="Bus auffüllen" unter="Vom Lager in den Bus umbuchen" to="/scan?modus=umbuchung"
+          className={istChef ? undefined : "col-span-2"} />
+        {istChef && (
+          <>
+            <AktionsKachel icon={PackagePlus} titel="Wareneingang" unter="Lieferung einbuchen" to={`/scan?modus=zugang${lagerParam}`} />
+            <AktionsKachel icon={ClipboardCheck} titel="Inventur" unter="Zählen, korrigieren" to={`/scan?modus=korrektur${lagerParam}`} />
+            <AktionsKachel icon={ShoppingCart} titel="Bestellungen" unter="Beim Großhändler bestellen" to="/bestellungen" />
+          </>
+        )}
+      </div>
 
       <div className={cn("grid gap-3", istChef ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2")}>
         <Kennzahl titel="Artikel mit Bestand" wert={zahl(mitBestand)} icon={Package} />

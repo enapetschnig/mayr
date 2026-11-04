@@ -331,6 +331,38 @@ export interface DatanormArtikel {
   /** Name der Warengruppe aus der .WRG, sonst leer */
   warengruppeName: string;
   ean: string;
+  /** DN5: Hersteller und dessen Artikelnummer, sonst leer */
+  hersteller: string;
+  herstellerNr: string;
+  /** Metallgehalt aus dem Z-Satz (Kupferzuschlag), null = keiner */
+  metall: DatanormMetall | null;
+}
+
+/** Metall im Artikel: Zuschlag = kg × (Tageskurs − Basis), Kurse in € je 100 kg */
+export interface DatanormMetall {
+  art: string;
+  /** kg je 1 Einheit */
+  kgJe1: number;
+  /** im Preis schon enthaltene Metallbasis, € je 100 kg */
+  basis: number;
+}
+
+/** Metallzuschlag je Einheit bei Tageskurs `kurs` (€ je 100 kg) */
+export const metallZuschlag = (m: DatanormMetall, kurs: number) => rund4(m.kgJe1 * (kurs - m.basis) / 100);
+
+/**
+ * Tageskurse aus der Metallbasis-Datei des Händlers („Metallart;Kurs;Startdatum“,
+ * Kurs in € je Tonne) → € je 100 kg. null = keine solche Datei.
+ */
+export function metallkurseLesen(text: string): Record<string, number> | null {
+  const zeilen = text.split(/\r\n|\n|\r/).map((z) => z.split(";").map((x) => x.trim()));
+  if (!/^metall/i.test(zeilen[0]?.[0] ?? "")) return null;
+  const kurse: Record<string, number> = {};
+  for (const [art, kurs] of zeilen.slice(1)) {
+    const n = Number((kurs ?? "").replace(",", "."));
+    if (/^[A-Z]{2}$/i.test(art ?? "") && n > 0) kurse[art.toUpperCase()] = rund4(n / 10);
+  }
+  return Object.keys(kurse).length ? kurse : null;
 }
 
 export interface DatanormRabattgruppe {
@@ -391,6 +423,9 @@ interface Roh {
   pListe: number | null;
   pNetto: number | null;
   geloescht: boolean;
+  hersteller: string;
+  herstellerNr: string;
+  metall: DatanormMetall | null;
   /** A-Satz ohne Kurztext — wo er steht, für die Problemliste */
   ohneText?: Omit<DatanormProblem, "grund"> | null;
 }
@@ -398,6 +433,7 @@ interface Roh {
 const rohLeer = (nr: string): Roh => ({
   nr, kt1: "", kt2: "", me: "", teiler: 1, rabattgruppe: "", hwg: "", wg: "", ean: "",
   liste: null, netto: null, rabatt: null, pListe: null, pNetto: null, geloescht: false,
+  hersteller: "", herstellerNr: "", metall: null,
 });
 
 /** Preis (je Preiseinheit) in Liste/Netto einsortieren — „ohne Preis“ überschreibt nie. */
@@ -428,6 +464,7 @@ type PSatz = { nr: string; pk: string; preis: number | null; teiler: number | nu
 export class DatanormLeser {
   private roh = new Map<string, Roh>();
   private pSaetze: PSatz[] = [];
+  private zSaetze = new Map<string, DatanormMetall>();
   private bZusatz = new Map<string, { ean: string; wg: string }>();
   private wg = new Map<string, { hauptwarengruppe: string; warengruppe: string; name: string }>();
   private rabattgruppen: DatanormRabattgruppe[] = [];
@@ -519,6 +556,9 @@ export class DatanormLeser {
         r.hwg = t(f[10]) || r.hwg;
         r.wg = t(f[11]) || r.wg;
         r.ean = eanAus(f[18]) || r.ean;
+        // Sonepar schreibt bei Kabeln die Warengruppe ins Herstellerfeld
+        if (!/^KABEL[- ]/i.test(t(f[15]))) r.hersteller = t(f[15]) || r.hersteller;
+        r.herstellerNr = t(f[16]) || r.herstellerNr;
         preisSetzen(r, t(f[6]), this.preis(f[8]), false);
       } else {
         r.kt1 = f[4] ?? "";
@@ -595,6 +635,21 @@ export class DatanormLeser {
       }
       return;
     }
+    if (art === "Z") {
+      this.saetze++;
+      // DN5: Z;Kz;Nr;Zuschlagsnr;Art;Metall;Kz;Bezugsmenge;Basis(€/100 kg, 2 Stellen);Kz;Gewicht(kg, 2 Stellen);PE
+      if (t(f[1]) === "L") return;
+      const nr = t(f[2]);
+      const bezug = Number(t(f[7]));
+      const basis = Number(t(f[8])) / 100;
+      const kg = Number(t(f[10])) / 100;
+      if (!nr || !(bezug > 0) || !(kg > 0) || !Number.isFinite(basis) || !/^[A-Z]{2}$/i.test(t(f[5]))) {
+        this.problem("Metallzuschlag nicht lesbar");
+        return;
+      }
+      this.zSaetze.set(nr, { art: t(f[5]).toUpperCase(), kgJe1: kg / bezug, basis });
+      return;
+    }
     if (art === "R") {
       this.saetze++;
       const code = t(f[1]);
@@ -661,6 +716,9 @@ export class DatanormLeser {
         warengruppe: r.wg || r.hwg,
         warengruppeName: wgName(r.hwg, r.wg),
         ean: r.ean,
+        hersteller: r.hersteller,
+        herstellerNr: r.herstellerNr,
+        metall: this.zSaetze.get(r.nr) ?? null,
       });
     }
     // In Lesereihenfolge: Datei für Datei, Zeile für Zeile

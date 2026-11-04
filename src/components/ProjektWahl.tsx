@@ -27,10 +27,10 @@ export function ProjektWahl({
       <SelectTrigger id={id} className="h-12 text-left">
         <SelectValue placeholder={liste.length ? leerText : "Noch kein Projekt angelegt"} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="max-w-[calc(100vw-2rem)]">
         {liste.map((p) => (
           <SelectItem key={p.id} value={p.id} className="py-2.5">
-            <span className="flex items-baseline gap-2 min-w-0">
+            <span className="flex items-baseline gap-2 min-w-0 max-w-[calc(100vw-5rem)]">
               <span className="font-mono text-xs text-muted-foreground shrink-0">{p.nummer}</span>
               <span className="truncate font-medium">{p.name}</span>
               {(p.kunden?.name || p.ort) && (
