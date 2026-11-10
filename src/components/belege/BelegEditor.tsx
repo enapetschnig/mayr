@@ -4,8 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Ban, Calculator, Check, Clock, Copy, Download, FileText, FolderInput, LockOpen, Mic, MoreVertical, Package, PenLine, Percent, Plus,
-  Receipt, RotateCcw, Rows3, Save, Sparkles, SplitSquareHorizontal, ThumbsDown, ThumbsUp, Trash2, Undo2,
+  Ban, Calculator, Check, Clock, Copy, Download, Eye, FileText, FolderInput, LockOpen, Mic, MoreVertical, Package, PenLine, Percent, Plus,
+  LayoutGrid, Receipt, RotateCcw, Rows3, Save, Sparkles, SplitSquareHorizontal, ThumbsDown, ThumbsUp, Trash2, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,6 +44,8 @@ import {
 } from "./editor";
 import { ImportDialog, type ImportErgebnis } from "./ImportDialog";
 import { KiMaterialDialog } from "./KiMaterialDialog";
+import { KatalogDialog, type KatalogWahl } from "./KatalogDialog";
+import { LiveVorschau } from "./LiveVorschau";
 import { LeistungDialog } from "./LeistungDialog";
 import { PositionDialog } from "./PositionDialog";
 import { PositionenEditor } from "./PositionenEditor";
@@ -63,8 +65,21 @@ const schnappschuss = (k: Kopf, p: EditorPosition[]) => JSON.stringify([k, p]);
 const DETAIL = (id: string) => ["belege", "detail", id];
 const NACH_AENDERUNG = ["belege", "projekte", "projekt_zahlen", "zeiten", "material", "regieberichte"];
 const KALK_KEY = "elektro.beleg.kalk";
+const VORSCHAU_KEY = "elektro.beleg.vorschau";
 /** Feld einer gerade angelegten Zeile fokussieren (nach dem nächsten Zeichnen) */
 // Inhalt markiert — Tippen ersetzt „0,00“ statt anzuhängen
+/** Passt die Breite auf die Abfrage? (Vorschau rechts nur auf breiten Bildschirmen) */
+function useMedia(abfrage: string) {
+  const [ja, setJa] = useState(() => typeof window !== "undefined" && window.matchMedia(abfrage).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(abfrage);
+    const aendern = () => setJa(mql.matches);
+    mql.addEventListener("change", aendern);
+    return () => mql.removeEventListener("change", aendern);
+  }, [abfrage]);
+  return ja;
+}
+
 const fokus = (selektor: string) => window.setTimeout(() => {
   const feld = document.querySelector<HTMLInputElement>(selektor);
   feld?.focus();
@@ -72,7 +87,7 @@ const fokus = (selektor: string) => window.setTimeout(() => {
 }, 50);
 
 type Frage = "fertig" | "storno" | "entsperren" | null;
-type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | "teil" | "aufschlaege" | "ki" | null;
+type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | "teil" | "aufschlaege" | "ki" | "katalog" | null;
 type Icon = ComponentType<{ className?: string }>;
 
 /**
@@ -117,6 +132,11 @@ export function BelegEditor({
   const [frage, setFrage] = useState<Frage>(null);
   const [loeschen, setLoeschen] = useState<{ projektMoeglich: boolean; projektAuch: boolean } | null>(null);
   const [vorschau, setVorschau] = useState<{ url: string; blob: Blob; dateiname: string } | null>(null);
+  // Mitlaufende Vorschau: am breiten PC rechts daneben (gemerkt), sonst als Vollbild
+  const [seitenVorschau, setSeitenVorschauState] = useState(() => { try { return localStorage.getItem(VORSCHAU_KEY) !== "aus"; } catch { return true; } });
+  const setSeitenVorschau = (an: boolean) => { setSeitenVorschauState(an); try { localStorage.setItem(VORSCHAU_KEY, an ? "an" : "aus"); } catch { /* egal */ } };
+  const [vollVorschau, setVollVorschau] = useState(false);
+  const breitGenug = useMedia("(min-width: 1536px)");
   const [dialog, setDialog] = useState<Dialog>(autoSprache ? "sprache" : autoImport ? "import" : autoKi ? "ki" : null);
   // EK und Aufschlag als Spalten am PC — gemerkt je Gerät
   const [kalkSpalten, setKalkSpalten] = useState(() => {
@@ -546,6 +566,41 @@ export function BelegEditor({
     if (!(await archivieren(d.beleg.id, blob))) toast.warning("PDF nicht abgelegt — das passiert beim nächsten Öffnen.");
   };
 
+  /** PDF aus dem Stand im Editor (auch ungespeichert) — für „PDF“ und die Vorschau */
+  const entwurfPdf = async (f: NonNullable<typeof firma>) => belegPdfErstellen({
+    beleg: {
+      typ: kopf.typ,
+      nummer: beleg?.nummer ?? null,
+      status,
+      datum: kopf.datum,
+      leistung_von: kopf.leistung_von || null,
+      leistung_bis: kopf.leistung_bis || null,
+      gueltig_bis: kopf.gueltig_bis || null,
+      faellig_am: kopf.faellig_am || null,
+      betreff: kopf.betreff.trim() || null,
+      einleitung: kopf.einleitung.trim() || null,
+      schlusstext: kopf.schlusstext.trim() || null,
+      ust_satz: kopf.ust_satz,
+      reverse_charge: kopf.reverse_charge,
+      kv_verbindlich: kopf.kv_verbindlich,
+      empf_name: kopf.empf_name.trim() || null,
+      empf_zusatz: kopf.empf_zusatz.trim() || null,
+      empf_strasse: kopf.empf_strasse.trim() || null,
+      empf_plz: kopf.empf_plz.trim() || null,
+      empf_ort: kopf.empf_ort.trim() || null,
+      empf_uid: kopf.empf_uid.trim() || null,
+      teil_nr: beleg?.teil_nr ?? null,
+    },
+    positionen: positionen.map((p) => ({
+      art: p.art, bezeichnung: p.bezeichnung, langtext: p.langtext, menge: mengeVon(p), einheit: p.einheit, einzelpreis: preisVon(p),
+    })),
+    firma: f,
+    projekt: await projektFuerPdf(),
+    stornoZu: await stornoZuFuerPdf(),
+    ersetzt: await ersetztFuerPdf(),
+    abzuege: await abzuegeLaden(positionen.filter((p) => p.art === "abzug").flatMap((p) => p.quelle?.teil ?? [])),
+  });
+
   const pdf = () => ausfuehren("pdf", async () => {
     if (!firma) throw new Error("Firmendaten fehlen — bitte in den Einstellungen eintragen.");
     if (!entwurf && dirty) throw new Error("Bitte zuerst speichern.");
@@ -559,39 +614,7 @@ export function BelegEditor({
       else await pdfTeilenOderLaden(datei.blob, datei.dateiname);
       return;
     }
-    const { blob, dateiname } = await belegPdfErstellen({
-      beleg: {
-        typ: kopf.typ,
-        nummer: beleg?.nummer ?? null,
-        status,
-        datum: kopf.datum,
-        leistung_von: kopf.leistung_von || null,
-        leistung_bis: kopf.leistung_bis || null,
-        gueltig_bis: kopf.gueltig_bis || null,
-        faellig_am: kopf.faellig_am || null,
-        betreff: kopf.betreff.trim() || null,
-        einleitung: kopf.einleitung.trim() || null,
-        schlusstext: kopf.schlusstext.trim() || null,
-        ust_satz: kopf.ust_satz,
-        reverse_charge: kopf.reverse_charge,
-        kv_verbindlich: kopf.kv_verbindlich,
-        empf_name: kopf.empf_name.trim() || null,
-        empf_zusatz: kopf.empf_zusatz.trim() || null,
-        empf_strasse: kopf.empf_strasse.trim() || null,
-        empf_plz: kopf.empf_plz.trim() || null,
-        empf_ort: kopf.empf_ort.trim() || null,
-        empf_uid: kopf.empf_uid.trim() || null,
-        teil_nr: beleg?.teil_nr ?? null,
-      },
-      positionen: positionen.map((p) => ({
-        art: p.art, bezeichnung: p.bezeichnung, langtext: p.langtext, menge: mengeVon(p), einheit: p.einheit, einzelpreis: preisVon(p),
-      })),
-      firma,
-      projekt: await projektFuerPdf(),
-      stornoZu: await stornoZuFuerPdf(),
-      ersetzt: await ersetztFuerPdf(),
-      abzuege: await abzuegeLaden(positionen.filter((p) => p.art === "abzug").flatMap((p) => p.quelle?.teil ?? [])),
-    });
+    const { blob, dateiname } = await entwurfPdf(firma);
     if (original) void archivieren(id, blob);
     if (pc) setVorschau({ url: URL.createObjectURL(blob), blob, dateiname });
     else await pdfTeilenOderLaden(blob, dateiname);
@@ -617,6 +640,10 @@ export function BelegEditor({
   // Eingabezeile: unter den aktiven Titel, wie die Knöpfe
   const schnellLeistung = (l: KatalogLeistung, menge: number) =>
     setPositionen((alt) => hinzufuegen(alt, leistungPosition(l, firma, stundensatz, menge), aktiverTitel).liste);
+  const katalogUebernehmen = (wahl: KatalogWahl[]) => {
+    setPositionen((alt) => wahl.reduce((liste, w) => hinzufuegen(liste, { ...artikelPosition(w.artikel, firma), menge: zahlText(w.menge) }, aktiverTitel).liste, alt));
+    toast.success(`${wahl.length} Artikel übernommen`);
+  };
   const schnellArtikel = (a: Artikel, menge: number) =>
     setPositionen((alt) => hinzufuegen(alt, { ...artikelPosition(a, firma), menge: zahlText(menge) }, aktiverTitel).liste);
   const schnellFrei = (text: string, menge: number) => {
@@ -757,8 +784,17 @@ export function BelegEditor({
     </DropdownMenu>
   );
 
+  const vorschauKnopf = (
+    <Button variant={(breitGenug && seitenVorschau) || vollVorschau ? "secondary" : "outline"} className={pc ? "h-10" : "h-11 w-11 px-0"}
+      aria-pressed={breitGenug ? seitenVorschau : vollVorschau} aria-label="Vorschau" title="So sieht das PDF für den Kunden aus — läuft beim Schreiben mit"
+      onClick={() => (pc && breitGenug ? setSeitenVorschau(!seitenVorschau) : setVollVorschau(true))}>
+      <Eye className={pc ? "h-4 w-4" : "h-5 w-5"} />{pc && " Vorschau"}
+    </Button>
+  );
+
   const aktionen = pc ? (
     <>
+      {vorschauKnopf}
       <Button variant="outline" className="h-10" onClick={pdf} disabled={!!laeuft}>
         <FileText className="h-4 w-4" /> {laeuft === "pdf" ? "PDF …" : "PDF"}
       </Button>
@@ -776,6 +812,7 @@ export function BelegEditor({
     </>
   ) : (
     <>
+      {vorschauKnopf}
       <Button variant="ghost" size="icon" className="h-11 w-11" onClick={pdf} disabled={!!laeuft} aria-label="PDF">
         <FileText className="h-5 w-5" />
       </Button>
@@ -910,6 +947,7 @@ export function BelegEditor({
     ...(!istAngebot ? [{ key: "import", text: kopf.projekt_id ? "Aus dem Projekt übernehmen" : "Aus dem Projekt (erst Projekt wählen)", icon: FolderInput, onClick: () => setDialog("import"), primaer: true, aus: !kopf.projekt_id }] : []),
     { key: "leistung", text: istAngebot ? "Leistung hinzufügen" : "Leistung", icon: Plus, onClick: () => setDialog("leistung"), primaer: istAngebot },
     { key: "sprache", text: "Diktieren", icon: Mic, onClick: () => setDialog("sprache") },
+    { key: "katalog", text: "Artikelkatalog", icon: LayoutGrid, onClick: () => setDialog("katalog") },
     { key: "ki", text: "Material per KI", icon: Sparkles, onClick: () => setDialog("ki") },
     { key: "arbeitszeit", text: "Arbeitszeit", icon: Clock, onClick: () => setDialog("arbeitszeit") },
     { key: "titel", text: "Raum / Titel", icon: Rows3, onClick: () => titelAnlegen("") },
@@ -962,8 +1000,14 @@ export function BelegEditor({
     return { stunden: minuten / 60, ek };
   }, [positionen]);
 
+  const mitSeite = pc && breitGenug && seitenVorschau;
+  const vorschauStand = JSON.stringify([kopf, positionen, firma?.id, beleg?.nummer, status]);
+  const vorschauErzeugen = async () => (firma ? (await entwurfPdf(firma)).blob : null);
+
   return (
-    <Seite titel={titel} untertitel={untertitel} aktionen={aktionen} breit={pc}>
+    <Seite titel={titel} untertitel={untertitel} aktionen={aktionen} breit={pc} className={mitSeite ? "max-w-none" : undefined}>
+      <div className={cn(mitSeite && "grid grid-cols-[minmax(0,1fr)_minmax(26rem,34rem)] items-start gap-6")}>
+      <div className="min-w-0 space-y-5">
       {statusKarte}
       {beleg && !istAngebot && !entwurf && !istStorno && <OpKarte rechnung={beleg} onGeaendert={() => void neuHolen()} />}
 
@@ -1066,6 +1110,18 @@ export function BelegEditor({
         </div>
       )}
 
+      </div>
+      {mitSeite && (
+        <aside className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-lg border bg-muted/40 p-3" aria-label="PDF-Vorschau">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <p className="text-sm font-semibold">Vorschau</p>
+            <button type="button" className="text-xs font-medium text-muted-foreground hover:text-foreground" onClick={() => setSeitenVorschau(false)}>ausblenden</button>
+          </div>
+          <LiveVorschau stand={vorschauStand} erzeugen={vorschauErzeugen} />
+        </aside>
+      )}
+      </div>
+
       {entwurf && !pc && (
         <Button variant="outline" className="h-12 w-full" onClick={() => void fertigFragen()} disabled={!!laeuft}>
           <Check className="h-4 w-4" /> Fertigstellen — Nummer vergeben
@@ -1110,6 +1166,7 @@ export function BelegEditor({
         firma={firma}
         stundensatz={stundensatz}
       />
+      <KatalogDialog open={dialog === "katalog"} onOpenChange={(o) => setDialog(o ? "katalog" : null)} ziel={titelName} onUebernehmen={katalogUebernehmen} />
       <KiMaterialDialog open={dialog === "ki"} onOpenChange={(o) => setDialog(o ? "ki" : null)} onUebernehmen={kiUebernehmen} />
       <AufschlaegeDialog open={dialog === "aufschlaege"} onOpenChange={(o) => setDialog(o ? "aufschlaege" : null)} positionen={positionen}
         stundensatz={stundensatz} materialStandard={Number(firma?.material_aufschlag ?? 0)} ustSatz={kopf.ust_satz} ohneUst={ohneUst}
@@ -1265,6 +1322,12 @@ export function BelegEditor({
         }}
         speichertGerade={laeuft === "speichern"}
       />
+
+      <FormularDialog open={vollVorschau} onOpenChange={setVollVorschau} titel="Vorschau" breite="breit"
+        beschreibung="So bekommt es der Kunde — mit allen Änderungen, auch ungespeicherten."
+        fuss={<Button className="h-12" onClick={() => setVollVorschau(false)}>Zurück zum Bearbeiten</Button>}>
+        {vollVorschau && <LiveVorschau stand={vorschauStand} erzeugen={vorschauErzeugen} className="mx-auto w-full max-w-3xl" />}
+      </FormularDialog>
 
       <FormularDialog
         open={!!vorschau}

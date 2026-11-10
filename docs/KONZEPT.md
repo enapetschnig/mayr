@@ -357,6 +357,21 @@ Bewusst einfach, kein eigenes Kalkulationsblatt:
   sagen oder tippen → die KI schlägt Komponenten mit Menge vor, je Zeile ein
   Artikel aus dem eigenen Stamm samt Alternativen oder „Ohne Artikel“; nichts
   ist übernommen, bevor man es abhakt. Erfindet keine Artikelnummern.
+- **Artikelkatalog** (`KatalogDialog`, Knopf neben „Material per KI“ — eine
+  Option, das Angebot geht weiter ganz normal): Kacheln je Kategorie mit
+  Anzahl → Hersteller und Programm (Warengruppe des Lieferanten) als Filter →
+  Artikelliste mit Preis und ＋/−/Menge; gesammelt wird im Korb, „n übernehmen“
+  setzt alles unter den aktiven Titel. Suche im ganzen Katalog oder in der
+  Kategorie. Datanorm-Artikel ordnet `artikel_einordnen(warengruppe)` in die
+  15 Kategorien der Demo-Artikel ein, `artikel_unterkategorie` macht aus
+  „Euro Unitech (PG 08) Jung LS990“ „Jung LS990“; der Trigger
+  `artikel_kategorie` tut das bei jedem Import. Baum: RPC `artikel_katalog()`
+  (Migrationen `20261111130000`/`…131000`).
+- **PDF-Vorschau live** (`LiveVorschau.tsx`, pdf.js auf Canvas): am breiten PC
+  (≥ 1536 px) rechts neben dem Editor, ausblendbar (`elektro.beleg.vorschau`);
+  sonst „Vorschau“ im Kopf als Vollbild — auch am Handy. Zeigt genau das PDF,
+  das der Kunde bekommt, ohne zu speichern; neu gezeichnet 0,7 s nach der
+  letzten Eingabe.
 - **Rabatte beim Großhandel** (`rabatte`, Artikel → Rabatte, nur Chef): je
   Lieferant, optional Hersteller oder Rabattgruppe; das genaueste gewinnt.
   `rabatte_anwenden` rechnet EK = Liste − Rabatt neu (in Häppchen wegen des

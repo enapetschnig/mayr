@@ -40,7 +40,7 @@ Hardware existiert.
 | 11 | **Geräte, Etiketten, Mängel** | Geräte & Werkzeuge mit QR (Übergabe per Scan, Kalibriertermine, Messgerät im Prüfprotokoll), Strichcode-Etiketten für Lagerartikel, Mängel mit Frist bei Anlagen → Angebot | geplant |
 | 13 | **Plantafel & Fuhrpark** | Teams mit Bus, Einsätze ziehen, Steiger und Maschinen einteilen, Konflikte, Bordbuch, Pickerl/Service/Prüfung fällig, Schäden vom Handy; Gantt mit Woche bis 3 Monate, alles ziehen, Bus je Team tauschen, Rückgängig | ✅ 10.11.2026 |
 | 14 | **Stundenauswertung** | Zeitraum, Mitarbeiter/Team, Projekt, Art, verrechnet; gruppiert, CSV, Stundennachweis; Von–Bis je Tag mit Zeitleiste | ✅ 10.11.2026 |
-| 15 | **KI im Angebot** | Material per KI aus dem eigenen Stamm, Aufschläge je Position und Beleg, Rabatte je Lieferant/Hersteller/Rabattgruppe | ✅ 10.11.2026 |
+| 15 | **KI im Angebot** | Material per KI aus dem eigenen Stamm, Aufschläge je Position und Beleg, Rabatte je Lieferant/Hersteller/Rabattgruppe; Artikelkatalog nach Kategorien (Datanorm), PDF-Vorschau live | ✅ 10.11.2026 |
 | 12 | **Später / auf Wunsch** | Offline-Warteschlange für Buchungen, einfaches Aufmaß, ÖNORM-LV | später |
 
 Bewusst **nicht** übernommen: Registrierkasse/Barverkauf (RKSV-Signatur braucht zertifizierte Hardware
