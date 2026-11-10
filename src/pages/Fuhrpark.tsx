@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Bus, Car, Container, Gauge, Plus, Truck, Wrench, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Bus, Plus, type LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
 import { Leer, StatusPille } from "@/components/Bausteine";
 import { Button } from "@/components/ui/button";
 import { FahrzeugDialog } from "@/components/fuhrpark/FahrzeugDialog";
-import { useOffeneSchaeden } from "@/components/fuhrpark/fuhrparkDaten";
+import { FAHRZEUG_ICON as ART_ICON, useOffeneSchaeden } from "@/components/fuhrpark/fuhrparkDaten";
 import { useFahrzeuge, useTeams } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datumKurz, isoTag } from "@/lib/format";
@@ -14,8 +14,6 @@ import { faelligkeiten, faelligText } from "@/lib/fuhrpark";
 import { amTag } from "@/lib/plantafel";
 import { FAHRZEUG_ART, TEAM_FARBEN, type Fahrzeug, type FahrzeugArt } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const ART_ICON: Record<FahrzeugArt, LucideIcon> = { bus: Bus, pkw: Car, steiger: Truck, anhaenger: Container, maschine: Wrench, messgeraet: Gauge };
 
 /**
  * /fuhrpark — oben je Art eine Kachel (Anzahl, wie viele heute unterwegs) zum

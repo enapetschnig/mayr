@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import { Bus, Car, Container, Gauge, Truck, Wrench, type LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { FahrzeugArt } from "@/lib/types";
+
+/** Bild je Art — Fuhrpark und Plantafel */
+export const FAHRZEUG_ICON: Record<FahrzeugArt, LucideIcon> = { bus: Bus, pkw: Car, steiger: Truck, anhaenger: Container, maschine: Wrench, messgeraet: Gauge };
 
 /** Offene Schäden je Fahrzeug */
 export function useOffeneSchaeden() {

@@ -100,7 +100,9 @@ const mit = (liste: string[], id: string | null | undefined) => (id && !liste.in
  * oder was ihn übernimmt:
  * - Team: das Team mit seinen Leuten und seinem Bus
  * - Person / Fahrzeug: tauscht gegen die Person / das Fahrzeug der alten Zeile,
- *   sonst kommt sie dazu
+ *   sonst kommt sie dazu; Leute und Geräte mischen sich nicht — ein Einsatz aus
+ *   der Steigerzeile auf ein Team behält den Steiger, einer aus einer
+ *   Personenzeile auf den Steiger behält die Person
  * - „Nicht eingeteilt“: die alte Zeile fällt weg
  */
 export function ablegen(
@@ -119,8 +121,8 @@ export function ablegen(
 
   if (!gleicheZeile) {
     // aus der alten Zeile lösen
-    if (alt.art === "person") mitarbeiter = ohne(mitarbeiter, alt.id);
-    if (alt.art === "fahrzeug") fahrzeuge = ohne(fahrzeuge, alt.id);
+    if (alt.art === "person" && neu.art !== "fahrzeug") mitarbeiter = ohne(mitarbeiter, alt.id);
+    if (alt.art === "fahrzeug" && neu.art === "fahrzeug") fahrzeuge = ohne(fahrzeuge, alt.id);
     if (alt.art === "team" && (neu.art === "team" || neu.art === "offen")) {
       const altTeam = teams.find((x) => x.id === alt.id);
       mitarbeiter = mitarbeiter.filter((m) => !altTeam?.mitglieder.includes(m));

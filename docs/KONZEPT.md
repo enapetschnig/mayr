@@ -469,8 +469,11 @@ Migration `20261110100000_fuhrpark_teams_plantafel.sql`, Logik in
   Heute-Linie. Jeder Balken trägt die Farbe seines Projekts (`projektFarbe`,
   12 kräftige Farben, Schrift per `textAuf`), Wochenenden sind Lücken
   (`arbeitsStuecke`). Zeilen: je Team ein Kopf (zuklappbar, Bus als Auswahl —
-  Busse haben keine eigene Zeile) mit seinen Leuten, „Ohne Team“, „Nicht
-  eingeteilt“. In der Personenzeile erscheinen Einsätze des eigenen Teams nur
+  der Bus eines Teams hat keine eigene Zeile) mit seinen Leuten, „+ Neues
+  Team“ (Namen tippen oder eine Person hereinziehen = Team mit ihr als
+  Leitung), „Ohne Team“, „Geräte & Fahrzeuge“ (zuklappbar: Steiger,
+  Anhänger, Maschinen, Messgeräte, Busse ohne Team; „+ Gerät“ legt eines an),
+  „Nicht eingeteilt“. In der Personenzeile erscheinen Einsätze des eigenen Teams nur
   als dünner Strich, eigene Einsätze als Balken.
 - Balken antippen = kleines Fenster am Balken (`BalkenInfo`: Projekt, Zeit,
   Ort, Leute herausnehmen, Geräte an/ab, Erledigt, Löschen); erst
@@ -480,7 +483,11 @@ Migration `20261110100000_fuhrpark_teams_plantafel.sql`, Logik in
   7:00–15:30. Ziehen (Maus, am Tablet langer Druck): Balken = verschieben,
   auch in eine andere Zeile (`ablegen`); mit Strg/Alt = kopieren; Ränder =
   länger/kürzer; leere Tage aufziehen = neuer Einsatz; Person am Griff ⋮⋮ auf
-  einen Balken (`zuweisen`) oder ein Team (Mitglied wechseln). Bus tauschen
+  einen Balken (`zuweisen`) oder ein Team (Mitglied wechseln); Gerät am Griff
+  auf einen Balken = mitnehmen, Bus/PKW auf ein Team = Bus des Teams; Projekt
+  auf die Steigerzeile = Einsatz nur mit dem Steiger. Ein Balken aus der
+  Gerätezeile auf ein Team behält das Gerät (Leute und Geräte tauschen nur
+  untereinander). Bus tauschen
   ändert auch die Einsätze des Teams ab heute. Alles mit Rückgängig (Knopf,
   Strg+Z). Konflikte (doppelt, abwesend) als roter Knopf in der Leiste.
 - Am Handy eine Liste je Tag der Woche, Alle oder Meine (Monteur: Meine),

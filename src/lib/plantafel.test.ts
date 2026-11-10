@@ -70,6 +70,16 @@ describe("ablegen", () => {
     const r = ablegen(e, { zeile: { art: "fahrzeug", id: "steiger" }, tag: "2026-11-10" }, { zeile: { art: "fahrzeug", id: "miete" }, tag: "2026-11-11" }, teams);
     expect(r).toMatchObject({ datum: "2026-11-11", fahrzeuge: ["bus1", "miete"] });
   });
+  it("aus der Steigerzeile auf ein Team: Steiger bleibt, Team kommt dazu", () => {
+    const e = t({ id: "a", fahrzeuge: ["steiger"] });
+    const r = ablegen(e, { zeile: { art: "fahrzeug", id: "steiger" }, tag: "2026-11-10" }, { zeile: { art: "team", id: "t1" }, tag: "2026-11-10" }, teams);
+    expect(r).toMatchObject({ team_id: "t1", mitarbeiter: ["max", "lisa"], fahrzeuge: ["steiger", "bus1"] });
+  });
+  it("aus einer Personenzeile auf den Steiger: Person bleibt, Steiger kommt dazu", () => {
+    const e = t({ id: "a", mitarbeiter: ["max"] });
+    const r = ablegen(e, { zeile: { art: "person", id: "max" }, tag: "2026-11-10" }, { zeile: { art: "fahrzeug", id: "steiger" }, tag: "2026-11-10" }, teams);
+    expect(r).toMatchObject({ mitarbeiter: ["max"], fahrzeuge: ["steiger"] });
+  });
   it("aus „Nicht eingeteilt“ auf ein Team: Team übernimmt", () => {
     const e = t({ id: "a" });
     const r = ablegen(e, { zeile: { art: "offen" }, tag: "2026-11-10" }, { zeile: { art: "team", id: "t1" }, tag: "2026-11-10" }, teams);

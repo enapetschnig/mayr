@@ -3,30 +3,37 @@ import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Check, ChevronDown, ChevronsDownUp, ChevronsUpDown, Clock, FolderKanban, GripVertical, HelpCircle, MapPin, Pencil, Search, Trash2, Truck, Undo2, Users, X,
+  Check, ChevronDown, ChevronsDownUp, ChevronsUpDown, Clock, FolderKanban, GripVertical, HelpCircle, MapPin, Pencil, Plus, Search, Trash2, Truck, Undo2, Users, X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar } from "@/components/Bausteine";
 import { Button } from "@/components/ui/button";
 import { fehlerText } from "@/components/stamm/stammDaten";
+import { FahrzeugDialog } from "@/components/fuhrpark/FahrzeugDialog";
+import { FAHRZEUG_ICON } from "@/components/fuhrpark/fuhrparkDaten";
 import { datum as datumText, isoZuDatum, tageDazu, uhrzeit } from "@/lib/format";
 import {
   ablegen, amTag, ANSICHTEN, arbeitsStuecke, bahnen, balkenLage, inZeile, projektFarbe, tageZwischen, textAuf, verschieben, type Ansicht, type Griff, type Zeile,
 } from "@/lib/plantafel";
 import { feiertagName } from "@/lib/zeitkonto";
-import { ABWESENHEIT_ART, TEAM_FARBEN, name, type AbwesenheitArt, type Fahrzeug, type Profil, type Projekt, type Team, type Termin } from "@/lib/types";
+import {
+  ABWESENHEIT_ART, FAHRZEUG_ART, TEAM_FARBEN, name, type AbwesenheitArt, type Fahrzeug, type FahrzeugArt, type Profil, type Projekt, type Team, type Termin,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
  * Plantafel als Gantt über die ganze Breite (Vorbild Steinbrecher-Ressourcenplanung):
- * links die Teams (mit ihrem Bus) und ihre Leute, Leute ohne Team und „Nicht eingeteilt“,
+ * links die Teams (mit ihrem Bus) und ihre Leute, Leute ohne Team, Geräte & Fahrzeuge
+ * (Steiger, Anhänger, Maschinen, Messgeräte, Busse ohne Team) und „Nicht eingeteilt“,
  * rechts die Tage. Jeder Balken trägt die Farbe seines Projekts; Wochenende und
- * Feiertage bleiben Lücken. Busse haben keine eigenen Zeilen — der Bus gehört zum Team.
+ * Feiertage bleiben Lücken. Der Bus eines Teams hat keine eigene Zeile — er gehört zum Team.
  * - Antippen = kleines Fenster am Balken (Bearbeiten, Projekt, erledigt, löschen)
  * - Ziehen = verschieben, auch in eine andere Zeile (Strg/Alt = kopieren)
  * - Ränder ziehen = früher anfangen / länger; leere Tage aufziehen = neuer Einsatz
  * - Oben „Noch nicht eingeplant“: Projekt auf eine Zeile ziehen = bis Freitag eingeplant
- * - Person am Griff ⋮⋮ auf einen Balken = dazuholen, auf ein Team = ins Team
+ * - Person am Griff ⋮⋮ auf einen Balken = dazuholen, auf ein Team = ins Team,
+ *   auf „Neues Team“ = eigenes Team; „+ Neues Team“ legt eines mit Namen an
+ * - Gerät am Griff ⋮⋮ auf einen Balken = mitnehmen; Bus/PKW auf ein Team = Bus des Teams
  * Alles wirkt sofort und lässt sich mit Strg+Z zurücknehmen. Am Tablet: halten = ziehen.
  */
 
@@ -40,14 +47,20 @@ const zeileAus = (s: string): Zeile => (s === "offen" ? { art: "offen" } : { art
 const kurz = (iso: string) => `${WT[wochentag(iso)]} ${datumText(iso).slice(0, 6)}`;
 const ZU_KEY = "elektro.plantafel.zu";
 const STREIFEN_KEY = "elektro.plantafel.streifen";
+const GERAETE = "geraete";
+const ART_FOLGE: FahrzeugArt[] = ["steiger", "anhaenger", "maschine", "messgeraet", "bus", "pkw"];
 
 type Inhalt =
   | { art: "balken"; id: string; griff: Griff; zeile: Zeile; tag: string }
   | { art: "neu"; zeile: Zeile; tag: string }
   | { art: "projekt"; id: string }
-  | { art: "person"; id: string };
-/** ziel = Zeile unter dem Zeiger, balken = Einsatz unter dem Zeiger, kopie = Strg/Alt gedrückt */
-type Ziehen = { inhalt: Inhalt; startX: number; startY: number; x: number; y: number; bewegt: boolean; sx0: number; sx: number; ziel: string | null; balken: string | null; kopie: boolean };
+  | { art: "person"; id: string }
+  | { art: "fahrzeug"; id: string };
+/** ziel = Zeile unter dem Zeiger, balken = Einsatz unter dem Zeiger, neuTeam = über „Neues Team“, kopie = Strg/Alt gedrückt */
+type Ziehen = {
+  inhalt: Inhalt; startX: number; startY: number; x: number; y: number; bewegt: boolean; sx0: number; sx: number;
+  ziel: string | null; balken: string | null; neuTeam: boolean; kopie: boolean;
+};
 type Rueck = { text: string; zurueck: () => Promise<void> };
 
 const FELDER = ["datum", "bis_datum", "mitarbeiter", "fahrzeuge", "team_id"] as const;
@@ -101,6 +114,7 @@ export function Gantt({
   const zuSetzen = (neu: string[]) => { setZu(neu); try { localStorage.setItem(ZU_KEY, JSON.stringify(neu)); } catch { /* egal */ } };
   const umklappen = (id: string) => zuSetzen(zu.includes(id) ? zu.filter((x) => x !== id) : [...zu, id]);
   const alleZu = teams.length > 0 && teams.every((t) => zu.includes(t.id));
+  const [neuesGeraet, setNeuesGeraet] = useState(false);
 
   // Zur heutigen Woche scrollen, wenn sie nicht vorne steht
   useEffect(() => {
@@ -213,12 +227,52 @@ export function Gantt({
     toast.success(`${wer} ist jetzt im Team ${ziel.name}`, { description: "Neue Einsätze des Teams nehmen ihn oder sie mit; bestehende bleiben." });
   };
 
+  /** Neues Team direkt auf der Tafel — mit Namen oder aus einer hereingezogenen Person */
+  const teamAnlegen = async (titel: string, person?: string) => {
+    const farbe = Object.keys(TEAM_FARBEN).find((f) => !teams.some((t) => t.farbe === f)) ?? "blau";
+    const vorher = person ? teams.filter((t) => t.mitglieder.includes(person)).map((t) => ({ id: t.id, mitglieder: t.mitglieder })) : [];
+    const { data, error } = await supabase.from("teams")
+      .insert({ name: titel, farbe, mitglieder: person ? [person] : [], leiter_id: person ?? null, reihenfolge: teams.length })
+      .select("id").single();
+    if (error) { toast.error("Team nicht angelegt", { description: fehlerText(error) }); return false; }
+    // fest ins neue Team — wie beim Hereinziehen in ein bestehendes
+    for (const t of vorher) await supabase.from("teams").update({ mitglieder: t.mitglieder.filter((x) => x !== person) }).eq("id", t.id);
+    setRueck((r) => [...r.slice(-29), {
+      text: `Team ${titel} angelegt`,
+      zurueck: async () => {
+        for (const t of vorher) await supabase.from("teams").update({ mitglieder: t.mitglieder }).eq("id", t.id);
+        const { error: e } = await supabase.from("teams").delete().eq("id", data.id);
+        if (e) toast.error("Nicht zurückgenommen", { description: fehlerText(e) });
+        void qc.invalidateQueries({ queryKey: ["teams"] });
+      },
+    }]);
+    toast.success(`Team ${titel} angelegt`, { description: "Leute am Griff ⋮⋮ hereinziehen, den Bus rechts im Team wählen" });
+    void qc.invalidateQueries({ queryKey: ["teams"] });
+    return true;
+  };
+
+  /** Gerät oder Fahrzeug auf einen Einsatz (mitnehmen) oder als Bus auf ein Team */
+  const geraetAblegen = async (id: string, z: Ziehen) => {
+    const f = fahrzeuge.find((x) => x.id === id);
+    if (!f) return;
+    const t = termine.find((x) => x.id === z.balken);
+    if (t) {
+      if (t.fahrzeuge.includes(id)) { toast(`${f.name} ist bei ${t.titel} schon dabei`); return; }
+      if (await aendern(t, { fahrzeuge: [...t.fahrzeuge, id] }, `${f.name} → ${t.titel}`)) toast.success(`${f.name} → ${t.titel}`);
+      return;
+    }
+    const team = z.ziel?.startsWith("team:") ? teams.find((x) => x.id === z.ziel!.slice(5)) : undefined;
+    if (team && (f.art === "bus" || f.art === "pkw")) { await busWechseln(team, id); return; }
+    toast(team ? `${FAHRZEUG_ART[f.art]?.text ?? "Gerät"} auf einen Einsatz ziehen — fest ans Team gehen nur Bus und PKW` : "Auf einen Einsatz ziehen = mitnehmen");
+  };
+
   // ------------------------------------------------------------- Ziehen
   const zielUnter = (x: number, y: number) => {
     const el = document.elementFromPoint(x, y) as HTMLElement | null;
     return {
       ziel: (el?.closest("[data-reihe]") as HTMLElement | null)?.dataset.reihe ?? null,
       balken: (el?.closest("[data-balken]") as HTMLElement | null)?.dataset.balken ?? null,
+      neuTeam: !!el?.closest("[data-neues-team]"),
     };
   };
   const tagBei = (x: number): string | null => {
@@ -233,7 +287,7 @@ export function Gantt({
     if (e.button !== 0) return;
     e.stopPropagation();
     const sx = bahnRef.current?.scrollLeft ?? 0;
-    const z0: Ziehen = { inhalt, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, bewegt: false, sx0: sx, sx, ziel: null, balken: null, kopie: false };
+    const z0: Ziehen = { inhalt, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, bewegt: false, sx0: sx, sx, ziel: null, balken: null, neuTeam: false, kopie: false };
     if (e.pointerType !== "touch") { setZiehen(z0); return; }
     // Tablet: kurz halten = ziehen, tippen = öffnen, wischen = blättern
     let timer = 0;
@@ -273,6 +327,7 @@ export function Gantt({
         if (d) await aendern(t, verschieben(t, i.griff, d), `${t.titel}: ${i.griff === "rechts" ? "Ende" : "Beginn"} verschoben`);
         return;
       }
+      if (z.neuTeam) { toast("Einen Einsatz auf ein bestehendes Team ziehen — das neue Team zuerst anlegen"); return; }
       const ziel = z.ziel ? zeileAus(z.ziel) : i.zeile;
       const nachTag = tageDazu(i.tag, d);
       const neu = ablegen(t, { zeile: i.zeile, tag: i.tag }, { zeile: ziel, tag: nachTag }, teams);
@@ -288,7 +343,14 @@ export function Gantt({
       return;
     }
     if (!darf || !z.bewegt) return;
+    if (i.art === "fahrzeug") { await geraetAblegen(i.id, z); return; }
     if (i.art === "person") {
+      if (z.neuTeam) {
+        const m = mitarbeiter.find((x) => x.id === i.id);
+        const kurzName = m?.vorname || name(m);
+        await teamAnlegen(teams.some((t) => t.name === kurzName) ? name(m) : kurzName, i.id);
+        return;
+      }
       const t = termine.find((x) => x.id === z.balken);
       const zielTeam = !t && z.ziel?.startsWith("team:") ? teams.find((x) => x.id === z.ziel!.slice(5)) : undefined;
       if (zielTeam) { await teamWechseln(i.id, zielTeam); return; }
@@ -300,7 +362,7 @@ export function Gantt({
     if (i.art === "projekt") {
       const tag = tagBei(z.x);
       const zeilenZiel = z.ziel;
-      if (!tag || !zeilenZiel) { toast("Auf ein Team oder eine Person in der Tafel ziehen"); return; }
+      if (!tag || !zeilenZiel) { toast("Auf ein Team, eine Person oder ein Gerät in der Tafel ziehen"); return; }
       const p = projekte.find((x) => x.id === i.id);
       if (!p) return;
       const zeile = zeileAus(zeilenZiel);
@@ -320,7 +382,7 @@ export function Gantt({
     if (!ziehen) return;
     let rollen = 0;
     const box = bahnRef.current;
-    const stand = (z: Ziehen) => `${z.bewegt}|${deltaTage(z)}|${z.ziel}|${z.balken}|${z.kopie}|${tagBei(z.x)}`;
+    const stand = (z: Ziehen) => `${z.bewegt}|${deltaTage(z)}|${z.ziel}|${z.balken}|${z.neuTeam}|${z.kopie}|${tagBei(z.x)}`;
     const setze = (neu: Ziehen) => {
       const alt = ziehenRef.current;
       ziehenRef.current = neu;
@@ -371,8 +433,11 @@ export function Gantt({
 
   // ------------------------------------------------------------- Zeilen
   const inTeam = new Set(teams.flatMap((t) => t.mitglieder));
-  type Reihe = { zeile: Zeile; kopf: ReactNode; art: "team" | "person" | "offen"; eingerueckt?: boolean };
-  const reihen: (Reihe | { titel: string })[] = [
+  type Reihe = { zeile: Zeile; kopf: ReactNode; art: "team" | "person" | "fahrzeug" | "offen"; eingerueckt?: boolean };
+  const teamBusse = new Set(teams.map((t) => t.fahrzeug_id).filter(Boolean));
+  const geraete = fahrzeuge.filter((f) => !teamBusse.has(f.id)).sort((x, y) => ART_FOLGE.indexOf(x.art as FahrzeugArt) - ART_FOLGE.indexOf(y.art as FahrzeugArt));
+  const geraeteZu = zu.includes(GERAETE);
+  const reihen: (Reihe | { titel: string; rechts?: ReactNode; klappen?: () => void; offen?: boolean } | { neuesTeam: true })[] = [
     ...teams.flatMap((team): Reihe[] => [
       { zeile: { art: "team", id: team.id }, art: "team",
         kopf: <TeamKopf team={team} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} darf={darf} offen={!zu.includes(team.id)} onKlappen={() => umklappen(team.id)} onBus={(id) => void busWechseln(team, id)} /> },
@@ -381,11 +446,24 @@ export function Gantt({
         kopf: <PersonKopf m={m} darf={darf} onGriff={(e) => beginne({ art: "person", id: m.id }, e)} />,
       }))),
     ]),
+    ...(darf ? [{ neuesTeam: true as const }] : []),
     ...(mitarbeiter.some((m) => !inTeam.has(m.id)) ? [{ titel: "Ohne Team" }] : []),
     ...mitarbeiter.filter((m) => !inTeam.has(m.id)).map((m): Reihe => ({
       zeile: { art: "person", id: m.id }, art: "person",
       kopf: <PersonKopf m={m} darf={darf} onGriff={(e) => beginne({ art: "person", id: m.id }, e)} />,
     })),
+    ...(geraete.length || darf ? [{
+      titel: "Geräte & Fahrzeuge", offen: !geraeteZu, klappen: () => umklappen(GERAETE),
+      rechts: darf ? (
+        <button type="button" onClick={() => setNeuesGeraet(true)} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-muted">
+          <Plus className="h-3.5 w-3.5" /> Gerät
+        </button>
+      ) : undefined,
+    }] : []),
+    ...(geraeteZu ? [] : geraete.map((f): Reihe => ({
+      zeile: { art: "fahrzeug", id: f.id }, art: "fahrzeug",
+      kopf: <FahrzeugKopf f={f} darf={darf} onGriff={(e) => beginne({ art: "fahrzeug", id: f.id }, e)} />,
+    }))),
     { zeile: { art: "offen" }, art: "offen", kopf: <span className="text-sm font-medium text-muted-foreground">Nicht eingeteilt</span> },
   ];
 
@@ -393,7 +471,7 @@ export function Gantt({
   // Während des Ziehens bleibt der gezogene Balken in seiner Zeile (Vorschau verschiebt nur den Tag)
   const zielZeile = !ziehen?.bewegt ? null
     : ziehen.inhalt.art === "balken" ? (ziehen.inhalt.griff === "mitte" ? ziehen.ziel : null)
-    : ziehen.inhalt.art === "person" ? (!ziehen.balken && ziehen.ziel?.startsWith("team:") ? ziehen.ziel : null)
+    : ziehen.inhalt.art === "person" || ziehen.inhalt.art === "fahrzeug" ? (!ziehen.balken && ziehen.ziel?.startsWith("team:") ? ziehen.ziel : null)
     : ziehen.ziel;
   const freiIndex = (i: number) => frei(tage[i] ?? tageDazu(start, i));
 
@@ -437,7 +515,7 @@ export function Gantt({
             <Balken key={t.id} t={t} lage={balkenLage(t.datum, t.bis_datum ?? t.datum, start, tage.length)!} freiIndex={freiIndex} breite={breite} top={3 + (bahn.get(t.id) ?? 0) * hoch} hoehe={hoch - 4}
               projekt={projekte.find((p) => p.id === t.projekt_id)} konflikt={konfliktIds.has(t.id)} darf={darf} offen={info?.id === t.id}
               gezogen={!!ziehen?.bewegt && ziehen.inhalt.art === "balken" && ziehen.inhalt.id === t.id}
-              ziel={!!ziehen?.bewegt && ziehen.inhalt.art === "person" && ziehen.balken === t.id}
+              ziel={!!ziehen?.bewegt && (ziehen.inhalt.art === "person" || ziehen.inhalt.art === "fahrzeug") && ziehen.balken === t.id}
               onGriff={(griff, e) => beginne({ art: "balken", id: t.id, griff, zeile: r.zeile, tag: tagBei(e.clientX) ?? t.datum }, e)} />
           ))}
           {ziehen?.bewegt && ziehen.inhalt.art === "neu" && zeileSchluessel(ziehen.inhalt.zeile) === s && (() => {
@@ -494,7 +572,16 @@ export function Gantt({
       const zeile = z.ziel ? zeileName(zeileAus(z.ziel)) : "auf ein Team oder eine Person ziehen";
       return `${p?.nummer ?? ""} → ${zeile}${tag ? ` ab ${kurz(tag)}` : ""}`;
     }
+    if (i.art === "fahrzeug") {
+      const f = fahrzeuge.find((x) => x.id === i.id);
+      const t = termine.find((x) => x.id === z.balken);
+      if (t) return `${f?.name} → ${t.titel}`;
+      const team = z.ziel?.startsWith("team:") ? teams.find((x) => x.id === z.ziel!.slice(5)) : undefined;
+      if (team && (f?.art === "bus" || f?.art === "pkw")) return `${f.name} → Bus von Team ${team.name}`;
+      return `${f?.name} → auf einen Einsatz ziehen`;
+    }
     const wer = name(mitarbeiter.find((m) => m.id === i.id));
+    if (z.neuTeam) return `${wer} → neues Team`;
     const t = termine.find((x) => x.id === z.balken);
     if (t) return `${wer} → ${t.titel}`;
     const team = z.ziel?.startsWith("team:") ? teams.find((x) => x.id === z.ziel!.slice(5)) : undefined;
@@ -517,7 +604,7 @@ export function Gantt({
                 <Undo2 className="h-4 w-4" /> Rückgängig
               </Button>
             )}
-            <span className="text-muted-foreground" title="Balken antippen = Details · ziehen = verschieben (mit Strg: kopieren) · Ränder = länger/kürzer · leere Tage aufziehen = neuer Einsatz · Projekt von oben auf ein Team ziehen · Person am Griff ⋮⋮ auf einen Einsatz oder ein Team ziehen">
+            <span className="text-muted-foreground" title="Balken antippen = Details · ziehen = verschieben (mit Strg: kopieren) · Ränder = länger/kürzer · leere Tage aufziehen = neuer Einsatz · Projekt von oben auf ein Team ziehen · Person am Griff ⋮⋮ auf einen Einsatz, ein Team oder „Neues Team“ ziehen · Gerät am Griff ⋮⋮ auf einen Einsatz ziehen (Bus auf ein Team = Bus des Teams)">
               <HelpCircle className="h-4 w-4" aria-label="Bedienung" />
             </span>
           </div>
@@ -535,7 +622,7 @@ export function Gantt({
               {wochen.map((w) => <div key={w.s} className="shrink-0 truncate border-r px-2 leading-5" style={{ width: w.laenge * breite }}>{w.laenge * breite > 36 ? w.text : ""}</div>)}
             </div>
             <div className="flex border-t">
-              <div className="sticky left-0 z-20 flex shrink-0 items-end border-r bg-card px-3 pb-1 text-xs font-medium text-muted-foreground" style={{ width: LINKS }}>Teams und Leute</div>
+              <div className="sticky left-0 z-20 flex shrink-0 items-end border-r bg-card px-3 pb-1 text-xs font-medium text-muted-foreground" style={{ width: LINKS }}>Teams, Leute, Geräte</div>
               <div ref={kopfRef} className="flex">
                 {tage.map((t, i) => {
                   const f = freiAm(t);
@@ -566,9 +653,23 @@ export function Gantt({
             {heuteIndex >= 0 && <div className="absolute bottom-0 top-0 z-[8] w-0.5 bg-red-500/80" style={{ left: heuteIndex * breite + breite / 2 }} />}
           </div>
           <div className="relative z-[1] border-b">
-            {reihen.map((r) => ("titel" in r ? (
+            {reihen.map((r) => ("neuesTeam" in r ? (
+              <div key="neues-team" className="flex border-t border-dashed" style={{ width: LINKS + gesamt }} data-neues-team>
+                <div className={cn("sticky left-0 z-20 flex shrink-0 items-center border-r bg-card px-2", ziehen?.bewegt && ziehen.neuTeam && "ring-2 ring-inset ring-primary")} style={{ width: LINKS }}>
+                  <NeuesTeam ziehen={!!ziehen?.bewegt && ziehen.inhalt.art === "person"} onAnlegen={teamAnlegen} />
+                </div>
+                <div className={cn(ziehen?.bewegt && ziehen.neuTeam && "bg-primary/10")} style={{ width: gesamt }} />
+              </div>
+            ) : "titel" in r ? (
               <div key={r.titel} className="flex border-t" style={{ width: LINKS + gesamt }}>
-                <div className="sticky left-0 z-20 shrink-0 border-r bg-card px-3 pb-1 pt-2.5 text-xs font-semibold text-muted-foreground" style={{ width: LINKS }}>{r.titel}</div>
+                <div className="sticky left-0 z-20 flex shrink-0 items-center gap-1 border-r bg-card px-2 pb-1 pt-2.5 text-xs font-semibold text-muted-foreground" style={{ width: LINKS }}>
+                  {r.klappen ? (
+                    <button type="button" onClick={r.klappen} aria-expanded={r.offen} className="flex items-center gap-1 rounded px-1 hover:text-foreground">
+                      <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !r.offen && "-rotate-90")} />{r.titel}
+                    </button>
+                  ) : <span className="px-1">{r.titel}</span>}
+                  {r.rechts && <span className="ml-auto">{r.rechts}</span>}
+                </div>
               </div>
             ) : reiheZeichnen(r)))}
           </div>
@@ -585,6 +686,8 @@ export function Gantt({
           onPersonWeg={(id) => void aendern(infoTermin, { mitarbeiter: infoTermin.mitarbeiter.filter((x) => x !== id) }, `${name(mitarbeiter.find((m) => m.id === id))} aus ${infoTermin.titel}`)}
           onLoeschen={() => void loeschen(infoTermin)} />
       )}
+
+      <FahrzeugDialog open={neuesGeraet} onOpenChange={setNeuesGeraet} fahrzeug={null} neueArt="steiger" />
 
       {z?.bewegt && (
         <div ref={chipRef} className="pointer-events-none fixed z-50 whitespace-nowrap rounded-md border-2 border-primary bg-card px-2 py-1 text-xs font-semibold"
@@ -776,6 +879,48 @@ function PersonKopf({ m, darf, onGriff }: { m: Profil; darf: boolean; onGriff: (
       <Avatar profil={m} className="h-5 w-5 text-[9px]" />
       <span className="truncate text-sm">{name(m)}</span>
     </span>
+  );
+}
+
+function FahrzeugKopf({ f, darf, onGriff }: { f: Fahrzeug; darf: boolean; onGriff: (e: React.PointerEvent) => void }) {
+  const Icon = FAHRZEUG_ICON[f.art] ?? Truck;
+  return (
+    <span className="flex w-full min-w-0 items-center gap-1.5" data-geraet={f.id}>
+      {darf && <span className="shrink-0 cursor-grab touch-none text-muted-foreground/60 hover:text-foreground" onPointerDown={onGriff} title={`${f.name} auf einen Einsatz ziehen`}><GripVertical className="h-4 w-4" /></span>}
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="truncate text-sm">{f.name}</span>
+      <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{f.gemietet ? "Miete" : FAHRZEUG_ART[f.art]?.text}</span>
+    </span>
+  );
+}
+
+/** „+ Neues Team“: antippen und Namen tippen — oder eine Person hereinziehen */
+function NeuesTeam({ ziehen, onAnlegen }: { ziehen: boolean; onAnlegen: (titel: string) => Promise<boolean> }) {
+  const [offen, setOffen] = useState(false);
+  const [titel, setTitel] = useState("");
+  const [laeuft, setLaeuft] = useState(false);
+  const fertig = async () => {
+    const t = titel.trim();
+    if (!t) { setOffen(false); return; }
+    setLaeuft(true);
+    if (await onAnlegen(t)) { setTitel(""); setOffen(false); }
+    setLaeuft(false);
+  };
+  if (ziehen) return <span className="flex h-8 items-center gap-1.5 text-sm font-medium text-primary"><Plus className="h-4 w-4" /> Hier loslassen = neues Team</span>;
+  if (!offen) {
+    return (
+      <button type="button" onClick={() => setOffen(true)} className="flex h-8 items-center gap-1.5 rounded px-1 text-sm font-medium text-primary hover:bg-muted">
+        <Plus className="h-4 w-4" /> Neues Team
+      </button>
+    );
+  }
+  return (
+    <form className="flex w-full items-center gap-1 py-1" onSubmit={(e) => { e.preventDefault(); void fertig(); }}>
+      <input autoFocus value={titel} onChange={(e) => setTitel(e.target.value)} disabled={laeuft} aria-label="Name des neuen Teams" placeholder="Name, z. B. Lisa"
+        onKeyDown={(e) => { if (e.key === "Escape") { setTitel(""); setOffen(false); } }} onBlur={() => { if (!titel.trim()) setOffen(false); }}
+        className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm" />
+      <Button type="submit" size="sm" className="h-8" disabled={laeuft || !titel.trim()}>Anlegen</Button>
+    </form>
   );
 }
 
