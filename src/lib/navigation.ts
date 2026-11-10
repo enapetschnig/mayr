@@ -1,5 +1,5 @@
 import {
-  BarChart3, BookOpenCheck, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
+  BarChart3, BookOpenCheck, Bus, LayoutGrid, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
   Receipt, ScanBarcode, Settings, ShieldCheck, ShoppingCart, Smartphone, Users, Warehouse, type LucideIcon,
 } from "lucide-react";
 
@@ -26,12 +26,14 @@ export type NavEintrag = {
 export const NAVIGATION: NavEintrag[] = [
   { titel: "Start", text: "Übersicht", pfad: "/", icon: Home, gruppe: "haupt" },
   { titel: "Projekte", text: "Baustellen mit Fotos, Stunden, Material", pfad: "/projekte", icon: FolderKanban, gruppe: "haupt" },
+  { titel: "Plantafel", text: "Teams, Leute, Busse und Steiger einteilen", textMonteur: "Wer fährt wann mit wem wohin", pfad: "/plantafel", icon: LayoutGrid, gruppe: "haupt" },
   { titel: "Kalender", text: "Termine und wer wo eingeteilt ist", pfad: "/kalender", icon: CalendarDays, gruppe: "haupt" },
 
   { titel: "Stunden", text: "Meine Woche, Stunden buchen", pfad: "/zeiten", icon: Clock, gruppe: "baustelle" },
   { titel: "Scannen", text: "Material ausfassen und zurückgeben", pfad: "/scan", icon: ScanBarcode, gruppe: "baustelle" },
   { titel: "Regieberichte", text: "Mit Unterschrift des Kunden", pfad: "/regie", icon: ClipboardSignature, gruppe: "baustelle" },
   { titel: "Lager", text: "Bestand, Busse, was nachbestellen", pfad: "/lager", icon: Warehouse, gruppe: "baustelle" },
+  { titel: "Fuhrpark", text: "Busse, Steiger, Maschinen — Pickerl, Service, Schäden", pfad: "/fuhrpark", icon: Bus, gruppe: "baustelle" },
   { titel: "Anlagen & Prüfungen", text: "E-Check, Verteiler, Blitzschutz — was fällig ist", pfad: "/anlagen", icon: ShieldCheck, gruppe: "baustelle" },
 
   { titel: "Angebote & Rechnungen", text: "Vor Ort per Sprache, PDF mit Bezahl-QR", pfad: "/belege", icon: Receipt, gruppe: "buero", nurChef: true },

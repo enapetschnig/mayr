@@ -2,15 +2,15 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, BellRing, CalendarClock, Check, CheckCircle2, ClipboardSignature, Clock, FolderKanban, Navigation, Phone, Play, ScanBarcode } from "lucide-react";
+import { AlertTriangle, BellRing, Bus, CalendarClock, Check, CheckCircle2, ClipboardSignature, Clock, FolderKanban, Navigation, Phone, Play, ScanBarcode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Gruppentitel, StatusPille } from "@/components/Bausteine";
 import { useKalenderAbwesenheit } from "@/components/zeiten/personalDaten";
 import { Button } from "@/components/ui/button";
-import { useNeuLaden } from "@/hooks/useDaten";
+import { useFahrzeuge, useMitarbeiter, useNeuLaden, useTeams } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datumKurz, isoTag, tageDazu, uhrzeit } from "@/lib/format";
-import { ABWESENHEIT_ART, EINSATZ_STATUS, type AbwesenheitArt, type Termin } from "@/lib/types";
+import { ABWESENHEIT_ART, EINSATZ_STATUS, TEAM_FARBEN, type AbwesenheitArt, type Termin } from "@/lib/types";
 import { istArbeitstag } from "@/lib/zeitkonto";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +40,9 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
   }, [heute]);
   const [gesehen, setGesehen] = useState(gesehenLesen);
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  const { data: fahrzeuge = [] } = useFahrzeuge();
+  const { data: teams = [] } = useTeams();
+  const { data: mitarbeiter = [] } = useMitarbeiter();
 
   const { data: einsaetze = [] } = useQuery({
     queryKey: ["termine", "einsaetze", profil?.id, heute],
@@ -75,6 +78,23 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
     geaendert.forEach((t) => { neu[t.id] = t.geaendert_am!; });
     try { localStorage.setItem(GESEHEN, JSON.stringify(neu)); } catch { /* egal */ }
     setGesehen(neu);
+  };
+
+  /** Team, Bus/Steiger und wer noch mitfährt */
+  const Einteilung = ({ t }: { t: Termin }) => {
+    const team = teams.find((x) => x.id === t.team_id);
+    const fz = t.fahrzeuge.map((id) => fahrzeuge.find((f) => f.id === id)?.name).filter(Boolean);
+    const kollegen = t.mitarbeiter.filter((id) => id !== profil?.id).map((id) => mitarbeiter.find((m) => m.id === id)?.vorname).filter(Boolean);
+    if (!team && !fz.length && !kollegen.length) return null;
+    return (
+      <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+        {team && (
+          <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium", TEAM_FARBEN[team.farbe]?.klasse)}>Team {team.name}</span>
+        )}
+        {fz.map((n) => <span key={n} className="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 font-medium"><Bus className="h-3 w-3" />{n}</span>)}
+        {kollegen.length > 0 && <span className="py-0.5 text-muted-foreground">mit {kollegen.join(", ")}</span>}
+      </div>
+    );
   };
 
   if (!heuteListe.length && !morgenListe.length && !geaendert.length && !ichAbwesend) return null;
@@ -113,6 +133,7 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
                     <CalendarClock className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />{zeitText(t)}{t.ort && ` · ${t.ort}`}
                   </p>
                   {t.projekte?.kunden?.name && <p className="text-sm text-muted-foreground">{t.projekte.kunden.name}</p>}
+                  <Einteilung t={t} />
                   {t.beschreibung && <p className="mt-1 text-sm">{t.beschreibung}</p>}
                 </div>
                 <span className="flex shrink-0 flex-col items-end gap-1">
@@ -156,7 +177,7 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
                 {t.dringend ? <AlertTriangle className="h-4 w-4 shrink-0 text-status-rot-fg" /> : <CheckCircle2 className="h-4 w-4 shrink-0 text-muted-foreground" />}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{t.titel}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{zeitText(t)}{t.ort && ` · ${t.ort}`}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{zeitText(t)}{t.ort && ` · ${t.ort}`}{t.fahrzeuge.length ? ` · ${t.fahrzeuge.map((id) => fahrzeuge.find((f) => f.id === id)?.name).filter(Boolean).join(", ")}` : ""}</span>
                 </span>
               </li>
             ))}

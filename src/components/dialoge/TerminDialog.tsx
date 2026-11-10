@@ -17,10 +17,10 @@ import { useKalenderAbwesenheit } from "@/components/zeiten/personalDaten";
 import { ProjektWahl } from "@/components/ProjektWahl";
 import { useBeimOeffnen } from "@/components/stamm/Felder";
 import { fehlerText } from "@/components/stamm/stammDaten";
-import { useMitarbeiter, useNeuLaden, useProjekte } from "@/hooks/useDaten";
+import { useFahrzeuge, useMitarbeiter, useNeuLaden, useProjekte, useTeams } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { isoTag } from "@/lib/format";
-import { EINSATZ_STATUS, type Termin } from "@/lib/types";
+import { EINSATZ_STATUS, FAHRZEUG_ART, TEAM_FARBEN, type FahrzeugArt, type Termin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type TerminWerte = {
@@ -35,6 +35,8 @@ export type TerminWerte = {
   beschreibung: string;
   dabei: string[];
   dringend: boolean;
+  teamId: string;
+  fahrzeuge: string[];
 };
 
 /** Was am Termin nicht stimmt — null, wenn er so gespeichert werden kann */
@@ -55,7 +57,7 @@ export function terminFehler(w: Pick<TerminWerte, "titel" | "datum" | "bisDatum"
  * Titel und Ort vor, solange dort noch nichts steht.
  */
 export function TerminDialog({
-  open, onOpenChange, termin, datum: vorDatum, projektId: vorProjekt, mitarbeiterId,
+  open, onOpenChange, termin, datum: vorDatum, projektId: vorProjekt, mitarbeiterId, teamId, fahrzeugId,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -64,11 +66,16 @@ export function TerminDialog({
   projektId?: string;
   /** Aus der Einteilung: dieser Mitarbeiter ist vorausgewählt */
   mitarbeiterId?: string;
+  /** Aus der Plantafel: dieses Team / Fahrzeug ist vorausgewählt */
+  teamId?: string;
+  fahrzeugId?: string;
 }) {
   const neuLaden = useNeuLaden();
   const { profil, istChef } = useSitzung();
   const { data: projekte = [] } = useProjekte();
   const { data: mitarbeiter = [] } = useMitarbeiter();
+  const { data: teams = [] } = useTeams();
+  const { data: fahrzeugListe = [] } = useFahrzeuge();
   const [w, setW] = useState<TerminWerte>(() => leer(isoTag()));
   const [basis, setBasis] = useState<TerminWerte>(w);
   const [speichert, setSpeichert] = useState(false);
@@ -76,7 +83,7 @@ export function TerminDialog({
   const setze = (teil: Partial<TerminWerte>) => setW((x) => ({ ...x, ...teil }));
 
   // Nur beim Öffnen füllen: Nachladen (Projekte, Profil) setzt keine Eingabe zurück
-  useBeimOeffnen(open ? termin?.id ?? `neu|${vorDatum ?? ""}|${vorProjekt ?? ""}|${mitarbeiterId ?? ""}` : null, () => {
+  useBeimOeffnen(open ? termin?.id ?? `neu|${vorDatum ?? ""}|${vorProjekt ?? ""}|${mitarbeiterId ?? ""}|${teamId ?? ""}|${fahrzeugId ?? ""}` : null, () => {
     let v: TerminWerte;
     if (termin) {
       v = {
@@ -91,6 +98,8 @@ export function TerminDialog({
         beschreibung: termin.beschreibung || "",
         dabei: termin.mitarbeiter ?? [],
         dringend: termin.dringend,
+        teamId: termin.team_id ?? "",
+        fahrzeuge: termin.fahrzeuge ?? [],
       };
     } else {
       const p = projekte.find((x) => x.id === vorProjekt);
@@ -99,8 +108,15 @@ export function TerminDialog({
         titel: p?.name ?? "",
         projektId: p?.id ?? "",
         ort: p ? [p.strasse, [p.plz, p.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "",
-        dabei: mitarbeiterId ? [mitarbeiterId] : profil ? [profil.id] : [],
+        dabei: mitarbeiterId ? [mitarbeiterId] : profil && !teamId && !fahrzeugId ? [profil.id] : [],
+        fahrzeuge: fahrzeugId ? [fahrzeugId] : [],
       };
+      const team = teams.find((x) => x.id === teamId);
+      if (team) {
+        v.teamId = team.id;
+        v.dabei = [...team.mitglieder];
+        if (team.fahrzeug_id && !v.fahrzeuge.includes(team.fahrzeug_id)) v.fahrzeuge.push(team.fahrzeug_id);
+      }
     }
     setW(v);
     setBasis(v);
@@ -109,6 +125,18 @@ export function TerminDialog({
 
   const { data: abwesend = [] } = useKalenderAbwesenheit(open ? w.datum : undefined, open ? w.bisDatum || w.datum : undefined);
   const abwesendeNamen = mitarbeiter.filter((m) => w.dabei.includes(m.id) && abwesend.some((a) => a.user_id === m.id)).map((m) => m.vorname || m.nachname);
+
+  const teamWaehlen = (id: string) => setW((x) => {
+    const alt = teams.find((t) => t.id === x.teamId);
+    const neu = id === x.teamId ? undefined : teams.find((t) => t.id === id);
+    let dabei = x.dabei.filter((m) => !alt?.mitglieder.includes(m));
+    let fz = x.fahrzeuge.filter((f) => f !== alt?.fahrzeug_id);
+    if (neu) {
+      dabei = [...dabei, ...neu.mitglieder.filter((m) => !dabei.includes(m))];
+      if (neu.fahrzeug_id && !fz.includes(neu.fahrzeug_id)) fz = [...fz, neu.fahrzeug_id];
+    }
+    return { ...x, teamId: neu?.id ?? "", dabei, fahrzeuge: fz };
+  });
 
   const projektWaehlen = (id: string) => {
     const p = projekte.find((x) => x.id === id);
@@ -136,6 +164,8 @@ export function TerminDialog({
       beschreibung: w.beschreibung.trim() || null,
       mitarbeiter: w.dabei,
       dringend: w.dringend,
+      team_id: w.teamId || null,
+      fahrzeuge: w.fahrzeuge,
     };
     const { error } = termin
       ? await supabase.from("termine").update(daten).eq("id", termin.id)
@@ -246,6 +276,25 @@ export function TerminDialog({
           </div>
         )}
 
+        {teams.length > 0 && (
+          <div className="space-y-2">
+            <Label>Team</Label>
+            <div className="flex flex-wrap gap-2">
+              {teams.map((t) => {
+                const an = w.teamId === t.id;
+                return (
+                  <button key={t.id} type="button" aria-pressed={an} onClick={() => teamWaehlen(t.id)}
+                    className={cn("flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                      an ? "border-primary bg-primary-soft text-primary" : "bg-card text-muted-foreground hover:bg-muted")}>
+                    <span className={cn("h-2.5 w-2.5 rounded-full", TEAM_FARBEN[t.farbe]?.punkt ?? "bg-slate-500")} />
+                    {t.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label>Wer ist dabei?</Label>
           <div className="flex flex-wrap gap-2">
@@ -263,6 +312,26 @@ export function TerminDialog({
             })}
           </div>
         </div>
+
+        {fahrzeugListe.length > 0 && (
+          <div className="space-y-2">
+            <Label>Bus, Steiger, Geräte</Label>
+            <div className="flex flex-wrap gap-2">
+              {fahrzeugListe.map((f) => {
+                const an = w.fahrzeuge.includes(f.id);
+                return (
+                  <button key={f.id} type="button" aria-pressed={an}
+                    onClick={() => setze({ fahrzeuge: an ? w.fahrzeuge.filter((x) => x !== f.id) : [...w.fahrzeuge, f.id] })}
+                    className={cn("flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                      an ? "border-primary bg-primary-soft text-primary" : "bg-card text-muted-foreground hover:bg-muted")}>
+                    {f.name}
+                    <span className="text-xs font-normal opacity-70">{FAHRZEUG_ART[f.art as FahrzeugArt]?.text}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {abwesendeNamen.length > 0 && (
           <p className="rounded-md border border-status-gelb bg-status-gelb/40 px-3 py-2 text-sm" role="status">
@@ -303,5 +372,5 @@ export function TerminDialog({
 }
 
 function leer(datum: string): TerminWerte {
-  return { titel: "", datum, bisDatum: "", ganztags: false, von: "07:00", bis: "15:30", projektId: "", ort: "", beschreibung: "", dabei: [], dringend: false };
+  return { titel: "", datum, bisDatum: "", ganztags: false, von: "07:00", bis: "15:30", projektId: "", ort: "", beschreibung: "", dabei: [], dringend: false, teamId: "", fahrzeuge: [] };
 }

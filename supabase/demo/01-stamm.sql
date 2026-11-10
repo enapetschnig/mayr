@@ -17,6 +17,14 @@ declare
   v_chef uuid := (select id from profiles where email = 'chef@elektro.handwerkapp.at');
   v_max  uuid := (select id from profiles where email = 'max@elektro.handwerkapp.at');
   v_lisa uuid := (select id from profiles where email = 'lisa@elektro.handwerkapp.at');
+  -- weitere Demo-Mitarbeiter (Konten: scripts/demo-konten.mjs)
+  v_tom uuid := (select id from profiles where email = 'tom@elektro.handwerkapp.at');
+  v_eva uuid := (select id from profiles where email = 'eva@elektro.handwerkapp.at');
+  v_stefan uuid := (select id from profiles where email = 'stefan@elektro.handwerkapp.at');
+  v_sarah uuid := (select id from profiles where email = 'sarah@elektro.handwerkapp.at');
+  v_jonas uuid := (select id from profiles where email = 'jonas@elektro.handwerkapp.at');
+  l_bus1 uuid; l_bus2 uuid; l_bus3 uuid;
+  f_bus1 uuid; f_bus2 uuid; f_bus3 uuid; f_pkw uuid; f_steiger uuid;
   k_huber uuid; k_gruber uuid; k_sonnenhof uuid; k_berger uuid; k_kirchenwirt uuid;
 begin
   -- Festschreib-Trigger (fertige Rechnungen, unterschriebene Regieberichte,
@@ -39,6 +47,7 @@ begin
   delete from kreditor_konten;
   alter table kreditor_konten alter column konto restart with 30001;
   delete from eingang_anteile;
+  delete from lieferscheine;
   delete from eingangsrechnungen;
   delete from beleg_positionen;
   delete from material_buchungen;
@@ -55,7 +64,11 @@ begin
   delete from leistung_material;
   delete from leistungen;
   delete from artikel_codes;
-  delete from artikel;
+  delete from teams;
+  delete from fahrzeuge;
+  -- der eingespielte Datanorm-Katalog (scripts/datanorm-einspielen.ts) bleibt
+  delete from artikel where quelle is distinct from 'datanorm';
+  update artikel set aktiv = true, vk_preis = null, kategorie = null where quelle = 'datanorm';
   delete from lagerorte;
   delete from nummernkreise;
   alter table beleg_positionen enable trigger user;
@@ -106,9 +119,62 @@ begin
 
   -- ── Lager und Busse ──────────────────────────────────────────────────────
   insert into lagerorte (name, art, user_id, aktiv, reihenfolge) values
-    ('Hauptlager', 'lager', null, true, 0),
-    ('Bus 1 · Max', 'fahrzeug', v_max, true, 1),
-    ('Bus 2 · Martin', 'fahrzeug', v_chef, true, 2);
+    ('Hauptlager', 'lager', null, true, 0);
+  insert into lagerorte (name, art, user_id, aktiv, reihenfolge) values ('Bus 1 · Max', 'fahrzeug', v_max, true, 1) returning id into l_bus1;
+  insert into lagerorte (name, art, user_id, aktiv, reihenfolge) values ('Bus 2 · Martin', 'fahrzeug', v_chef, true, 2) returning id into l_bus2;
+  insert into lagerorte (name, art, user_id, aktiv, reihenfolge) values ('Bus 3 · Tom', 'fahrzeug', v_tom, v_tom is not null, 3) returning id into l_bus3;
+
+  -- ── Mitarbeiter ─────────────────────────────────────────────────────────
+  update profiles p set vorname = x.vorname, nachname = x.nachname, rolle = 'monteur', aktiv = true, gesperrt = false,
+         farbe = x.farbe, lohnart = x.lohnart, wochenstunden = 38.5, urlaub_tage = 25, telefon = x.telefon
+    from (values
+      ('tom@elektro.handwerkapp.at', 'Tom', 'Berger', '#7C3AED', 'Partieführer', '+43 000 0000201'),
+      ('eva@elektro.handwerkapp.at', 'Eva', 'Huber', '#DB2777', null, '+43 000 0000202'),
+      ('stefan@elektro.handwerkapp.at', 'Stefan', 'Gruber', '#0891B2', null, '+43 000 0000203'),
+      ('sarah@elektro.handwerkapp.at', 'Sarah', 'Pichler', '#65A30D', null, '+43 000 0000204'),
+      ('jonas@elektro.handwerkapp.at', 'Jonas', 'Wimmer', '#CA8A04', 'Lehrling', '+43 000 0000205')
+    ) as x(email, vorname, nachname, farbe, lohnart, telefon)
+   where p.email = x.email;
+
+  -- ── Fuhrpark (Fälligkeiten relativ zu heute: etwas ist immer fällig) ────
+  insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, km_stand, pickerl_bis, service_bis, pruefung_bis, lagerort_id, reihenfolge, notiz)
+    values ('Bus 1', 'bus', 'L-100 EM', 'VW Crafter 35', 2021, 84210, current_date + 140, current_date + 9, null, l_bus1, 1, 'Regalsystem, Kabeltrommelhalter')
+    returning id into f_bus1;
+  insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, km_stand, pickerl_bis, service_bis, pruefung_bis, lagerort_id, reihenfolge, notiz)
+    values ('Bus 2', 'bus', 'L-200 EM', 'Ford Transit Custom', 2019, 131540, current_date - 6, current_date + 60, null, l_bus2, 2, null)
+    returning id into f_bus2;
+  insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, km_stand, pickerl_bis, service_bis, pruefung_bis, lagerort_id, reihenfolge, notiz)
+    values ('Bus 3', 'bus', 'L-300 EM', 'Renault Master', 2023, 38900, current_date + 300, current_date + 200, null, l_bus3, 3, null)
+    returning id into f_bus3;
+  insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, km_stand, pickerl_bis, service_bis, pruefung_bis, reihenfolge, notiz)
+    values ('Kundendienst-PKW', 'pkw', 'L-400 EM', 'Škoda Octavia Combi', 2022, 56200, current_date + 220, current_date + 110, null, 4, 'Messkoffer und Ersatzteile an Bord')
+    returning id into f_pkw;
+  insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, pruefung_bis, reihenfolge, notiz)
+    values ('Steiger 14 m', 'steiger', 'L-500 EM', 'Anhänger-Arbeitsbühne 14 m', 2018, current_date + 21, 5, 'Nur mit Unterweisung bedienen')
+    returning id into f_steiger;
+  insert into fahrzeuge (name, art, typ, gemietet, reihenfolge, notiz) values
+    ('Miet-Steiger 20 m', 'steiger', 'Teleskopbühne LKW 20 m', true, 6, 'Bei Bedarf beim Verleih reservieren, 2 Tage Vorlauf');
+  insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, pickerl_bis, reihenfolge) values
+    ('Anhänger', 'anhaenger', 'L-600 EM', 'Kastenanhänger 750 kg', 2015, current_date + 75, 7);
+  insert into fahrzeuge (name, art, typ, baujahr, service_bis, reihenfolge) values
+    ('Kernbohrgerät', 'maschine', 'Diamant-Kernbohrgerät bis 162 mm', 2020, current_date + 400, 8),
+    ('Mauernutfräse', 'maschine', 'Mauernutfräse 2-Scheiben', 2022, null, 9);
+  insert into fahrzeuge (name, art, typ, baujahr, pruefung_bis, reihenfolge, notiz) values
+    ('Installationstester', 'messgeraet', 'Installationstester ÖVE E 8101', 2021, current_date + 14, 10, 'Kalibrierschein im Koffer'),
+    ('Thermografiekamera', 'messgeraet', 'Wärmebildkamera', 2024, current_date + 500, 11, null);
+
+  insert into fahrzeug_eintraege (fahrzeug_id, datum, art, text, km, kosten, erledigt, erstellt_von) values
+    (f_bus1, current_date - 120, 'service', 'Jahresservice, Ölwechsel, Pollenfilter', 76400, 486.30, true, v_chef),
+    (f_bus2, current_date - 3, 'schaden', 'Seitenspiegel rechts gebrochen — beim Zurückschieben an der Baustelle', 131500, null, false, v_max),
+    (f_bus1, current_date - 2, 'tanken', 'Volltanken', 84180, 92.50, true, v_max),
+    (f_steiger, current_date - 344, 'pruefung', 'Jährliche Prüfung ohne Mängel', null, 240, true, v_chef);
+
+  -- ── Teams: wer meistens zusammen fährt ──────────────────────────────────
+  insert into teams (name, farbe, leiter_id, mitglieder, fahrzeug_id, reihenfolge) values
+    ('Max', 'blau', v_max, array_remove(array[v_max, v_lisa], null), f_bus1, 1),
+    ('Tom', 'gruen', v_tom, array_remove(array[v_tom, v_jonas], null), f_bus3, 2),
+    ('Eva', 'orange', v_eva, array_remove(array[v_eva, v_stefan], null), f_bus2, 3),
+    ('Kundendienst', 'lila', v_sarah, array_remove(array[v_sarah], null), f_pkw, 4);
 
   -- ── Kunden ───────────────────────────────────────────────────────────────
   insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)

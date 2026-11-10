@@ -791,8 +791,76 @@ export type Database = {
           },
         ]
       }
+      eingang_positionen: {
+        Row: {
+          artikelnummer: string | null
+          bezeichnung: string
+          created_at: string
+          eingangsrechnung_id: string
+          einheit: string | null
+          einzelpreis: number | null
+          gesamt: number
+          id: string
+          lieferschein_nr: string | null
+          menge: number | null
+          pos: number
+          projekt_id: string | null
+        }
+        Insert: {
+          artikelnummer?: string | null
+          bezeichnung: string
+          created_at?: string
+          eingangsrechnung_id: string
+          einheit?: string | null
+          einzelpreis?: number | null
+          gesamt?: number
+          id?: string
+          lieferschein_nr?: string | null
+          menge?: number | null
+          pos?: number
+          projekt_id?: string | null
+        }
+        Update: {
+          artikelnummer?: string | null
+          bezeichnung?: string
+          created_at?: string
+          eingangsrechnung_id?: string
+          einheit?: string | null
+          einzelpreis?: number | null
+          gesamt?: number
+          id?: string
+          lieferschein_nr?: string | null
+          menge?: number | null
+          pos?: number
+          projekt_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eingang_positionen_eingangsrechnung_id_fkey"
+            columns: ["eingangsrechnung_id"]
+            isOneToOne: false
+            referencedRelation: "eingangsrechnungen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eingang_positionen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
+          },
+          {
+            foreignKeyName: "eingang_positionen_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eingangsrechnungen: {
         Row: {
+          abgelehnt_grund: string | null
           betrieb: boolean
           bezahlt_am: string | null
           brutto: number
@@ -803,18 +871,26 @@ export type Database = {
           datum: string
           erstellt_von: string | null
           faellig_am: string | null
+          freigabe: string
+          freigegeben_am: string | null
+          freigegeben_von: string | null
+          iban: string | null
           id: string
           kategorie: string
           lieferant: string
+          lieferschein_nummern: string[]
           netto: number
           notiz: string | null
           nummer: string | null
           reverse_charge: boolean
+          skonto_bis: string | null
+          skonto_prozent: number | null
           updated_at: string
           ust: number
           ust_satz: number
         }
         Insert: {
+          abgelehnt_grund?: string | null
           betrieb?: boolean
           bezahlt_am?: string | null
           brutto?: number
@@ -825,18 +901,26 @@ export type Database = {
           datum?: string
           erstellt_von?: string | null
           faellig_am?: string | null
+          freigabe?: string
+          freigegeben_am?: string | null
+          freigegeben_von?: string | null
+          iban?: string | null
           id?: string
           kategorie?: string
           lieferant: string
+          lieferschein_nummern?: string[]
           netto?: number
           notiz?: string | null
           nummer?: string | null
           reverse_charge?: boolean
+          skonto_bis?: string | null
+          skonto_prozent?: number | null
           updated_at?: string
           ust?: number
           ust_satz?: number
         }
         Update: {
+          abgelehnt_grund?: string | null
           betrieb?: boolean
           bezahlt_am?: string | null
           brutto?: number
@@ -847,13 +931,20 @@ export type Database = {
           datum?: string
           erstellt_von?: string | null
           faellig_am?: string | null
+          freigabe?: string
+          freigegeben_am?: string | null
+          freigegeben_von?: string | null
+          iban?: string | null
           id?: string
           kategorie?: string
           lieferant?: string
+          lieferschein_nummern?: string[]
           netto?: number
           notiz?: string | null
           nummer?: string | null
           reverse_charge?: boolean
+          skonto_bis?: string | null
+          skonto_prozent?: number | null
           updated_at?: string
           ust?: number
           ust_satz?: number
@@ -864,6 +955,135 @@ export type Database = {
             columns: ["erstellt_von"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eingangsrechnungen_freigegeben_von_fkey"
+            columns: ["freigegeben_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fahrzeug_eintraege: {
+        Row: {
+          art: string
+          created_at: string
+          datum: string
+          erledigt: boolean
+          erstellt_von: string | null
+          fahrzeug_id: string
+          id: string
+          km: number | null
+          kosten: number | null
+          text: string
+        }
+        Insert: {
+          art?: string
+          created_at?: string
+          datum?: string
+          erledigt?: boolean
+          erstellt_von?: string | null
+          fahrzeug_id: string
+          id?: string
+          km?: number | null
+          kosten?: number | null
+          text: string
+        }
+        Update: {
+          art?: string
+          created_at?: string
+          datum?: string
+          erledigt?: boolean
+          erstellt_von?: string | null
+          fahrzeug_id?: string
+          id?: string
+          km?: number | null
+          kosten?: number | null
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fahrzeug_eintraege_erstellt_von_fkey"
+            columns: ["erstellt_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fahrzeug_eintraege_fahrzeug_id_fkey"
+            columns: ["fahrzeug_id"]
+            isOneToOne: false
+            referencedRelation: "fahrzeuge"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fahrzeuge: {
+        Row: {
+          aktiv: boolean
+          art: string
+          baujahr: number | null
+          created_at: string
+          gemietet: boolean
+          id: string
+          kennzeichen: string | null
+          km_stand: number | null
+          lagerort_id: string | null
+          name: string
+          notiz: string | null
+          pickerl_bis: string | null
+          pruefung_bis: string | null
+          reihenfolge: number
+          service_bis: string | null
+          typ: string | null
+          updated_at: string
+        }
+        Insert: {
+          aktiv?: boolean
+          art?: string
+          baujahr?: number | null
+          created_at?: string
+          gemietet?: boolean
+          id?: string
+          kennzeichen?: string | null
+          km_stand?: number | null
+          lagerort_id?: string | null
+          name: string
+          notiz?: string | null
+          pickerl_bis?: string | null
+          pruefung_bis?: string | null
+          reihenfolge?: number
+          service_bis?: string | null
+          typ?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aktiv?: boolean
+          art?: string
+          baujahr?: number | null
+          created_at?: string
+          gemietet?: boolean
+          id?: string
+          kennzeichen?: string | null
+          km_stand?: number | null
+          lagerort_id?: string | null
+          name?: string
+          notiz?: string | null
+          pickerl_bis?: string | null
+          pruefung_bis?: string | null
+          reihenfolge?: number
+          service_bis?: string | null
+          typ?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fahrzeuge_lagerort_id_fkey"
+            columns: ["lagerort_id"]
+            isOneToOne: false
+            referencedRelation: "lagerorte"
             referencedColumns: ["id"]
           },
         ]
@@ -1294,6 +1514,83 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      lieferscheine: {
+        Row: {
+          created_at: string
+          datei_mime: string | null
+          datei_pfad: string
+          datum: string
+          eingangsrechnung_id: string | null
+          erstellt_von: string | null
+          gelesen_am: string | null
+          id: string
+          lieferant: string | null
+          notiz: string | null
+          nummer: string | null
+          positionen: Json
+          projekt_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          datei_mime?: string | null
+          datei_pfad: string
+          datum?: string
+          eingangsrechnung_id?: string | null
+          erstellt_von?: string | null
+          gelesen_am?: string | null
+          id?: string
+          lieferant?: string | null
+          notiz?: string | null
+          nummer?: string | null
+          positionen?: Json
+          projekt_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          datei_mime?: string | null
+          datei_pfad?: string
+          datum?: string
+          eingangsrechnung_id?: string | null
+          erstellt_von?: string | null
+          gelesen_am?: string | null
+          id?: string
+          lieferant?: string | null
+          notiz?: string | null
+          nummer?: string | null
+          positionen?: Json
+          projekt_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lieferscheine_eingangsrechnung_id_fkey"
+            columns: ["eingangsrechnung_id"]
+            isOneToOne: false
+            referencedRelation: "eingangsrechnungen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lieferscheine_erstellt_von_fkey"
+            columns: ["erstellt_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lieferscheine_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekt_zahlen"
+            referencedColumns: ["projekt_id"]
+          },
+          {
+            foreignKeyName: "lieferscheine_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mahnungen: {
         Row: {
@@ -1762,6 +2059,57 @@ export type Database = {
           },
         ]
       }
+      teams: {
+        Row: {
+          aktiv: boolean
+          created_at: string
+          fahrzeug_id: string | null
+          farbe: string
+          id: string
+          leiter_id: string | null
+          mitglieder: string[]
+          name: string
+          reihenfolge: number
+        }
+        Insert: {
+          aktiv?: boolean
+          created_at?: string
+          fahrzeug_id?: string | null
+          farbe?: string
+          id?: string
+          leiter_id?: string | null
+          mitglieder?: string[]
+          name: string
+          reihenfolge?: number
+        }
+        Update: {
+          aktiv?: boolean
+          created_at?: string
+          fahrzeug_id?: string | null
+          farbe?: string
+          id?: string
+          leiter_id?: string | null
+          mitglieder?: string[]
+          name?: string
+          reihenfolge?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_fahrzeug_id_fkey"
+            columns: ["fahrzeug_id"]
+            isOneToOne: false
+            referencedRelation: "fahrzeuge"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_leiter_id_fkey"
+            columns: ["leiter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       termine: {
         Row: {
           begonnen_am: string | null
@@ -1773,6 +2121,7 @@ export type Database = {
           dringend: boolean
           erledigt_am: string | null
           erledigt_von: string | null
+          fahrzeuge: string[]
           ganztags: boolean
           geaendert_am: string | null
           geaendert_von: string | null
@@ -1781,6 +2130,7 @@ export type Database = {
           ort: string | null
           projekt_id: string | null
           status: string
+          team_id: string | null
           titel: string
           user_id: string | null
           von: string | null
@@ -1795,6 +2145,7 @@ export type Database = {
           dringend?: boolean
           erledigt_am?: string | null
           erledigt_von?: string | null
+          fahrzeuge?: string[]
           ganztags?: boolean
           geaendert_am?: string | null
           geaendert_von?: string | null
@@ -1803,6 +2154,7 @@ export type Database = {
           ort?: string | null
           projekt_id?: string | null
           status?: string
+          team_id?: string | null
           titel: string
           user_id?: string | null
           von?: string | null
@@ -1817,6 +2169,7 @@ export type Database = {
           dringend?: boolean
           erledigt_am?: string | null
           erledigt_von?: string | null
+          fahrzeuge?: string[]
           ganztags?: boolean
           geaendert_am?: string | null
           geaendert_von?: string | null
@@ -1825,6 +2178,7 @@ export type Database = {
           ort?: string | null
           projekt_id?: string | null
           status?: string
+          team_id?: string | null
           titel?: string
           user_id?: string | null
           von?: string | null
@@ -1856,6 +2210,13 @@ export type Database = {
             columns: ["projekt_id"]
             isOneToOne: false
             referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "termine_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
           {

@@ -25,6 +25,11 @@ export type Abwesenheit = Tables<"abwesenheiten">;
 export type KontoBuchung = Tables<"konto_buchungen">;
 export type Zahlung = Tables<"zahlungen">;
 export type Mahnung = Tables<"mahnungen">;
+export type Fahrzeug = Tables<"fahrzeuge">;
+export type FahrzeugEintrag = Tables<"fahrzeug_eintraege">;
+export type Team = Tables<"teams">;
+export type EingangPosition = Tables<"eingang_positionen">;
+export type Lieferschein = Tables<"lieferscheine">;
 
 export type Rolle = "chef" | "monteur";
 
@@ -117,6 +122,42 @@ export const EINGANG_STATUS: Record<string, StatusEintrag> = {
   offen: { ton: "grau", text: "Nicht bezahlt" },
   ueberfaellig: { ton: "rot", text: "Überfällig" },
   bezahlt: { ton: "gruen", text: "Bezahlt" },
+};
+
+/** Ablauf einer Eingangsrechnung: prüfen → freigeben → überweisen */
+export const FREIGABE_STATUS: Record<string, StatusEintrag> = {
+  pruefen: { ton: "cyan", text: "Zu prüfen" },
+  freigegeben: { ton: "blau", text: "Zu überweisen" },
+  ueberwiesen: { ton: "gruen", text: "Überwiesen" },
+  abgelehnt: { ton: "rot", text: "Abgelehnt" },
+};
+
+// ── Fuhrpark ────────────────────────────────────────────────────────────
+export type FahrzeugArt = "bus" | "pkw" | "steiger" | "anhaenger" | "maschine" | "messgeraet";
+export const FAHRZEUG_ART: Record<FahrzeugArt, { text: string; mehrzahl: string; mitKennzeichen: boolean }> = {
+  bus: { text: "Bus", mehrzahl: "Busse", mitKennzeichen: true },
+  pkw: { text: "PKW", mehrzahl: "PKW", mitKennzeichen: true },
+  steiger: { text: "Steiger", mehrzahl: "Steiger & Hebebühnen", mitKennzeichen: true },
+  anhaenger: { text: "Anhänger", mehrzahl: "Anhänger", mitKennzeichen: true },
+  maschine: { text: "Maschine", mehrzahl: "Maschinen", mitKennzeichen: false },
+  messgeraet: { text: "Messgerät", mehrzahl: "Messgeräte", mitKennzeichen: false },
+};
+export const FAHRZEUG_EINTRAG: Record<string, StatusEintrag> = {
+  service: { ton: "blau", text: "Service" },
+  reparatur: { ton: "gelb", text: "Reparatur" },
+  pruefung: { ton: "lila", text: "Prüfung" },
+  schaden: { ton: "rot", text: "Schaden" },
+  tanken: { ton: "grau", text: "Tanken" },
+  sonstiges: { ton: "grau", text: "Sonstiges" },
+};
+/** Teamfarben: Fläche und Rand auf der Plantafel */
+export const TEAM_FARBEN: Record<string, { text: string; klasse: string; punkt: string }> = {
+  blau: { text: "Blau", klasse: "border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-100", punkt: "bg-sky-500" },
+  gruen: { text: "Grün", klasse: "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100", punkt: "bg-emerald-500" },
+  orange: { text: "Orange", klasse: "border-orange-300 bg-orange-50 text-orange-900 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-100", punkt: "bg-orange-500" },
+  lila: { text: "Lila", klasse: "border-violet-300 bg-violet-50 text-violet-900 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-100", punkt: "bg-violet-500" },
+  rosa: { text: "Rosa", klasse: "border-pink-300 bg-pink-50 text-pink-900 dark:border-pink-700 dark:bg-pink-950 dark:text-pink-100", punkt: "bg-pink-500" },
+  grau: { text: "Grau", klasse: "border-slate-300 bg-slate-50 text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100", punkt: "bg-slate-500" },
 };
 
 /** Offene Rechnung nach dem Fälligkeitstag zeigt „Überfällig“ */

@@ -359,7 +359,7 @@ begin
     ('Kirchenwirt – Gastgarten', null, 'Kirchenplatz 1, 4320 Perg', '2026-10-21', null, '08:00', '13:30', false, p5, array[v_max, v_lisa], v_chef),
     ('Berger – Aufmaß Bad/WC', null, 'Am Bach 4, 4210 Gallneukirchen', '2026-10-22', null, '16:00', '18:00', false, p4, array[v_chef], v_chef),
     ('Huber – Installation OG und Dachboden', 'Leitungen Dachboden fertig, Dosen OG setzen', 'Musterstraße 12, 4020 Linz', '2026-10-26', '2026-10-28', '07:00', '15:30', false, p1, array[v_max], v_chef),
-    ('Kirchenwirt – Saalbeleuchtung', 'Notlicht-Akku tauschen', 'Kirchenplatz 1, 4320 Perg', '2026-10-27', null, '14:00', '16:00', false, p5, array[v_max], v_chef),
+    ('Kirchenwirt – Saalbeleuchtung', 'Notlicht-Akku tauschen', 'Kirchenplatz 1, 4320 Perg', '2026-10-27', null, '15:45', '17:15', false, p5, array[v_max], v_chef),
     ('Gruber – Backstube fertigstellen', null, 'Hauptplatz 3, 4600 Wels', '2026-10-29', null, '07:00', '15:30', false, p2, array[v_chef, v_max], v_chef),
     ('Berger – Angebot besprechen', 'Angebot AN-2026-001 mitnehmen', 'Am Bach 4, 4210 Gallneukirchen', '2026-10-30', null, '09:00', '10:00', false, p4, array[v_chef], v_chef),
     ('Huber – Verteiler fertig verdrahten', null, 'Musterstraße 12, 4020 Linz', '2026-11-02', '2026-11-03', '07:00', '15:30', false, p1, array[v_max], v_chef),
@@ -397,9 +397,126 @@ begin
     erledigt_am = (coalesce(bis_datum, datum) + time '15:20') at time zone 'Europe/Vienna', erledigt_von = v_max
     where coalesce(bis_datum, datum) < current_date;
   insert into termine (titel, beschreibung, ort, datum, von, bis, ganztags, projekt_id, mitarbeiter, dringend, user_id) values
-    ('Kirchenwirt – FI löst aus', 'Küche ohne Strom, Kunde ruft um Rückruf', 'Kirchenplatz 1, 4320 Perg', current_date, '13:00', '15:00', false, p5, array[v_max], true, v_chef);
+    ('Kirchenwirt – FI löst aus', 'Küche ohne Strom, Kunde ruft um Rückruf', 'Kirchenplatz 1, 4320 Perg', current_date, '15:45', '17:00', false, p5, array[v_max], true, v_chef);
 
   -- Subunternehmer: Bauleistung mit Reverse Charge, zeigt die Buchhaltung
   insert into eingangsrechnungen (lieferant, nummer, datum, faellig_am, netto, ust_satz, ust, brutto, kategorie, reverse_charge, betrieb, notiz, erstellt_von) values
     ('Kabelzug Hofer GmbH (Demo)', 'H-2026-118', '2026-10-14', '2026-10-28', 780, 20, 0, 780, 'fremdleistung', true, true, 'Kernbohrungen Bäckerei Gruber', v_chef);
+  -- ════════════════════════════════════════════════════════════════════════
+  --  Plantafel: Teams mit Bus, Steiger, Kundendienst — diese und nächste Woche
+  --  (alles relativ zu heute; ein Steiger ist absichtlich doppelt verplant)
+  -- ════════════════════════════════════════════════════════════════════════
+  declare
+    v_tom uuid := (select id from profiles where email = 'tom@elektro.handwerkapp.at');
+    v_eva uuid := (select id from profiles where email = 'eva@elektro.handwerkapp.at');
+    v_stefan uuid := (select id from profiles where email = 'stefan@elektro.handwerkapp.at');
+    v_sarah uuid := (select id from profiles where email = 'sarah@elektro.handwerkapp.at');
+    v_jonas uuid := (select id from profiles where email = 'jonas@elektro.handwerkapp.at');
+    t_max uuid := (select id from teams where name = 'Max');
+    t_tom uuid := (select id from teams where name = 'Tom');
+    t_eva uuid := (select id from teams where name = 'Eva');
+    t_kd uuid := (select id from teams where name = 'Kundendienst');
+    f_bus1 uuid := (select id from fahrzeuge where name = 'Bus 1');
+    f_bus2 uuid := (select id from fahrzeuge where name = 'Bus 2');
+    f_bus3 uuid := (select id from fahrzeuge where name = 'Bus 3');
+    f_pkw uuid := (select id from fahrzeuge where name = 'Kundendienst-PKW');
+    f_steiger uuid := (select id from fahrzeuge where name = 'Steiger 14 m');
+    f_kern uuid := (select id from fahrzeuge where name = 'Kernbohrgerät');
+    w date := date_trunc('week', current_date)::date;
+    e6 uuid := gen_random_uuid(); e7 uuid := gen_random_uuid(); e8 uuid := gen_random_uuid();
+  begin
+    if v_tom is null then
+      raise notice 'Weitere Demo-Mitarbeiter fehlen — scripts/demo-konten.mjs ausführen.';
+    else
+      -- Max fährt mit Bus 1
+      update termine set team_id = t_max, fahrzeuge = array[f_bus1]
+       where v_max = any(mitarbeiter) and not v_chef = any(mitarbeiter);
+
+      insert into termine (titel, beschreibung, ort, datum, bis_datum, von, bis, ganztags, projekt_id, mitarbeiter, fahrzeuge, team_id, user_id) values
+        ('Gruber – LED Verkaufsraum', 'Panels tauschen, Notlicht prüfen', 'Hauptplatz 3, 4600 Wels', w, w + 2, '07:00', '15:30', false, p2, array[v_tom, v_jonas], array[f_bus3], t_tom, v_chef),
+        ('Sonnenhof – Steigleitung Stiege 2', 'Steigleitung tauschen, Lichthof mit Steiger', 'Sonnenweg 8, 4040 Linz', w + 3, w + 4, '07:00', '15:30', false, p3, array[v_tom], array[f_bus3, f_steiger], t_tom, v_chef),
+        ('Kirchenwirt – Gastgarten Beleuchtung', 'Strahler an der Fassade, Steiger vom Hof aus', 'Kirchenplatz 1, 4320 Perg', w + 3, null, '10:00', '14:00', false, p5, array[v_eva, v_stefan], array[f_bus2, f_steiger], t_eva, v_chef),
+        ('Huber – Kernbohrungen Keller', 'Durchführungen Hausanschluss', 'Musterstraße 12, 4020 Linz', w + 1, null, '07:00', '12:00', false, p1, array[v_eva, v_stefan], array[f_bus2, f_kern], t_eva, v_chef),
+        ('Huber – Netzwerk und Medien', 'Netzwerkdosen OG, Patchfeld', 'Musterstraße 12, 4020 Linz', w + 1, null, '12:30', '15:30', false, p1, array[v_eva, v_stefan], array[f_bus2], t_eva, v_chef),
+        ('Berger – Bad Leerverrohrung', null, 'Am Bach 4, 4210 Gallneukirchen', w + 7, w + 8, '07:00', '15:30', false, p4, array[v_eva, v_stefan], array[f_bus2], t_eva, v_chef),
+        ('Gruber – Backstube Abnahme', null, 'Hauptplatz 3, 4600 Wels', w + 9, null, '08:00', '11:00', false, p2, array[v_tom, v_jonas], array[f_bus3], t_tom, v_chef),
+        ('Störung Bäckerei Gruber – Kühlraum', 'Kühlraum ohne Strom, sofort hin', 'Hauptplatz 3, 4600 Wels', current_date, null, '08:00', '10:00', false, p2, array[v_sarah], array[f_pkw], t_kd, v_chef),
+        ('E-Check Kirchenwirt', 'Prüfprotokoll mitnehmen', 'Kirchenplatz 1, 4320 Perg', w + 2, null, '08:00', '12:00', false, p5, array[v_sarah], array[f_pkw], t_kd, v_chef),
+        ('Sonnenhof – Notlicht Prüfung', null, 'Sonnenweg 8, 4040 Linz', w + 4, null, '08:00', '11:00', false, p3, array[v_sarah], array[f_pkw], t_kd, v_chef);
+      update termine set dringend = true where titel like 'Störung Bäckerei%';
+
+      insert into abwesenheiten (user_id, art, von, bis, status, entschieden_von, entschieden_am, erstellt_von) values
+        (v_jonas, 'berufsschule', w + 3, w + 4, 'genehmigt', v_chef, now(), v_chef),
+        (v_stefan, 'urlaub', w + 10, w + 11, 'genehmigt', v_chef, now(), v_stefan);
+
+      -- Stunden der letzten drei Wochen für die Stundenauswertung
+      update profiles set konto_ab = w - 21 where id in (v_tom, v_eva, v_stefan, v_sarah, v_jonas);
+      insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, art, km, erstellt_von, created_at)
+      select x.u, x.p, d::date, x.h, '07:00', (time '07:00' + make_interval(mins => (x.h * 60 + 30)::int))::time, 30, x.t, 'arbeit', null, x.u,
+             (d::date + time '16:30') at time zone 'Europe/Vienna'
+        from generate_series(w - 21, current_date - 1, interval '1 day') d
+        cross join (values
+          (v_tom, p2, 8.0, 'LED-Umrüstung Verkaufsraum'),
+          (v_jonas, p2, 8.0, 'Mithilfe LED-Umrüstung'),
+          (v_eva, p1, 8.0, 'Installation EG'),
+          (v_stefan, p1, 7.5, 'Installation EG, Dosen'),
+          (v_sarah, p5, 4.0, 'Kundendienst Kirchenwirt'),
+          (v_sarah, p3, 3.5, 'Kundendienst Sonnenhof')
+        ) as x(u, p, h, t)
+       where extract(isodow from d) < 6
+         and not (x.u = v_jonas and extract(isodow from d) = 4);
+      -- Fahrzeit und Überstunden, damit die Auswertung etwas zu trennen hat
+      insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, art, km, erstellt_von)
+      select x.u, x.p, d::date, 0.5, '06:30', '07:00', 0, 'Fahrt zur Baustelle', 'fahrt', 38, x.u
+        from generate_series(w - 21, current_date - 1, interval '7 day') d
+        cross join (values (v_tom, p2), (v_eva, p1)) as x(u, p);
+      insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, art, erstellt_von)
+      values (v_eva, p1, w - 10, 2, '15:30', '17:30', 0, 'Verteiler fertig verdrahten', 'ue50', v_eva),
+             (v_sarah, p2, w - 6, 1.5, '19:00', '20:30', 0, 'Störung Kühlraum am Abend', 'ue100', v_sarah);
+    end if;
+
+    -- ── Eingangsrechnungen mit Positionen: prüfen → freigeben → überweisen ──
+    insert into eingangsrechnungen (id, lieferant, nummer, datum, faellig_am, netto, ust_satz, ust, brutto, kategorie, betrieb, notiz,
+                                    iban, skonto_prozent, skonto_bis, lieferschein_nummern, freigabe, erstellt_von) values
+      (e6, 'Elektrogroßhandel Muster (Demo)', 'GH-2026-11388', current_date - 2, current_date + 28, 695.90, 20, 139.18, 835.08, 'material', true,
+       'Rest (Dübel) ins Lager', 'AT311200000012345678', 3, current_date + 8, array['LS-4711', 'LS-4718'], 'offen', v_chef),
+      (e7, 'Leuchten Beispiel GmbH (Demo)', 'LB-7731', current_date - 6, current_date + 8, 314.20, 20, 62.84, 377.04, 'material', false,
+       null, 'AT722011100098765432', null, null, '{}', 'freigegeben', v_chef),
+      (e8, 'Kabelwerk Beispiel (Demo)', 'KW-90412', current_date - 1, current_date + 29, 418.50, 20, 83.70, 502.20, 'material', false,
+       'Noch nicht zugeordnet — Positionen einzeln auf die Baustellen', 'AT493400000055501234', 2, current_date + 13, '{}', 'offen', v_chef);
+    insert into eingang_positionen (eingangsrechnung_id, pos, artikelnummer, bezeichnung, menge, einheit, einzelpreis, gesamt, lieferschein_nr, projekt_id) values
+      (e6, 1, '120303600', 'FI-Schalter 40A 4-polig 30mA Typ A', 2, 'Stk', 59.79, 119.58, 'LS-4711', p1),
+      (e6, 2, '120030255', 'Flexrohr M20 mittel grau', 200, 'm', 0.45, 90.00, 'LS-4711', p1),
+      (e6, 3, '120351483', 'Hebelklemme 221 5-Leiter 4mm²', 100, 'Stk', 0.50, 50.00, 'LS-4711', p1),
+      (e6, 4, '120542266', 'LED-Downlight slim DN105 6W 4000K', 12, 'Stk', 10.86, 130.32, 'LS-4718', p2),
+      (e6, 5, '120386993', 'Präsenzmelder HF 360 UP', 2, 'Stk', 110.50, 221.00, 'LS-4718', p2),
+      (e6, 6, '120006946', 'Kunststoffdübel 8x70', 100, 'Stk', 0.85, 85.00, 'LS-4718', null),
+      (e7, 1, 'LB-30-IP65', 'LED-Strahler Gastgarten IP65 30W', 4, 'Stk', 48.90, 195.60, null, p5),
+      (e7, 2, 'LB-ES-01', 'Erdspieß für Strahler', 4, 'Stk', 12.40, 49.60, null, p5),
+      (e7, 3, 'H07RN-315', 'Gummischlauchleitung H07RN-F 3x1,5', 50, 'm', 1.38, 69.00, null, p5),
+      (e8, 1, '12077408233', 'Mantelleitung NYM-J 5x6', 25, 'm', 5.74, 143.50, null, null),
+      (e8, 2, 'KW-NYM315', 'Mantelleitung NYM-J 3x1,5 (Ring 100 m)', 2, 'Ring', 62.00, 124.00, null, null),
+      (e8, 3, 'KW-NYM525', 'Mantelleitung NYM-J 5x2,5 (Ring 50 m)', 1, 'Ring', 82.00, 82.00, null, null),
+      (e8, 4, '12000007333', 'Aderleitung H07V-K 1,5 blau (Ring 100 m)', 3, 'Ring', 23.00, 69.00, null, null);
+    insert into eingang_anteile (eingangsrechnung_id, projekt_id, betrag, text) values
+      (e6, p1, 259.58, '3 Positionen: FI-Schalter, Flexrohr, Hebelklemme'),
+      (e6, p2, 351.32, '2 Positionen: LED-Downlight, Präsenzmelder'),
+      (e7, p5, 314.20, '3 Positionen: Strahler, Erdspieß, Leitung');
+    -- die überfällige Werkzeugrechnung ist geprüft und wartet auf die Überweisung
+    update eingangsrechnungen set freigabe = 'freigegeben', iban = 'AT491500000077700012'
+     where nummer = 'WZ-55120';
+
+    -- Lieferscheine, die die Monteure am Handy fotografiert haben (Bilder: lieferscheine.py)
+    insert into lieferscheine (projekt_id, lieferant, nummer, datum, datei_pfad, datei_mime, positionen, gelesen_am, erstellt_von) values
+      (p1, 'Elektrogroßhandel Muster (Demo)', 'LS-4711', current_date - 4, v_max || '/demo-ls-4711.jpg', 'image/jpeg',
+       '[{"artikelnummer":"120303600","bezeichnung":"FI-Schalter 40A 4-polig 30mA Typ A","menge":2,"einheit":"Stk"},
+         {"artikelnummer":"120030255","bezeichnung":"Flexrohr M20 mittel grau","menge":200,"einheit":"m"},
+         {"artikelnummer":"120351483","bezeichnung":"Hebelklemme 221 5-Leiter 4mm²","menge":50,"einheit":"Stk"}]'::jsonb,
+       now(), v_max),
+      (p2, 'Elektrogroßhandel Muster (Demo)', 'LS-4718', current_date - 3, coalesce(v_tom, v_max) || '/demo-ls-4718.jpg', 'image/jpeg',
+       '[{"artikelnummer":"120542266","bezeichnung":"LED-Downlight slim DN105 6W 4000K","menge":12,"einheit":"Stk"},
+         {"artikelnummer":"120386993","bezeichnung":"Präsenzmelder HF 360 UP","menge":2,"einheit":"Stk"},
+         {"artikelnummer":"120006946","bezeichnung":"Kunststoffdübel 8x70","menge":100,"einheit":"Stk"}]'::jsonb,
+       now(), coalesce(v_tom, v_max));
+  end;
 end $$;

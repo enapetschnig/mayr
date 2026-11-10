@@ -26,4 +26,5 @@ for f in 01-stamm 02-artikel 03-verlauf; do
   if [ "$f" = 01-stamm ]; then node "$D/scripts/demo-dateien-loeschen.mjs" --archiv; fi
 done
 python3 -I "$D/supabase/demo/unterschriften.py"
+python3 -I "$D/supabase/demo/lieferscheine.py"
 echo "Demo zurückgesetzt."

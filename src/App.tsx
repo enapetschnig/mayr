@@ -35,6 +35,8 @@ const Handyansicht = lazy(() => import("./pages/Handyansicht"));
 const Eingang = lazy(() => import("./pages/Eingang"));
 const OffenePosten = lazy(() => import("./pages/OffenePosten"));
 const Buchhaltung = lazy(() => import("./pages/Buchhaltung"));
+const Plantafel = lazy(() => import("./pages/Plantafel"));
+const Fuhrpark = lazy(() => import("./pages/Fuhrpark"));
 const Bestellungen = lazy(() => import("./pages/Bestellungen"));
 const BestellungDetail = lazy(() => import("./pages/BestellungDetail"));
 
@@ -72,6 +74,8 @@ const App = () => (
                 <Route path="/projekte/:id" element={<S><ProjektDetail /></S>} />
                 <Route path="/zeiten" element={<S><Zeiten /></S>} />
                 <Route path="/kalender" element={<S><Kalender /></S>} />
+                <Route path="/plantafel" element={<S><Plantafel /></S>} />
+                <Route path="/fuhrpark" element={<S><Fuhrpark /></S>} />
                 <Route path="/scan" element={<S><Scan /></S>} />
                 <Route path="/lager" element={<S><Lager /></S>} />
                 <Route path="/bestellungen" element={<S chef><Bestellungen /></S>} />

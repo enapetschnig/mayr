@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Kunde, Lagerort, Profil, Projekt, ProjektZahlen } from "@/lib/types";
+import type { Fahrzeug, Kunde, Lagerort, Profil, Projekt, ProjektZahlen, Team } from "@/lib/types";
 
 export type ProjektMitKunde = Projekt & { kunden: Pick<Kunde, "id" | "name" | "ort" | "telefon" | "email"> | null };
 
@@ -77,6 +77,31 @@ export function useLagerorte() {
       const { data, error } = await supabase.from("lagerorte").select("*").eq("aktiv", true).order("reihenfolge").order("name");
       if (error) throw error;
       return (data ?? []) as Lagerort[];
+    },
+  });
+}
+
+/** Fahrzeuge und Geräte; `alle` auch die stillgelegten */
+export function useFahrzeuge(alle = false) {
+  return useQuery({
+    queryKey: ["fahrzeuge", alle],
+    queryFn: async () => {
+      let q = supabase.from("fahrzeuge").select("*");
+      if (!alle) q = q.eq("aktiv", true);
+      const { data, error } = await q.order("reihenfolge").order("name");
+      if (error) throw error;
+      return (data ?? []) as Fahrzeug[];
+    },
+  });
+}
+
+export function useTeams() {
+  return useQuery({
+    queryKey: ["teams"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("teams").select("*").eq("aktiv", true).order("reihenfolge").order("name");
+      if (error) throw error;
+      return (data ?? []) as Team[];
     },
   });
 }
