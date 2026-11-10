@@ -14,10 +14,12 @@ interface PageHeaderProps {
   backPath?: string;
   /** Knöpfe rechts im Kopf */
   aktionen?: ReactNode;
+  /** Ohne Höchstbreite (Plantafel) */
+  voll?: boolean;
 }
 
 /** Seitenkopf: Zurück, Logo (führt zur Startseite), Titel, Aktionen rechts. */
-export function PageHeader({ title, untertitel, showBackButton = true, backPath, aktionen }: PageHeaderProps) {
+export function PageHeader({ title, untertitel, showBackButton = true, backPath, aktionen, voll = false }: PageHeaderProps) {
   const navigate = useNavigate();
 
   const zurueck = () => {
@@ -28,7 +30,7 @@ export function PageHeader({ title, untertitel, showBackButton = true, backPath,
 
   return (
     <header className="sticky top-0 z-30 border-b bg-card" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-      <div className="mx-auto flex min-h-14 max-w-6xl items-center gap-1 px-2 py-1.5 sm:px-4 lg:px-6">
+      <div className={cn("mx-auto flex min-h-14 items-center gap-1 px-2 py-1.5 sm:px-4 lg:px-6", !voll && "max-w-6xl")}>
         {showBackButton && (
           <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" onClick={zurueck} aria-label="Zurück">
             <ArrowLeft className="h-5 w-5" />

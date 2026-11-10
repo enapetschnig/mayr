@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ablegen, bahnen, balkenLage, inZeile, konflikte, tageZwischen, ueberschneiden, verschieben, zuweisen, type PlanTermin } from "./plantafel";
+import { ablegen, arbeitsStuecke, bahnen, balkenLage, inZeile, konflikte, tageZwischen, projektFarbe, textAuf, ueberschneiden, verschieben, zuweisen, type PlanTermin } from "./plantafel";
 import { faelligkeiten } from "./fuhrpark";
 
 const t = (teil: Partial<PlanTermin> & { id: string }): PlanTermin => ({
@@ -131,5 +131,25 @@ describe("Gantt", () => {
     ]);
     expect(anzahl).toBe(2);
     expect([bahn.get("a"), bahn.get("b"), bahn.get("c")]).toEqual([0, 1, 0]);
+  });
+});
+
+describe("Farben und Stücke", () => {
+  it("aufeinanderfolgende Projekte bekommen verschiedene Farben", () => {
+    const f = [1, 2, 3, 4].map((n) => projektFarbe({ id: "x", nummer: `2026-000${n}` }));
+    expect(new Set(f).size).toBe(4);
+    expect(projektFarbe(null)).toBe("#64748B");
+  });
+  it("Schrift hell auf dunkel, dunkel auf hell", () => {
+    expect(textAuf("#2563EB")).toBe("#ffffff");
+    expect(textAuf("#CA8A04")).toBe("#ffffff");
+    expect(textAuf("#FDE68A")).toBe("#111827");
+  });
+  it("Wochenende wird zur Lücke, nur Wochenende bleibt ganz", () => {
+    // Fr(4) Sa(5) So(6) Mo(7)
+    const frei = (i: number) => i % 7 === 5 || i % 7 === 6;
+    expect(arbeitsStuecke({ links: 4, laenge: 4 }, frei)).toEqual([{ links: 4, laenge: 1 }, { links: 7, laenge: 1 }]);
+    expect(arbeitsStuecke({ links: 5, laenge: 1 }, frei)).toEqual([{ links: 5, laenge: 1 }]);
+    expect(arbeitsStuecke({ links: 0, laenge: 3 }, frei)).toEqual([{ links: 0, laenge: 3 }]);
   });
 });

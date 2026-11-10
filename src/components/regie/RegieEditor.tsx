@@ -143,7 +143,7 @@ export function RegieEditor({ voll }: { voll: RegieVoll | null }) {
   // Ohne Vorgabe: das zuletzt bebuchte, noch laufende Projekt
   useEffect(() => {
     if (gespeichert || entwurf.projektId || projektGewaehlt.current) return;
-    const p = letzte.map((id) => projekte.find((x) => x.id === id)).find((x) => x && x.status !== "abgeschlossen");
+    const p = letzte.map((id) => projekte.find((x) => x.id === id)).find((x) => x && x.status === "aktiv");
     if (p) setEntwurf((e) => (e.projektId ? e : { ...e, projektId: p.id }));
   }, [letzte, projekte, gespeichert, entwurf.projektId]);
 
@@ -387,7 +387,7 @@ export function RegieEditor({ voll }: { voll: RegieVoll | null }) {
   const anzahlZeiten = voll?.zeiten.length ?? 0;
   const anzahlMaterial = voll?.material.length ?? 0;
   const projektChips = !gespeichert
-    ? letzte.map((id) => projekte.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p && p.status !== "abgeschlossen")
+    ? letzte.map((id) => projekte.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p && p.status === "aktiv")
     : [];
 
   return (
@@ -468,7 +468,7 @@ export function RegieEditor({ voll }: { voll: RegieVoll | null }) {
                         ))}
                       </div>
                     )}
-                    <ProjektWahl id="rb-projekt" wert={entwurf.projektId} onChange={(id) => projektWaehlen(id)} />
+                    <ProjektWahl id="rb-projekt" nurInArbeit wert={entwurf.projektId} onChange={(id) => projektWaehlen(id)} />
                     {(kopf?.kunde || kopf?.baustelle) && (
                       <p className="text-xs text-muted-foreground">{[kopf.kunde, kopf.baustelle].filter(Boolean).join(" · ")}</p>
                     )}

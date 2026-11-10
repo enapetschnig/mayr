@@ -17,6 +17,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, Karte, Kennzahl, Leer, ProjektStatusBadge } from "@/components/Bausteine";
+import { ProjektStatusWahl } from "@/components/ProjektStatusWahl";
 import { ProjektDialog } from "@/components/dialoge/ProjektDialog";
 import { ZeitDialog } from "@/components/dialoge/ZeitDialog";
 import { FotoDialog } from "@/components/dialoge/FotoDialog";
@@ -113,6 +114,15 @@ export default function ProjektDetail() {
     await neuLaden("projekte");
   };
 
+  // Gebucht wird nur auf Projekte „In Arbeit“ (Trigger nur_in_arbeit_buchen)
+  const buchbar = projekt.status === "aktiv";
+  const buchen = (los: () => void) => () => {
+    if (buchbar) return los();
+    toast(`Projekt ist „${PROJEKT_STATUS[projekt.status as ProjektStatus]?.text ?? projekt.status}“ — gebucht wird nur auf Projekte „In Arbeit“.`, {
+      action: istChef ? { label: "Auf „In Arbeit“", onClick: () => void statusSetzen("aktiv") } : undefined,
+    });
+  };
+
   /**
    * Erst das Projekt (die Datenbank lehnt ab, wenn schon verrechnet oder
    * unterschrieben ist — dann bleibt alles, auch die Fotos), danach seine
@@ -177,7 +187,7 @@ export default function ProjektDetail() {
       {/* Kopf: Status, Kunde, Baustelle — anrufen und navigieren mit einem Tipp */}
       <section className="rounded-lg border bg-card p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <ProjektStatusBadge status={projekt.status} />
+          <ProjektStatusWahl projekt={projekt} />
           {Number(projekt.stundensatz) > 0 && istChef && (
             <span className="text-xs text-muted-foreground">eigener Stundensatz {euro(Number(projekt.stundensatz))}</span>
           )}
@@ -216,9 +226,9 @@ export default function ProjektDetail() {
       {/* Die Handgriffe auf der Baustelle */}
       <div className="grid grid-cols-4 gap-2">
         <AktionsKnopf icon={Camera} text="Foto" primaer onClick={() => setDialog("foto")} />
-        <AktionsKnopf icon={Clock} text="Stunden" onClick={() => setDialog("zeit")} />
-        <AktionsKnopf icon={ScanBarcode} text="Material" onClick={() => navigate(`/scan?projekt=${projekt.id}&modus=ausfassung`)} />
-        <AktionsKnopf icon={ClipboardSignature} text="Regie" onClick={() => navigate(`/regie/neu?projekt=${projekt.id}`)} />
+        <AktionsKnopf icon={Clock} text="Stunden" gesperrt={!buchbar} onClick={buchen(() => setDialog("zeit"))} />
+        <AktionsKnopf icon={ScanBarcode} text="Material" gesperrt={!buchbar} onClick={buchen(() => navigate(`/scan?projekt=${projekt.id}&modus=ausfassung`))} />
+        <AktionsKnopf icon={ClipboardSignature} text="Regie" gesperrt={!buchbar} onClick={buchen(() => navigate(`/regie/neu?projekt=${projekt.id}`))} />
       </div>
 
       {/* Projektordner als Kacheln: alles auf einen Blick, mit Anzahl */}
@@ -245,7 +255,7 @@ export default function ProjektDetail() {
       {ordner === "fotos" && <FotosTab projektId={projekt.id} art="foto" />}
       {ordner === "dokumente" && <FotosTab projektId={projekt.id} art="dokument" />}
       {ordner === "stunden" && (
-        <ProjektStunden projektId={projekt.id} onNeu={() => setDialog("zeit")}
+        <ProjektStunden projektId={projekt.id} onNeu={buchen(() => setDialog("zeit"))}
           onWahl={(z) => (z.regiebericht_id ? navigate(`/regie/${z.regiebericht_id}`) : (setZeit(z), setDialog("zeit")))} />
       )}
       {ordner === "material" && <ProjektMaterial projekt={projekt} />}
@@ -279,11 +289,12 @@ export default function ProjektDetail() {
   );
 }
 
-function AktionsKnopf({ icon: I, text, onClick, primaer = false }: { icon: typeof Clock; text: string; onClick: () => void; primaer?: boolean }) {
+function AktionsKnopf({ icon: I, text, onClick, primaer = false, gesperrt = false }: { icon: typeof Clock; text: string; onClick: () => void; primaer?: boolean; gesperrt?: boolean }) {
   return (
-    <button type="button" onClick={onClick}
+    <button type="button" onClick={onClick} aria-disabled={gesperrt || undefined} title={gesperrt ? "Nur bei Projekten „In Arbeit“" : undefined}
       className={cn("flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2.5 text-sm font-semibold transition-colors active:scale-[0.98]",
-        primaer ? "bg-primary text-primary-foreground hover:bg-primary-hover" : "border bg-card text-foreground hover:border-primary/50")}>
+        primaer ? "bg-primary text-primary-foreground hover:bg-primary-hover" : "border bg-card text-foreground hover:border-primary/50",
+        gesperrt && "border-dashed bg-muted/40 text-muted-foreground opacity-70")}>
       <I className={cn("h-5 w-5", !primaer && "text-primary")} />
       <span>+ {text}</span>
     </button>
@@ -495,7 +506,7 @@ function ProjektTermine({ projektId, onNeu, onWahl }: { projektId: string; onNeu
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <Button onClick={onNeu} className="h-12 gap-2"><CalendarPlus className="h-4 w-4" /> Termin eintragen</Button>
-        <Button variant="outline" className="h-12" asChild><Link to="/kalender">Zum Kalender</Link></Button>
+        <Button variant="outline" className="h-12" asChild><Link to="/plantafel">Zur Plantafel</Link></Button>
       </div>
       {!isLoading && termine.length === 0 ? <Leer icon={CalendarDays} text="Keine Termine zu diesem Projekt." /> : (
         <ul className="divide-y rounded-lg border bg-card">

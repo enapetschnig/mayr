@@ -4,7 +4,8 @@ import { Clock, FolderKanban, FolderPlus, LayoutGrid, List, MapPin, Search, User
 import { Seite } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leer, ProjektStatusBadge } from "@/components/Bausteine";
+import { Leer } from "@/components/Bausteine";
+import { ProjektStatusWahl } from "@/components/ProjektStatusWahl";
 import { ProjektDialog } from "@/components/dialoge/ProjektDialog";
 import { useIstPc } from "@/components/AppLayout";
 import { useProjekte, useProjektZahlen, type ProjektMitKunde } from "@/hooks/useDaten";
@@ -141,7 +142,7 @@ export default function Projekte() {
                     <td className="px-4 py-3 font-medium">{p.name}</td>
                     <td className="px-4 py-3">{p.kunden?.name ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{p.ort ?? "—"}</td>
-                    <td className="px-4 py-3"><ProjektStatusBadge status={p.status} /></td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}><ProjektStatusWahl projekt={p} /></td>
                     <td className="zahl px-4 py-3 text-right">{z ? stunden(Number(z.stunden)) : "—"}</td>
                     <td className="px-4 py-3 text-right text-xs text-muted-foreground"><OffenText z={z} /></td>
                   </tr>
@@ -162,14 +163,15 @@ function ProjektKachel({ p, z }: { p: ProjektMitKunde; z: ProjektZahlen | undefi
   const ort = [p.strasse, [p.plz, p.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const offen = p.status !== "abgeschlossen" && hatOffenes(z);
   return (
-    <Link to={`/projekte/${p.id}`} data-projekt-kachel={p.nummer}
-      className="flex min-h-[8.5rem] min-w-0 flex-col gap-1 rounded-lg border bg-card p-3.5 transition-colors hover:border-primary/50 active:scale-[0.99]">
+    // Ganze Kachel führt ins Projekt (Link über die Fläche), die Status-Pille stellt direkt um
+    <div data-projekt-kachel={p.nummer}
+      className="relative flex min-h-[8.5rem] min-w-0 flex-col gap-1 rounded-lg border bg-card p-3.5 transition-colors hover:border-primary/50">
       <span className="flex items-start gap-2">
         <span className="min-w-0 flex-1">
           <span className="font-mono text-xs text-muted-foreground">{p.nummer}</span>
-          <span className="line-clamp-2 break-words font-semibold leading-snug" title={p.name}>{p.name}</span>
+          <Link to={`/projekte/${p.id}`} className="line-clamp-2 break-words font-semibold leading-snug after:absolute after:inset-0 after:rounded-lg" title={p.name}>{p.name}</Link>
         </span>
-        <ProjektStatusBadge status={p.status} />
+        <ProjektStatusWahl projekt={p} className="relative z-10" />
       </span>
       {p.kunden?.name && (
         <span className="flex min-w-0 items-center gap-1.5 text-sm"><User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{p.kunden.name}</span></span>
@@ -181,7 +183,7 @@ function ProjektKachel({ p, z }: { p: ProjektMitKunde; z: ProjektZahlen | undefi
         {z && Number(z.stunden) > 0 && <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /><span className="zahl">{stunden(Number(z.stunden))}</span></span>}
         {offen && <span className="font-medium text-status-gelb-fg">Nicht verrechnet: <OffenText z={z} /></span>}
       </span>
-    </Link>
+    </div>
   );
 }
 

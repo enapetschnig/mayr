@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useParams } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -17,7 +17,6 @@ import NotFound from "./pages/NotFound";
 const Projekte = lazy(() => import("./pages/Projekte"));
 const ProjektDetail = lazy(() => import("./pages/ProjektDetail"));
 const Zeiten = lazy(() => import("./pages/Zeiten"));
-const Kalender = lazy(() => import("./pages/Kalender"));
 const Scan = lazy(() => import("./pages/Scan"));
 const Anlagen = lazy(() => import("./pages/Anlagen"));
 const AnlageDetail = lazy(() => import("./pages/AnlageDetail"));
@@ -77,7 +76,7 @@ const App = () => (
                 <Route path="/projekte" element={<S><Projekte /></S>} />
                 <Route path="/projekte/:id" element={<S><ProjektDetail /></S>} />
                 <Route path="/zeiten" element={<S><Zeiten /></S>} />
-                <Route path="/kalender" element={<S><Kalender /></S>} />
+                <Route path="/kalender" element={<Navigate to="/plantafel" replace />} />
                 <Route path="/plantafel" element={<S><Plantafel /></S>} />
                 <Route path="/fuhrpark" element={<S><Fuhrpark /></S>} />
                 <Route path="/lieferscheine" element={<S><Lieferscheine /></S>} />

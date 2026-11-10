@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CalendarPlus, ChevronLeft, ChevronRight, Settings2, Truck } from "lucide-react";
+import { AlertTriangle, CalendarPlus, ChevronLeft, ChevronRight, MapPin, Settings2, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Seite } from "@/components/PageHeader";
+import { PageHeader, Seite } from "@/components/PageHeader";
 import { Avatar } from "@/components/Bausteine";
 import { Button } from "@/components/ui/button";
 import { useIstPc } from "@/components/AppLayout";
 import { TerminDialog } from "@/components/dialoge/TerminDialog";
 import { TeamsDialog } from "@/components/plantafel/TeamsDialog";
 import { Gantt } from "@/components/plantafel/Gantt";
+import { Monat } from "@/components/plantafel/Monat";
 import { useKalenderAbwesenheit } from "@/components/zeiten/personalDaten";
 import { useFahrzeuge, useMitarbeiter, useNeuLaden, useProjekte, useTeams } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datum as datumText, isoTag, isoZuDatum, tageDazu, uhrzeit } from "@/lib/format";
-import { amTag, ANSICHTEN, konflikte, type Ansicht, type Konflikt, type Zeile } from "@/lib/plantafel";
-import { TEAM_FARBEN, name, type Fahrzeug, type Profil, type Team, type Termin } from "@/lib/types";
+import { amTag, ANSICHTEN, konflikte, projektFarbe, type Ansicht, type Konflikt, type Zeile } from "@/lib/plantafel";
+import { feiertagName } from "@/lib/zeitkonto";
+import { ABWESENHEIT_ART, name, type AbwesenheitArt, type Fahrzeug, type Profil, type Projekt, type Team, type Termin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -22,29 +24,48 @@ const ANSICHT_KEY = "elektro.plantafel.ansicht";
 const montagVon = (iso: string) => tageDazu(iso, -((isoZuDatum(iso).getDay() + 6) % 7));
 const zeitText = (t: Termin) => (t.ganztags || !t.von ? "ganztägig" : `${uhrzeit(t.von)}${t.bis ? `–${uhrzeit(t.bis)}` : ""}`);
 
+/** Am PC: die Gantt-Zeiträume plus das Kalenderblatt */
+type PcAnsicht = Ansicht | "kalender";
+
+/** Tage des Kalenderblatts: Montag vor dem Ersten bis Sonntag nach dem Letzten */
+function monatsTage(bezug: string): string[] {
+  const d = isoZuDatum(bezug);
+  const erster = isoTag(new Date(d.getFullYear(), d.getMonth(), 1, 12));
+  const letzter = isoTag(new Date(d.getFullYear(), d.getMonth() + 1, 0, 12));
+  const liste: string[] = [];
+  for (let t = montagVon(erster); t <= tageDazu(montagVon(letzter), 6); t = tageDazu(t, 1)) liste.push(t);
+  return liste;
+}
+
 /**
- * /plantafel — wer fährt mit welchem Bus wohin. Am PC ein Gantt
- * (components/plantafel/Gantt.tsx): Teams mit ihren Leuten, Leute ohne Team,
- * Busse, Steiger und Geräte; Balken ziehen, Ränder ziehen, aufziehen.
- * Am Handy: Tagesliste.
+ * /plantafel — wer fährt wann mit wem wohin. Plantafel und Kalender sind eins:
+ * beide zeigen dieselben Einsätze (Tabelle `termine`).
+ * - PC: Gantt über die ganze Breite und Höhe (components/plantafel/Gantt.tsx),
+ *   Woche bis 3 Monate, dazu „Kalender“ als Monatsblatt
+ * - Handy: Tagesliste der Woche, Alle oder nur meine, mit Abwesenheiten
  */
 export default function Plantafel() {
   const pc = useIstPc();
   const neuLaden = useNeuLaden();
-  const { istChef } = useSitzung();
+  const { istChef, profil } = useSitzung();
   const heute = isoTag();
   const [bezug, setBezug] = useState(heute);
-  const [ansicht, setAnsichtState] = useState<Ansicht>(() => {
-    try { const w = localStorage.getItem(ANSICHT_KEY); return ANSICHTEN.some((x) => x.wert === w) ? (w as Ansicht) : "2wochen"; } catch { return "2wochen"; }
+  const [ansicht, setAnsichtState] = useState<PcAnsicht>(() => {
+    try { const w = localStorage.getItem(ANSICHT_KEY); return w === "kalender" || ANSICHTEN.some((x) => x.wert === w) ? (w as PcAnsicht) : "2wochen"; } catch { return "2wochen"; }
   });
-  const setAnsicht = (a: Ansicht) => { setAnsichtState(a); try { localStorage.setItem(ANSICHT_KEY, a); } catch { /* egal */ } };
+  const setAnsicht = (a: PcAnsicht) => { setAnsichtState(a); try { localStorage.setItem(ANSICHT_KEY, a); } catch { /* egal */ } };
+  const [nurMeine, setNurMeine] = useState(!istChef);
   const [dialog, setDialog] = useState<{ termin?: Termin | null; datum?: string; bisDatum?: string; mitarbeiterId?: string; teamId?: string; fahrzeugId?: string } | null>(null);
   const [teamsOffen, setTeamsOffen] = useState(false);
 
-  // Am Handy immer eine Arbeitswoche als Liste
-  const a = ANSICHTEN.find((x) => x.wert === (pc ? ansicht : "woche"))!;
+  const kalender = pc && ansicht === "kalender";
+  // Am Handy immer eine Woche als Liste
+  const a = ANSICHTEN.find((x) => x.wert === (pc && ansicht !== "kalender" ? ansicht : "woche"))!;
   const start = a.wert === "3monate" ? tageDazu(montagVon(bezug), -7) : montagVon(bezug);
-  const tage = useMemo(() => Array.from({ length: pc ? a.tage : 5 }, (_, i) => tageDazu(start, i)), [start, a.tage, pc]);
+  const tage = useMemo(
+    () => (kalender ? monatsTage(bezug) : Array.from({ length: pc ? a.tage : 7 }, (_, i) => tageDazu(start, i))),
+    [kalender, bezug, start, a.tage, pc],
+  );
   const von = tage[0];
   const bis = tage[tage.length - 1];
 
@@ -65,6 +86,17 @@ export default function Plantafel() {
     },
     placeholderData: (alt) => alt,
   });
+  // Für „Noch nicht eingeplant“: Projekte mit einem Einsatz ab heute
+  const { data: eingeplant = new Set<string>() } = useQuery({
+    queryKey: ["termine", "eingeplant", heute],
+    enabled: pc && istChef,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("termine").select("projekt_id").not("projekt_id", "is", null)
+        .or(`datum.gte.${heute},bis_datum.gte.${heute}`);
+      if (error) throw error;
+      return new Set((data ?? []).map((x) => x.projekt_id as string));
+    },
+  });
 
   useEffect(() => {
     const kanal = supabase.channel("plantafel")
@@ -77,7 +109,17 @@ export default function Plantafel() {
   const abw = abwesend.filter((x): x is typeof x & { user_id: string; von: string; bis: string } => !!x.user_id && !!x.von && !!x.bis);
   const liste = konflikte(termine, tage, abw);
   const konfliktIds = new Set(liste.flatMap((k) => k.termine));
-  const titel = `${datumText(von).slice(0, 6)} – ${datumText(bis)}`;
+  const meine = nurMeine && profil ? termine.filter((t) => t.mitarbeiter.includes(profil.id)) : termine;
+
+  const blaettern = (r: number) => {
+    if (kalender) {
+      const d = isoZuDatum(bezug);
+      setBezug(isoTag(new Date(d.getFullYear(), d.getMonth() + r, 1, 12)));
+    } else setBezug(tageDazu(bezug, r * (pc ? a.schritt : 7)));
+  };
+  const titel = kalender
+    ? isoZuDatum(bezug).toLocaleDateString("de-AT", { month: "long", year: "numeric" })
+    : `${datumText(von).slice(0, 6)} – ${datumText(bis)}`;
 
   const neuAus = (v: { datum: string; bisDatum?: string; zeile: Zeile }) => setDialog({
     datum: v.datum, bisDatum: v.bisDatum,
@@ -85,93 +127,152 @@ export default function Plantafel() {
     teamId: v.zeile.art === "team" ? v.zeile.id : undefined,
     fahrzeugId: v.zeile.art === "fahrzeug" ? v.zeile.id : undefined,
   });
+  const neuerEinsatz = () => setDialog({ datum: tage.includes(heute) ? heute : kalender ? bezug : von });
 
-  return (
-    <Seite titel="Plantafel" untertitel={titel} breit
-      aktionen={(
-        <div className="flex gap-2">
-          {istChef && pc && <Button variant="outline" className="h-11 gap-1.5" onClick={() => setTeamsOffen(true)}><Settings2 className="h-4 w-4" /> Teams</Button>}
-          <Button className="h-11 gap-1.5" onClick={() => setDialog({ datum: tage.includes(heute) ? heute : von })}><CalendarPlus className="h-4 w-4" /> Einsatz</Button>
-        </div>
-      )}>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" className="h-11 w-11" aria-label="Zurück" onClick={() => setBezug(tageDazu(bezug, -(pc ? a.schritt : 7)))}><ChevronLeft className="h-5 w-5" /></Button>
-          <Button variant="outline" className="h-11" onClick={() => setBezug(heute)}>Heute</Button>
-          <Button variant="outline" size="icon" className="h-11 w-11" aria-label="Weiter" onClick={() => setBezug(tageDazu(bezug, pc ? a.schritt : 7))}><ChevronRight className="h-5 w-5" /></Button>
-        </div>
-        {pc && (
-          <div className="flex rounded-md border bg-card p-0.5" role="group" aria-label="Zeitraum">
-            {ANSICHTEN.map((x) => (
-              <button key={x.wert} type="button" aria-pressed={ansicht === x.wert} onClick={() => setAnsicht(x.wert)}
-                className={cn("h-9 rounded px-3 text-sm font-medium", ansicht === x.wert ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-                {x.text}
-              </button>
-            ))}
-          </div>
-        )}
-        {pc && (
-          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">Gehe zu
-            <input type="date" className="h-11 rounded-md border bg-card px-2 text-sm text-foreground" onChange={(e) => e.target.value && setBezug(e.target.value)} />
-          </label>
-        )}
-      </div>
-
-      {liste.length > 0 && <KonfliktListe liste={liste} termine={termine} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} onTermin={(t) => setDialog({ termin: t })} />}
-
-      {pc ? (
-        <Gantt start={start} ansicht={ansicht} termine={termine} termineKey={termineKey} teams={teams} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge}
-          projekte={projekte} abwesend={abwesend} konfliktIds={konfliktIds} darf={istChef} heute={heute} seitenleiste
-          onOeffnen={(t) => setDialog({ termin: t })} onNeu={neuAus} />
-      ) : (
-        <HandyListe tage={tage} heute={heute} termine={termine} teams={teams} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} projekte={projekte}
-          konfliktIds={konfliktIds} onTermin={(t) => setDialog({ termin: t })} onNeu={(datum) => setDialog({ datum })} />
-      )}
-
+  const dialoge = (
+    <>
       <TerminDialog open={!!dialog} onOpenChange={(o) => !o && setDialog(null)} termin={dialog?.termin} datum={dialog?.datum} bisDatum={dialog?.bisDatum}
         mitarbeiterId={dialog?.mitarbeiterId} teamId={dialog?.teamId} fahrzeugId={dialog?.fahrzeugId} />
       <TeamsDialog open={teamsOffen} onOpenChange={setTeamsOffen} />
-    </Seite>
+    </>
+  );
+
+  const blaetterKnoepfe = (hoch: string) => (
+    <div className="flex items-center gap-1">
+      <Button variant="outline" size="icon" className={cn(hoch, "w-auto aspect-square")} aria-label="Zurück blättern" onClick={() => blaettern(-1)}><ChevronLeft className="h-5 w-5" /></Button>
+      <Button variant="outline" className={hoch} onClick={() => setBezug(heute)}>Heute</Button>
+      <Button variant="outline" size="icon" className={cn(hoch, "w-auto aspect-square")} aria-label="Weiter blättern" onClick={() => blaettern(1)}><ChevronRight className="h-5 w-5" /></Button>
+    </div>
+  );
+
+  if (!pc) {
+    return (
+      <Seite titel="Plantafel" untertitel={titel}
+        aktionen={istChef ? <Button className="h-11 gap-1.5" onClick={neuerEinsatz}><CalendarPlus className="h-4 w-4" /> Einsatz</Button> : undefined}>
+        <div className="flex flex-wrap items-center gap-2">
+          {blaetterKnoepfe("h-11")}
+          <Segment werte={[["alle", "Alle"], ["meine", "Meine"]]} wert={nurMeine ? "meine" : "alle"} onChange={(w) => setNurMeine(w === "meine")} />
+        </div>
+        {liste.length > 0 && istChef && <KonfliktListe liste={liste} termine={termine} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} onTermin={(t) => setDialog({ termin: t })} />}
+        <HandyListe tage={tage} heute={heute} termine={meine} teams={teams} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} projekte={projekte}
+          abwesend={nurMeine && profil ? abwesend.filter((x) => x.user_id === profil.id) : abwesend} darf={istChef}
+          konfliktIds={konfliktIds} onTermin={(t) => setDialog({ termin: t })} onNeu={(datum) => setDialog({ datum })} />
+        {dialoge}
+      </Seite>
+    );
+  }
+
+  return (
+    <div className="flex h-screen flex-col">
+      <PageHeader title="Plantafel" untertitel={titel} voll
+        aktionen={istChef ? (
+          <>
+            <Button variant="outline" className="h-10 gap-1.5" onClick={() => setTeamsOffen(true)}><Settings2 className="h-4 w-4" /> Teams</Button>
+            <Button className="h-10 gap-1.5" onClick={neuerEinsatz}><CalendarPlus className="h-4 w-4" /> Einsatz</Button>
+          </>
+        ) : undefined} />
+      <div className="flex flex-wrap items-center gap-2 border-b bg-card px-4 py-2">
+        {blaetterKnoepfe("h-9")}
+        <div className="flex rounded-md border bg-card p-0.5" role="group" aria-label="Zeitraum">
+          {[...ANSICHTEN.map((x) => ({ wert: x.wert as PcAnsicht, text: x.text })), { wert: "kalender" as PcAnsicht, text: "Kalender" }].map((x) => (
+            <button key={x.wert} type="button" aria-pressed={ansicht === x.wert} onClick={() => setAnsicht(x.wert)}
+              className={cn("h-8 rounded px-3 text-sm font-medium", ansicht === x.wert ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                x.wert === "kalender" && "ml-1 border-l pl-3")}>
+              {x.text}
+            </button>
+          ))}
+        </div>
+        {kalender && <Segment klein werte={[["alle", "Alle"], ["meine", "Meine"]]} wert={nurMeine ? "meine" : "alle"} onChange={(w) => setNurMeine(w === "meine")} />}
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground">Gehe zu
+          <input type="date" className="h-9 rounded-md border bg-card px-2 text-sm text-foreground" onChange={(e) => e.target.value && setBezug(e.target.value)} />
+        </label>
+        {liste.length > 0 && <KonfliktKnopf liste={liste} termine={termine} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} onTermin={(t) => setDialog({ termin: t })} />}
+      </div>
+
+      {kalender ? (
+        <Monat tage={tage} bezug={bezug} heute={heute} termine={meine} mitarbeiter={mitarbeiter} projekte={projekte} darf={istChef}
+          onTag={setBezug} onNeu={(datum) => setDialog({ datum })} onTermin={(t) => setDialog({ termin: t })} />
+      ) : (
+        <Gantt className="flex-1" start={start} ansicht={a.wert} termine={termine} termineKey={termineKey} teams={teams} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge}
+          projekte={projekte} eingeplant={eingeplant} abwesend={abwesend} konfliktIds={konfliktIds} darf={istChef} heute={heute}
+          onBearbeiten={(t) => setDialog({ termin: t })} onNeu={neuAus} />
+      )}
+      {dialoge}
+    </div>
   );
 }
 
-function KonfliktListe({
-  liste, termine, mitarbeiter, fahrzeuge, onTermin,
-}: { liste: Konflikt[]; termine: Termin[]; mitarbeiter: Profil[]; fahrzeuge: Fahrzeug[]; onTermin: (t: Termin) => void }) {
+function Segment({ werte, wert, onChange, klein }: { werte: [string, string][]; wert: string; onChange: (w: string) => void; klein?: boolean }) {
+  return (
+    <div className={cn("flex overflow-hidden rounded-md border bg-card", klein ? "h-9" : "h-11")}>
+      {werte.map(([w, t], i) => (
+        <button key={w} type="button" onClick={() => onChange(w)} aria-pressed={wert === w}
+          className={cn("px-3.5 text-sm font-medium transition-colors", i > 0 && "border-l", wert === w ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const konfliktText = (k: Konflikt, mitarbeiter: Profil[], fahrzeuge: Fahrzeug[]) => {
+  const wer = k.art === "fahrzeug_doppelt" ? fahrzeuge.find((f) => f.id === k.ressource)?.name ?? "Fahrzeug" : name(mitarbeiter.find((m) => m.id === k.ressource));
+  const tag = `${WOCHENTAGE[(isoZuDatum(k.tag).getDay() + 6) % 7]} ${datumText(k.tag).slice(0, 6)}`;
+  return k.art === "person_abwesend" ? `${wer} ist am ${tag} abwesend, aber eingeteilt` : `${wer} ist am ${tag} doppelt eingeteilt`;
+};
+
+function KonfliktZeilen({ liste, termine, mitarbeiter, fahrzeuge, onTermin }: { liste: Konflikt[]; termine: Termin[]; mitarbeiter: Profil[]; fahrzeuge: Fahrzeug[]; onTermin: (t: Termin) => void }) {
+  return (
+    <ul className="space-y-0.5 text-sm">
+      {liste.map((k) => (
+        <li key={`${k.art}${k.tag}${k.ressource}`} className="flex flex-wrap items-center gap-x-2">
+          <span>{konfliktText(k, mitarbeiter, fahrzeuge)}:</span>
+          {k.termine.map((id) => {
+            const t = termine.find((x) => x.id === id);
+            return t && <button key={id} type="button" className="min-h-8 font-medium text-primary underline-offset-2 hover:underline" onClick={() => onTermin(t)}>{t.titel}</button>;
+          })}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** PC: kleiner roter Knopf in der Leiste, die Liste klappt darunter auf */
+function KonfliktKnopf(p: { liste: Konflikt[]; termine: Termin[]; mitarbeiter: Profil[]; fahrzeuge: Fahrzeug[]; onTermin: (t: Termin) => void }) {
   const [offen, setOffen] = useState(false);
-  const text = (k: Konflikt) => {
-    const wer = k.art === "fahrzeug_doppelt" ? fahrzeuge.find((f) => f.id === k.ressource)?.name ?? "Fahrzeug" : name(mitarbeiter.find((m) => m.id === k.ressource));
-    const tag = `${WOCHENTAGE[(isoZuDatum(k.tag).getDay() + 6) % 7]} ${datumText(k.tag).slice(0, 6)}`;
-    return k.art === "person_abwesend" ? `${wer} ist am ${tag} abwesend, aber eingeteilt` : `${wer} ist am ${tag} doppelt eingeteilt`;
-  };
+  return (
+    <div className="relative ml-auto">
+      <button type="button" onClick={() => setOffen(!offen)} aria-expanded={offen}
+        className="flex h-9 items-center gap-1.5 rounded-md border border-status-rot-fg/40 bg-status-rot px-3 text-sm font-semibold text-status-rot-fg">
+        <AlertTriangle className="h-4 w-4" />{p.liste.length === 1 ? "1 Konflikt" : `${p.liste.length} Konflikte`}
+      </button>
+      {offen && (
+        <div className="absolute right-0 top-11 z-50 max-h-96 w-[28rem] overflow-auto rounded-lg border-2 border-status-rot-fg/40 bg-card p-3 shadow-xl">
+          <KonfliktZeilen {...p} onTermin={(t) => { setOffen(false); p.onTermin(t); }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KonfliktListe(p: { liste: Konflikt[]; termine: Termin[]; mitarbeiter: Profil[]; fahrzeuge: Fahrzeug[]; onTermin: (t: Termin) => void }) {
+  const [offen, setOffen] = useState(false);
   return (
     <section className="rounded-lg border border-status-rot-fg/40 bg-status-rot/30 px-3 py-1.5" role="status">
       <button type="button" onClick={() => setOffen(!offen)} aria-expanded={offen} className="flex min-h-9 w-full items-center gap-1.5 text-left text-sm">
         <AlertTriangle className="h-4 w-4 shrink-0" />
-        <span className="font-semibold">{liste.length === 1 ? "1 Konflikt" : `${liste.length} Konflikte`}</span>
-        {!offen && <span className="truncate text-muted-foreground">· {text(liste[0])}{liste.length > 1 ? " …" : ""}</span>}
+        <span className="font-semibold">{p.liste.length === 1 ? "1 Konflikt" : `${p.liste.length} Konflikte`}</span>
+        {!offen && <span className="truncate text-muted-foreground">· {konfliktText(p.liste[0], p.mitarbeiter, p.fahrzeuge)}{p.liste.length > 1 ? " …" : ""}</span>}
         <span className="ml-auto shrink-0 text-xs font-medium text-primary">{offen ? "zuklappen" : "zeigen"}</span>
       </button>
-      {offen && (
-        <ul className="space-y-0.5 pb-1.5 text-sm">
-          {liste.map((k) => (
-            <li key={`${k.art}${k.tag}${k.ressource}`} className="flex flex-wrap items-center gap-x-2">
-              <span>{text(k)}:</span>
-              {k.termine.map((id) => {
-                const t = termine.find((x) => x.id === id);
-                return t && <button key={id} type="button" className="min-h-8 font-medium text-primary underline-offset-2 hover:underline" onClick={() => onTermin(t)}>{t.titel}</button>;
-              })}
-            </li>
-          ))}
-        </ul>
-      )}
+      {offen && <div className="pb-1.5"><KonfliktZeilen {...p} /></div>}
     </section>
   );
 }
 
-/** Handy: je Tag die Einsätze, nach Team gruppiert */
+/** Handy: je Tag die Einsätze, Farbe = Projekt; leeres Wochenende fällt weg */
 function HandyListe({
-  tage, heute, termine, teams, mitarbeiter, fahrzeuge, projekte, konfliktIds, onTermin, onNeu,
+  tage, heute, termine, teams, mitarbeiter, fahrzeuge, projekte, abwesend, darf, konfliktIds, onTermin, onNeu,
 }: {
   tage: string[];
   heute: string;
@@ -179,23 +280,34 @@ function HandyListe({
   teams: Team[];
   mitarbeiter: Profil[];
   fahrzeuge: Fahrzeug[];
-  projekte: { id: string; nummer: string }[];
+  projekte: Projekt[];
+  abwesend: { id: string | null; user_id: string | null; von: string | null; bis: string | null; art: string | null }[];
+  darf: boolean;
   konfliktIds: Set<string>;
   onTermin: (t: Termin) => void;
   onNeu: (tag: string) => void;
 }) {
   return (
     <div className="space-y-4">
-      {tage.map((tag) => {
+      {tage.map((tag, i) => {
         const liste = termine.filter((t) => amTag(t, tag));
+        const weg = abwesend.filter((x) => x.von && x.bis && x.von <= tag && x.bis >= tag);
+        if (i >= 5 && !liste.length && tag !== heute) return null;
         return (
           <section key={tag}>
             <div className="flex items-center justify-between px-1 pb-1.5">
               <h3 className={cn("text-sm font-semibold", tag === heute && "text-primary")}>
                 {tag === heute ? "Heute, " : `${WOCHENTAGE[(isoZuDatum(tag).getDay() + 6) % 7]}, `}{datumText(tag).slice(0, 6)}
+                {feiertagName(tag) && <span className="font-normal text-muted-foreground"> · {feiertagName(tag)}</span>}
               </h3>
-              <button type="button" className="-my-3 -mr-2 min-h-11 px-2 text-sm font-medium text-primary" onClick={() => onNeu(tag)}>+ Einsatz</button>
+              {darf && <button type="button" className="-my-3 -mr-2 min-h-11 px-2 text-sm font-medium text-primary" onClick={() => onNeu(tag)}>+ Einsatz</button>}
             </div>
+            {weg.map((x) => (
+              <p key={`${x.id}${tag}`} className="mb-1.5 flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 text-sm text-muted-foreground">
+                <Avatar profil={mitarbeiter.find((m) => m.id === x.user_id)} className="h-6 w-6 text-[10px]" />
+                {name(mitarbeiter.find((m) => m.id === x.user_id))} · {ABWESENHEIT_ART[x.art as AbwesenheitArt]?.text ?? "Abwesend"}
+              </p>
+            ))}
             {liste.length === 0 ? (
               <p className="rounded-lg border border-dashed px-3.5 py-2.5 text-sm text-muted-foreground">Nichts eingeteilt</p>
             ) : (
@@ -206,11 +318,12 @@ function HandyListe({
                   const fz = t.fahrzeuge.map((id) => fahrzeuge.find((f) => f.id === id)?.name).filter(Boolean);
                   return (
                     <li key={t.id}>
-                      <button type="button" onClick={() => onTermin(t)}
-                        className={cn("w-full rounded-lg border p-3 text-left", team ? TEAM_FARBEN[team.farbe]?.klasse : "bg-card", konfliktIds.has(t.id) && "ring-2 ring-status-rot-fg")}>
-                        <span className="block font-semibold">{konfliktIds.has(t.id) ? "⚠ " : ""}{t.titel}</span>
-                        <span className="block text-sm opacity-80">{zeitText(t)}{p ? ` · ${p.nummer}` : ""}{team ? ` · Team ${team.name}` : ""}</span>
-                        {fz.length > 0 && <span className="flex items-center gap-1 text-sm opacity-80"><Truck className="h-3.5 w-3.5" />{fz.join(", ")}</span>}
+                      <button type="button" onClick={() => onTermin(t)} style={{ borderLeft: `6px solid ${projektFarbe(p)}` }}
+                        className={cn("w-full rounded-lg border bg-card p-3 text-left", konfliktIds.has(t.id) && "ring-2 ring-status-rot-fg")}>
+                        <span className="block font-semibold">{konfliktIds.has(t.id) ? "⚠ " : ""}{t.status === "erledigt" ? "✓ " : ""}{t.titel}</span>
+                        <span className="block text-sm text-muted-foreground">{zeitText(t)}{p ? ` · ${p.nummer}` : ""}{team ? ` · Team ${team.name}` : ""}</span>
+                        {t.ort && <span className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="h-3.5 w-3.5" />{t.ort}</span>}
+                        {fz.length > 0 && <span className="flex items-center gap-1 text-sm text-muted-foreground"><Truck className="h-3.5 w-3.5" />{fz.join(", ")}</span>}
                         <span className="mt-1.5 flex -space-x-1.5">
                           {t.mitarbeiter.map((id) => <Avatar key={id} profil={mitarbeiter.find((m) => m.id === id)} className="h-7 w-7 text-[10px] ring-2 ring-card" />)}
                         </span>

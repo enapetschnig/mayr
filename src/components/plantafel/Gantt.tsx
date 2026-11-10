@@ -1,34 +1,37 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, ChevronDown, FolderKanban, GripVertical, Truck, Users } from "lucide-react";
+import {
+  Check, ChevronDown, ChevronsDownUp, ChevronsUpDown, Clock, FolderKanban, GripVertical, HelpCircle, MapPin, Pencil, Search, Trash2, Truck, Undo2, Users, X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar } from "@/components/Bausteine";
+import { Button } from "@/components/ui/button";
 import { fehlerText } from "@/components/stamm/stammDaten";
 import { datum as datumText, isoZuDatum, tageDazu, uhrzeit } from "@/lib/format";
-import { faelligkeiten } from "@/lib/fuhrpark";
-import { ablegen, amTag, ANSICHTEN, bahnen, balkenLage, inZeile, tageZwischen, verschieben, zuweisen, type Ansicht, type Griff, type Zeile } from "@/lib/plantafel";
+import {
+  ablegen, amTag, ANSICHTEN, arbeitsStuecke, bahnen, balkenLage, inZeile, projektFarbe, tageZwischen, textAuf, verschieben, type Ansicht, type Griff, type Zeile,
+} from "@/lib/plantafel";
 import { feiertagName } from "@/lib/zeitkonto";
-import { ABWESENHEIT_ART, FAHRZEUG_ART, TEAM_FARBEN, name, type AbwesenheitArt, type Fahrzeug, type FahrzeugArt, type Profil, type Projekt, type Team, type Termin } from "@/lib/types";
+import { ABWESENHEIT_ART, TEAM_FARBEN, name, type AbwesenheitArt, type Fahrzeug, type Profil, type Projekt, type Team, type Termin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * Plantafel als Gantt (Vorbild Steinbrecher-Ressourcenplanung): links Teams
- * mit ihren Leuten, Leute ohne Team, Busse/Steiger/Geräte; rechts die Tage.
- * - Balken ziehen = verschieben (Tag und Zeile: anderes Team → Leute und Bus
- *   wechseln mit, andere Person oder anderer Bus → getauscht)
- * - Ränder ziehen = früher anfangen / länger machen
- * - leere Tage aufziehen = neuer Einsatz für diese Zeile
- * - Projekt aus der Liste rechts auf eine Zeile ziehen = bis Freitag eingeplant
- * - Person oder Gerät (Griff links oder rechts) auf einen Balken = dazuholen,
- *   auf ein Team = Person wechselt ins Team / Team fährt mit diesem Bus
- * - Bus eines Teams oben im Team wählen (passt die Einsätze ab heute an)
- * - mit Strg/Alt gezogen = kopieren
+ * Plantafel als Gantt über die ganze Breite (Vorbild Steinbrecher-Ressourcenplanung):
+ * links die Teams (mit ihrem Bus) und ihre Leute, Leute ohne Team und „Nicht eingeteilt“,
+ * rechts die Tage. Jeder Balken trägt die Farbe seines Projekts; Wochenende und
+ * Feiertage bleiben Lücken. Busse haben keine eigenen Zeilen — der Bus gehört zum Team.
+ * - Antippen = kleines Fenster am Balken (Bearbeiten, Projekt, erledigt, löschen)
+ * - Ziehen = verschieben, auch in eine andere Zeile (Strg/Alt = kopieren)
+ * - Ränder ziehen = früher anfangen / länger; leere Tage aufziehen = neuer Einsatz
+ * - Oben „Noch nicht eingeplant“: Projekt auf eine Zeile ziehen = bis Freitag eingeplant
+ * - Person am Griff ⋮⋮ auf einen Balken = dazuholen, auf ein Team = ins Team
  * Alles wirkt sofort und lässt sich mit Strg+Z zurücknehmen. Am Tablet: halten = ziehen.
  */
 
 const WT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const LINKS = 264;
+const LINKS = 280;
 const wochentag = (iso: string) => (isoZuDatum(iso).getDay() + 6) % 7;
 const frei = (iso: string) => wochentag(iso) >= 5 || !!feiertagName(iso);
 const zeitText = (t: Termin) => (t.ganztags || !t.von ? "ganztägig" : `${uhrzeit(t.von)}–${t.bis ? uhrzeit(t.bis) : ""}`);
@@ -36,14 +39,14 @@ const zeileSchluessel = (z: Zeile) => (z.art === "offen" ? "offen" : `${z.art}:$
 const zeileAus = (s: string): Zeile => (s === "offen" ? { art: "offen" } : { art: s.split(":")[0] as "team", id: s.split(":")[1] });
 const kurz = (iso: string) => `${WT[wochentag(iso)]} ${datumText(iso).slice(0, 6)}`;
 const ZU_KEY = "elektro.plantafel.zu";
+const STREIFEN_KEY = "elektro.plantafel.streifen";
 
 type Inhalt =
   | { art: "balken"; id: string; griff: Griff; zeile: Zeile; tag: string }
   | { art: "neu"; zeile: Zeile; tag: string }
   | { art: "projekt"; id: string }
-  | { art: "ressource"; was: "person" | "fahrzeug"; id: string };
-/** ziel = Zeile unter dem Zeiger, balken = Einsatz unter dem Zeiger */
-/** kopie = Strg/Alt gedrückt: der Einsatz wird kopiert statt verschoben */
+  | { art: "person"; id: string };
+/** ziel = Zeile unter dem Zeiger, balken = Einsatz unter dem Zeiger, kopie = Strg/Alt gedrückt */
 type Ziehen = { inhalt: Inhalt; startX: number; startY: number; x: number; y: number; bewegt: boolean; sx0: number; sx: number; ziel: string | null; balken: string | null; kopie: boolean };
 type Rueck = { text: string; zurueck: () => Promise<void> };
 
@@ -52,7 +55,7 @@ type Felder = Pick<Termin, (typeof FELDER)[number]>;
 const felderVon = (t: Termin): Felder => ({ datum: t.datum, bis_datum: t.bis_datum, mitarbeiter: t.mitarbeiter, fahrzeuge: t.fahrzeuge, team_id: t.team_id });
 
 export function Gantt({
-  start, ansicht, termine, termineKey, teams, mitarbeiter, fahrzeuge, projekte, abwesend, konfliktIds, darf, heute, onOeffnen, onNeu, seitenleiste,
+  start, ansicht, termine, termineKey, teams, mitarbeiter, fahrzeuge, projekte, eingeplant, abwesend, konfliktIds, darf, heute, onBearbeiten, onNeu, className,
 }: {
   start: string;
   ansicht: Ansicht;
@@ -62,14 +65,15 @@ export function Gantt({
   mitarbeiter: Profil[];
   fahrzeuge: Fahrzeug[];
   projekte: Projekt[];
+  /** Projekte mit einem Einsatz ab heute */
+  eingeplant: Set<string>;
   abwesend: { id: string | null; user_id: string | null; von: string | null; bis: string | null; art: string | null }[];
   konfliktIds: Set<string>;
   darf: boolean;
   heute: string;
-  onOeffnen: (t: Termin) => void;
+  onBearbeiten: (t: Termin) => void;
   onNeu: (v: { datum: string; bisDatum?: string; zeile: Zeile }) => void;
-  /** Rückgängig-Knopf in der Werkzeugleiste der Seite */
-  seitenleiste: boolean;
+  className?: string;
 }) {
   const qc = useQueryClient();
   const a = ANSICHTEN.find((x) => x.wert === ansicht)!;
@@ -92,14 +96,13 @@ export function Gantt({
   const ziehenRef = useRef<Ziehen | null>(null);
   const setZiehen = (z: Ziehen | null) => { ziehenRef.current = z; setZiehenState(z); };
   const [rueck, setRueck] = useState<Rueck[]>([]);
+  const [info, setInfo] = useState<{ id: string; x: number; y: number } | null>(null);
   const [zu, setZu] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(ZU_KEY) ?? "[]"); } catch { return []; } });
-  const umklappen = (id: string) => setZu((alt) => {
-    const neu = alt.includes(id) ? alt.filter((x) => x !== id) : [...alt, id];
-    try { localStorage.setItem(ZU_KEY, JSON.stringify(neu)); } catch { /* egal */ }
-    return neu;
-  });
+  const zuSetzen = (neu: string[]) => { setZu(neu); try { localStorage.setItem(ZU_KEY, JSON.stringify(neu)); } catch { /* egal */ } };
+  const umklappen = (id: string) => zuSetzen(zu.includes(id) ? zu.filter((x) => x !== id) : [...zu, id]);
+  const alleZu = teams.length > 0 && teams.every((t) => zu.includes(t.id));
 
-  // Zur heutigen Woche scrollen, wenn sie nicht vorne steht (3 Monate beginnt eine Woche früher)
+  // Zur heutigen Woche scrollen, wenn sie nicht vorne steht
   useEffect(() => {
     const i = tage.indexOf(heute);
     if (bahnRef.current && i > 6) bahnRef.current.scrollLeft = (i - 3) * breite;
@@ -111,26 +114,37 @@ export function Gantt({
   const neuLaden = () => qc.invalidateQueries({ queryKey: ["termine"] });
 
   /** Ändern: sofort zeichnen, dann speichern; bei Fehler zurück */
-  const aendern = async (t: Termin, neu: Partial<Felder>, text: string, rueckgaengig = true) => {
-    const alt = felderVon(t);
+  const aendern = async (t: Termin, neu: Partial<Termin>, text: string, rueckgaengig = true) => {
+    const alt = Object.fromEntries(Object.keys(neu).map((k) => [k, t[k as keyof Termin]])) as Partial<Termin>;
     cacheSetzen((l) => l.map((x) => (x.id === t.id ? { ...x, ...neu } : x)));
     const { error } = await supabase.from("termine").update(neu).eq("id", t.id);
     if (error) {
       cacheSetzen((l) => l.map((x) => (x.id === t.id ? { ...x, ...alt } : x)));
       toast.error("Nicht gespeichert", { description: fehlerText(error) });
-      return;
+      return false;
     }
-    if (rueckgaengig) setRueck((r) => [...r.slice(-29), { text, zurueck: () => aendern({ ...t, ...neu }, alt, "", false) }]);
+    if (rueckgaengig) setRueck((r) => [...r.slice(-29), { text, zurueck: async () => { await aendern({ ...t, ...neu }, alt, "", false); } }]);
     void neuLaden();
+    return true;
   };
 
   const anlegen = async (werte: Partial<Termin> & { titel: string; datum: string }, text: string) => {
     const { data, error } = await supabase.from("termine").insert(werte).select("id").single();
-    if (error) return toast.error("Nicht gespeichert", { description: fehlerText(error) });
+    if (error) { toast.error("Nicht gespeichert", { description: fehlerText(error) }); return; }
     setRueck((r) => [...r.slice(-29), {
       text,
       zurueck: async () => { const { error: e } = await supabase.from("termine").delete().eq("id", data.id); if (e) toast.error("Nicht zurückgenommen", { description: fehlerText(e) }); void neuLaden(); },
     }]);
+    void neuLaden();
+  };
+
+  const loeschen = async (t: Termin) => {
+    const { error } = await supabase.from("termine").delete().eq("id", t.id);
+    if (error) return toast.error("Nicht gelöscht", { description: fehlerText(error) });
+    const { id: _id, created_at: _c, ...rest } = t;
+    setRueck((r) => [...r.slice(-29), { text: `${t.titel} gelöscht`, zurueck: async () => { await supabase.from("termine").insert({ ...rest, id: t.id }); void neuLaden(); } }]);
+    toast(`${t.titel} gelöscht`, { action: { label: "Rückgängig", onClick: () => void rueckgaengig() } });
+    setInfo(null);
     void neuLaden();
   };
 
@@ -252,7 +266,7 @@ export function Gantt({
     if (i.art === "balken") {
       const t = termine.find((x) => x.id === i.id);
       if (!t) return;
-      if (!z.bewegt) { onOeffnen(t); return; }
+      if (!z.bewegt) { setInfo((alt) => (alt?.id === t.id ? null : { id: t.id, x: z.x, y: z.y })); return; }
       if (!darf) return;
       const d = deltaTage(z);
       if (i.griff !== "mitte") {
@@ -274,22 +288,19 @@ export function Gantt({
       return;
     }
     if (!darf || !z.bewegt) return;
-    if (i.art === "ressource") {
+    if (i.art === "person") {
       const t = termine.find((x) => x.id === z.balken);
       const zielTeam = !t && z.ziel?.startsWith("team:") ? teams.find((x) => x.id === z.ziel!.slice(5)) : undefined;
-      if (zielTeam && i.was === "fahrzeug") { await busWechseln(zielTeam, i.id); return; }
-      if (zielTeam && i.was === "person") { await teamWechseln(i.id, zielTeam); return; }
+      if (zielTeam) { await teamWechseln(i.id, zielTeam); return; }
       if (!t) { toast("Auf einen Einsatz ziehen = dazuholen · auf ein Team ziehen = ins Team"); return; }
-      const neu = zuweisen(t, { art: i.was, id: i.id });
-      if (neu.mitarbeiter.length === t.mitarbeiter.length && neu.fahrzeuge.length === t.fahrzeuge.length) return;
-      const wer = i.was === "person" ? name(mitarbeiter.find((m) => m.id === i.id)) : fahrzeuge.find((f) => f.id === i.id)?.name;
-      await aendern(t, neu, `${wer} → ${t.titel}`);
+      if (t.mitarbeiter.includes(i.id)) return;
+      await aendern(t, { mitarbeiter: [...t.mitarbeiter, i.id] }, `${name(mitarbeiter.find((m) => m.id === i.id))} → ${t.titel}`);
       return;
     }
     if (i.art === "projekt") {
       const tag = tagBei(z.x);
       const zeilenZiel = z.ziel;
-      if (!tag || !zeilenZiel) { toast("Auf eine Zeile in der Tafel ziehen"); return; }
+      if (!tag || !zeilenZiel) { toast("Auf ein Team oder eine Person in der Tafel ziehen"); return; }
       const p = projekte.find((x) => x.id === i.id);
       if (!p) return;
       const zeile = zeileAus(zeilenZiel);
@@ -327,7 +338,7 @@ export function Gantt({
       if (z?.bewegt && box) {
         const r = box.getBoundingClientRect();
         const vx = z.x < r.left + LINKS + 30 && z.x > r.left + LINKS - 10 ? -14 : z.x > r.right - 40 && z.x < r.right + 10 ? 14 : 0;
-        const vy = z.y < r.top + 70 && z.y > r.top ? -10 : z.y > r.bottom - 30 && z.y < r.bottom + 10 ? 10 : 0;
+        const vy = z.y < r.top + 90 && z.y > r.top ? -10 : z.y > r.bottom - 30 && z.y < r.bottom + 10 ? 10 : 0;
         if (vx || vy) { box.scrollLeft += vx; box.scrollTop += vy; setze({ ...z, sx: box.scrollLeft }); }
       }
       rollen = requestAnimationFrame(rand);
@@ -360,75 +371,73 @@ export function Gantt({
 
   // ------------------------------------------------------------- Zeilen
   const inTeam = new Set(teams.flatMap((t) => t.mitglieder));
-  type Reihe = { zeile: Zeile; kopf: ReactNode; stufe: 0 | 1; hell?: boolean };
-  const abschnitte: { titel: string; icon: ReactNode; reihen: Reihe[] }[] = [
-    {
-      titel: "Teams", icon: <Users className="h-3.5 w-3.5" />,
-      reihen: teams.flatMap((team) => [
-        { zeile: { art: "team", id: team.id } as Zeile, stufe: 0 as const, hell: true,
-          kopf: <TeamKopf team={team} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} darf={darf} offen={!zu.includes(team.id)} onKlappen={() => umklappen(team.id)} onBus={(id) => void busWechseln(team, id)} /> },
-        ...(zu.includes(team.id) ? [] : team.mitglieder.map((id) => mitarbeiter.find((m) => m.id === id)).filter((m): m is Profil => !!m).map((m) => ({
-          zeile: { art: "person", id: m.id } as Zeile, stufe: 1 as const,
-          kopf: <PersonKopf m={m} darf={darf} onGriff={(e) => beginne({ art: "ressource", was: "person", id: m.id }, e)} />,
-        }))),
-      ]),
-    },
-    {
-      titel: "Ohne Team", icon: <Users className="h-3.5 w-3.5" />,
-      reihen: mitarbeiter.filter((m) => !inTeam.has(m.id)).map((m) => ({
-        zeile: { art: "person", id: m.id } as Zeile, stufe: 0 as const,
-        kopf: <PersonKopf m={m} darf={darf} onGriff={(e) => beginne({ art: "ressource", was: "person", id: m.id }, e)} />,
-      })),
-    },
-    {
-      titel: "Busse, Steiger & Geräte", icon: <Truck className="h-3.5 w-3.5" />,
-      reihen: fahrzeuge.map((f) => ({
-        zeile: { art: "fahrzeug", id: f.id } as Zeile, stufe: 0 as const,
-        kopf: <FahrzeugKopf f={f} heute={heute} darf={darf} onGriff={(e) => beginne({ art: "ressource", was: "fahrzeug", id: f.id }, e)} />,
-      })),
-    },
-    { titel: "Nicht eingeteilt", icon: null, reihen: [{ zeile: { art: "offen" }, stufe: 0, kopf: <span className="text-sm text-muted-foreground">Einsätze ohne Team und Leute</span> }] },
+  type Reihe = { zeile: Zeile; kopf: ReactNode; art: "team" | "person" | "offen"; eingerueckt?: boolean };
+  const reihen: (Reihe | { titel: string })[] = [
+    ...teams.flatMap((team): Reihe[] => [
+      { zeile: { art: "team", id: team.id }, art: "team",
+        kopf: <TeamKopf team={team} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} darf={darf} offen={!zu.includes(team.id)} onKlappen={() => umklappen(team.id)} onBus={(id) => void busWechseln(team, id)} /> },
+      ...(zu.includes(team.id) ? [] : team.mitglieder.map((id) => mitarbeiter.find((m) => m.id === id)).filter((m): m is Profil => !!m).map((m): Reihe => ({
+        zeile: { art: "person", id: m.id }, art: "person", eingerueckt: true,
+        kopf: <PersonKopf m={m} darf={darf} onGriff={(e) => beginne({ art: "person", id: m.id }, e)} />,
+      }))),
+    ]),
+    ...(mitarbeiter.some((m) => !inTeam.has(m.id)) ? [{ titel: "Ohne Team" }] : []),
+    ...mitarbeiter.filter((m) => !inTeam.has(m.id)).map((m): Reihe => ({
+      zeile: { art: "person", id: m.id }, art: "person",
+      kopf: <PersonKopf m={m} darf={darf} onGriff={(e) => beginne({ art: "person", id: m.id }, e)} />,
+    })),
+    { zeile: { art: "offen" }, art: "offen", kopf: <span className="text-sm font-medium text-muted-foreground">Nicht eingeteilt</span> },
   ];
 
   const sichtbar = (t: Termin) => !!balkenLage(t.datum, t.bis_datum ?? t.datum, start, tage.length);
   // Während des Ziehens bleibt der gezogene Balken in seiner Zeile (Vorschau verschiebt nur den Tag)
   const zielZeile = !ziehen?.bewegt ? null
     : ziehen.inhalt.art === "balken" ? (ziehen.inhalt.griff === "mitte" ? ziehen.ziel : null)
-    : ziehen.inhalt.art === "ressource" ? (!ziehen.balken && ziehen.ziel?.startsWith("team:") ? ziehen.ziel : null)
+    : ziehen.inhalt.art === "person" ? (!ziehen.balken && ziehen.ziel?.startsWith("team:") ? ziehen.ziel : null)
     : ziehen.ziel;
+  const freiIndex = (i: number) => frei(tage[i] ?? tageDazu(start, i));
 
   const reiheZeichnen = (r: Reihe) => {
     const s = zeileSchluessel(r.zeile);
-    const liste = termine.filter((t) => inZeile(t, r.zeile)).map(vorschau).filter(sichtbar);
-    const { bahn, anzahl } = bahnen(liste);
-    const hoch = r.zeile.art === "person" ? 26 : 32;
-    const hoehe = Math.max(1, anzahl) * hoch + 8;
-    const weg = r.zeile.art === "person" ? abwesend.filter((x) => x.user_id === (r.zeile as { id: string }).id) : [];
     const team = r.zeile.art === "person" ? teams.find((t) => t.mitglieder.includes((r.zeile as { id: string }).id)) : undefined;
+    const alle = termine.filter((t) => inZeile(t, r.zeile)).map(vorschau).filter(sichtbar);
+    // Einsätze des eigenen Teams stehen oben voll — in der Personenzeile nur als dünner Strich
+    const mitTeam = (t: Termin) => r.zeile.art === "person" && !!t.team_id && t.team_id === team?.id;
+    const liste = alle.filter((t) => !mitTeam(t));
+    const striche = alle.filter(mitTeam);
+    const { bahn, anzahl } = bahnen(liste);
+    const hoch = r.art === "team" ? 30 : 26;
+    const hoehe = Math.max(1, anzahl) * hoch + 6;
+    const weg = r.zeile.art === "person" ? abwesend.filter((x) => x.user_id === (r.zeile as { id: string }).id) : [];
     const istZiel = zielZeile === s;
     return (
-      <div key={s} className={cn("flex border-b", r.hell && "bg-muted/25")} style={{ width: LINKS + gesamt, minHeight: hoehe }}>
-        <div className={cn("sticky left-0 z-20 flex shrink-0 items-center border-r px-2", r.hell ? "bg-muted" : "bg-card", r.stufe === 1 && "pl-7", istZiel && "ring-2 ring-inset ring-primary")}
+      <div key={s} className={cn("flex", r.art === "team" ? "border-t border-border" : "border-t border-dashed border-border/70")} style={{ width: LINKS + gesamt, minHeight: hoehe }}>
+        <div className={cn("sticky left-0 z-20 flex shrink-0 items-center border-r px-2", r.art === "team" ? "bg-muted" : "bg-card", r.eingerueckt && "pl-8", istZiel && "ring-2 ring-inset ring-primary")}
           style={{ width: LINKS }} data-reihe={s}>{r.kopf}</div>
-        <div className={cn("relative", istZiel && "bg-primary/10 ring-2 ring-inset ring-primary")} style={{ width: gesamt }} data-reihe={s}
-          onPointerDown={darf ? (e) => { if (e.target !== e.currentTarget) return; const t = tagBei(e.clientX); if (t) beginne({ art: "neu", zeile: r.zeile, tag: t }, e); } : undefined}
+        <div className={cn("relative", r.art === "team" && "bg-muted/30", istZiel && "bg-primary/10 ring-2 ring-inset ring-primary")} style={{ width: gesamt }} data-reihe={s}
+          onPointerDown={darf ? (e) => { if (e.target !== e.currentTarget) return; setInfo(null); const t = tagBei(e.clientX); if (t) beginne({ art: "neu", zeile: r.zeile, tag: t }, e); } : undefined}
           title={darf ? "Leere Tage aufziehen = neuer Einsatz" : undefined}>
           {weg.map((x) => {
             const lage = x.von && x.bis ? balkenLage(x.von, x.bis, start, tage.length) : null;
             if (!lage) return null;
-            return (
-              <div key={x.id} className="pointer-events-none absolute inset-y-1 z-[5] flex items-center overflow-hidden rounded border border-dashed border-muted-foreground/50 bg-muted px-1.5 text-xs font-medium text-muted-foreground"
-                style={{ left: lage.links * breite + 1, width: lage.laenge * breite - 2 }}>
-                {lage.laenge * breite > 50 ? ABWESENHEIT_ART[x.art as AbwesenheitArt]?.text ?? "Abwesend" : ""}
+            const art = ABWESENHEIT_ART[x.art as AbwesenheitArt];
+            return arbeitsStuecke(lage, freiIndex).map((st) => (
+              <div key={`${x.id}${st.links}`} className="pointer-events-none absolute inset-y-[3px] z-[5] flex items-center overflow-hidden rounded border border-dashed border-slate-400 bg-[repeating-linear-gradient(135deg,hsl(var(--muted))_0_6px,hsl(var(--card))_6px_12px)] px-1.5 text-[11px] font-semibold text-slate-600"
+                style={{ left: st.links * breite + 1, width: st.laenge * breite - 2 }}>
+                {st.laenge * breite > 60 ? art?.text ?? "Abwesend" : art?.kurz ?? "–"}
               </div>
-            );
+            ));
           })}
+          {striche.map((t) => arbeitsStuecke(balkenLage(t.datum, t.bis_datum ?? t.datum, start, tage.length)!, freiIndex).map((st) => (
+            <div key={`${t.id}${st.links}`} data-balken={t.id} title={`${t.titel} · mit dem Team`} onPointerDown={(e) => beginne({ art: "balken", id: t.id, griff: "mitte", zeile: { art: "team", id: t.team_id! }, tag: tagBei(e.clientX) ?? t.datum }, e)}
+              className="absolute bottom-1 z-[4] h-1.5 cursor-pointer rounded-full opacity-60 hover:opacity-100"
+              style={{ left: st.links * breite + 4, width: st.laenge * breite - 8, backgroundColor: projektFarbe(projekte.find((p) => p.id === t.projekt_id)) }} />
+          )))}
           {liste.map((t) => (
-            <Balken key={t.id} t={t} lage={balkenLage(t.datum, t.bis_datum ?? t.datum, start, tage.length)!} breite={breite} top={4 + (bahn.get(t.id) ?? 0) * hoch} hoehe={hoch - 4}
-              team={teams.find((x) => x.id === t.team_id)} blass={r.zeile.art === "person" && !!t.team_id && t.team_id === team?.id}
-              projekt={projekte.find((p) => p.id === t.projekt_id)} fahrzeuge={fahrzeuge} konflikt={konfliktIds.has(t.id)} darf={darf}
+            <Balken key={t.id} t={t} lage={balkenLage(t.datum, t.bis_datum ?? t.datum, start, tage.length)!} freiIndex={freiIndex} breite={breite} top={3 + (bahn.get(t.id) ?? 0) * hoch} hoehe={hoch - 4}
+              projekt={projekte.find((p) => p.id === t.projekt_id)} konflikt={konfliktIds.has(t.id)} darf={darf} offen={info?.id === t.id}
               gezogen={!!ziehen?.bewegt && ziehen.inhalt.art === "balken" && ziehen.inhalt.id === t.id}
-              ziel={!!ziehen?.bewegt && ziehen.inhalt.art === "ressource" && ziehen.balken === t.id}
+              ziel={!!ziehen?.bewegt && ziehen.inhalt.art === "person" && ziehen.balken === t.id}
               onGriff={(griff, e) => beginne({ art: "balken", id: t.id, griff, zeile: r.zeile, tag: tagBei(e.clientX) ?? t.datum }, e)} />
           ))}
           {ziehen?.bewegt && ziehen.inhalt.art === "neu" && zeileSchluessel(ziehen.inhalt.zeile) === s && (() => {
@@ -442,15 +451,25 @@ export function Gantt({
     );
   };
 
-  // Kopf: Monate/KW und Tage
-  const monate: { text: string; laenge: number }[] = [];
-  for (const t of tage) {
-    const text = breite >= 40 ? `KW ${kw(t)} · ${isoZuDatum(t).toLocaleDateString("de-AT", { month: "long", year: "numeric" })}` : isoZuDatum(t).toLocaleDateString("de-AT", { month: "long", year: "numeric" });
-    const schluessel = breite >= 40 ? text : t.slice(0, 7);
-    const letzte = monate.at(-1);
-    if (letzte && (letzte as { s?: string }).s === schluessel) letzte.laenge++;
-    else monate.push(Object.assign({ text, laenge: 1 }, { s: schluessel }));
-  }
+  // Kopf: Monat, KW, Tage (mit „x frei“)
+  const gruppen = (schluessel: (t: string) => string, text: (t: string) => string) => {
+    const liste: { s: string; text: string; laenge: number }[] = [];
+    for (const t of tage) {
+      const s = schluessel(t);
+      const letzte = liste.at(-1);
+      if (letzte?.s === s) letzte.laenge++;
+      else liste.push({ s, text: text(t), laenge: 1 });
+    }
+    return liste;
+  };
+  const monate = gruppen((t) => t.slice(0, 7), (t) => isoZuDatum(t).toLocaleDateString("de-AT", { month: "long", year: "numeric" }));
+  const wochen = gruppen((t) => `${kw(t)}`, (t) => `KW ${kw(t)}`);
+  const freiAm = (tag: string) => {
+    const belegt = new Set(termine.filter((t) => amTag(t, tag)).flatMap((t) => t.mitarbeiter));
+    const weg = new Set(abwesend.filter((x) => x.von && x.bis && x.von <= tag && x.bis >= tag).map((x) => x.user_id));
+    return mitarbeiter.filter((m) => !belegt.has(m.id) && !weg.has(m.id));
+  };
+  const heuteIndex = tage.indexOf(heute);
 
   const z = ziehen;
   const chipText = (() => {
@@ -472,77 +491,103 @@ export function Gantt({
     if (i.art === "projekt") {
       const p = projekte.find((x) => x.id === i.id);
       const tag = tagBei(z.x);
-      const zeile = z.ziel ? zeileName(zeileAus(z.ziel)) : "auf eine Zeile ziehen";
+      const zeile = z.ziel ? zeileName(zeileAus(z.ziel)) : "auf ein Team oder eine Person ziehen";
       return `${p?.nummer ?? ""} → ${zeile}${tag ? ` ab ${kurz(tag)}` : ""}`;
     }
-    const wer = i.was === "person" ? name(mitarbeiter.find((m) => m.id === i.id)) : fahrzeuge.find((f) => f.id === i.id)?.name;
+    const wer = name(mitarbeiter.find((m) => m.id === i.id));
     const t = termine.find((x) => x.id === z.balken);
     if (t) return `${wer} → ${t.titel}`;
     const team = z.ziel?.startsWith("team:") ? teams.find((x) => x.id === z.ziel!.slice(5)) : undefined;
-    if (team) return i.was === "person" ? `${wer} → ins Team ${team.name}` : `Team ${team.name} fährt mit ${wer}`;
+    if (team) return `${wer} → ins Team ${team.name}`;
     return `${wer} → auf einen Einsatz oder ein Team ziehen`;
   })();
 
+  const infoTermin = info ? termine.find((t) => t.id === info.id) : undefined;
+
   return (
-    <div className={cn("grid gap-3", seitenleiste && "xl:grid-cols-[minmax(0,1fr)_15rem]", ziehen && "select-none")}>
-      <div className="min-w-0 space-y-2">
-        {darf && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <button type="button" disabled={!rueck.length} onClick={() => void rueckgaengig()} title={rueck.length ? `${rueck.at(-1)?.text} (Strg+Z)` : undefined}
-              className="h-9 rounded-md border bg-card px-3 text-sm font-medium text-foreground disabled:opacity-40">
-              Rückgängig{rueck.length ? ` (${rueck.length})` : ""}
-            </button>
-            <span>Balken ziehen = verschieben (mit Strg: kopieren) · Ränder = länger/kürzer · leere Tage aufziehen = neu · Person oder Bus am Griff ⋮⋮ auf einen Einsatz oder ein Team ziehen · Projekt von rechts hereinziehen</span>
+    <div className={cn("flex min-h-0 flex-col", ziehen && "select-none", className)}>
+      <Streifen projekte={projekte} eingeplant={eingeplant} darf={darf} onZiehen={(id, e) => beginne({ art: "projekt", id }, e)}
+        rechts={(
+          <div className="flex shrink-0 items-center gap-1">
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={() => zuSetzen(alleZu ? [] : teams.map((t) => t.id))}>
+              {alleZu ? <ChevronsUpDown className="h-4 w-4" /> : <ChevronsDownUp className="h-4 w-4" />}{alleZu ? "Leute zeigen" : "Nur Teams"}
+            </Button>
+            {darf && (
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5" disabled={!rueck.length} onClick={() => void rueckgaengig()} title={rueck.length ? `${rueck.at(-1)?.text} (Strg+Z)` : "Nichts zurückzunehmen"}>
+                <Undo2 className="h-4 w-4" /> Rückgängig
+              </Button>
+            )}
+            <span className="text-muted-foreground" title="Balken antippen = Details · ziehen = verschieben (mit Strg: kopieren) · Ränder = länger/kürzer · leere Tage aufziehen = neuer Einsatz · Projekt von oben auf ein Team ziehen · Person am Griff ⋮⋮ auf einen Einsatz oder ein Team ziehen">
+              <HelpCircle className="h-4 w-4" aria-label="Bedienung" />
+            </span>
           </div>
-        )}
-        <div ref={bahnRef} className="relative max-h-[calc(100vh-15rem)] overflow-auto rounded-lg border bg-card" data-plantafel>
-          <div className="relative" style={{ width: LINKS + gesamt }}>
-            <div className="sticky top-0 z-30 border-b bg-card">
-              <div className="flex border-b text-xs font-medium">
-                <div className="sticky left-0 z-20 shrink-0 border-r bg-card" style={{ width: LINKS }} />
-                {monate.map((m, i) => <div key={i} className="shrink-0 truncate border-r px-1.5 py-1" style={{ width: m.laenge * breite }}>{m.laenge * breite > 50 ? m.text : ""}</div>)}
-              </div>
-              <div className="flex text-xs">
-                <div className="sticky left-0 z-20 shrink-0 border-r bg-card" style={{ width: LINKS }} />
-                <div ref={kopfRef} className="flex">
-                  {tage.map((t) => (
-                    <div key={t} title={feiertagName(t) || undefined}
-                      className={cn("shrink-0 border-r py-1 text-center leading-tight", frei(t) && "bg-muted text-muted-foreground", t === heute && "font-bold text-primary", wochentag(t) === 6 && "border-r-foreground/20")}
+        )} />
+      <div ref={bahnRef} className="relative min-h-0 flex-1 overflow-auto border-t bg-card" data-plantafel onScroll={() => info && setInfo(null)}>
+        <div className="relative" style={{ width: LINKS + gesamt }}>
+          {/* Kopf */}
+          <div className="sticky top-0 z-30 border-b-2 border-foreground/15 bg-card">
+            <div className="flex h-6 text-xs font-semibold">
+              <div className="sticky left-0 z-20 shrink-0 border-r bg-card" style={{ width: LINKS }} />
+              {monate.map((m) => <div key={m.s} className="shrink-0 truncate border-r px-2 leading-6" style={{ width: m.laenge * breite }}>{m.laenge * breite > 70 ? m.text : ""}</div>)}
+            </div>
+            <div className="flex h-5 border-t text-[11px] text-muted-foreground">
+              <div className="sticky left-0 z-20 shrink-0 border-r bg-card" style={{ width: LINKS }} />
+              {wochen.map((w) => <div key={w.s} className="shrink-0 truncate border-r px-2 leading-5" style={{ width: w.laenge * breite }}>{w.laenge * breite > 36 ? w.text : ""}</div>)}
+            </div>
+            <div className="flex border-t">
+              <div className="sticky left-0 z-20 flex shrink-0 items-end border-r bg-card px-3 pb-1 text-xs font-medium text-muted-foreground" style={{ width: LINKS }}>Teams und Leute</div>
+              <div ref={kopfRef} className="flex">
+                {tage.map((t, i) => {
+                  const f = freiAm(t);
+                  return (
+                    <div key={t} title={[feiertagName(t), !frei(t) && f.length ? `Frei: ${f.map((m) => m.vorname || name(m)).join(", ")}` : ""].filter(Boolean).join(" · ") || undefined}
+                      className={cn("relative shrink-0 border-r py-0.5 text-center leading-tight", frei(t) && "bg-amber-50 text-amber-900/70", wochentag(t) === 6 && "border-r-foreground/25")}
                       style={{ width: breite }}>
-                      {breite >= 40 ? <>{WT[wochentag(t)]} {Number(t.slice(8))}.{breite >= 80 ? `${Number(t.slice(5, 7))}.` : ""}</> : <><span className="block text-[10px]">{WT[wochentag(t)][0]}</span>{Number(t.slice(8))}</>}
-                      {breite >= 80 && feiertagName(t) && <span className="block truncate px-1 text-[10px] font-normal">{feiertagName(t)}</span>}
+                      <span className={cn("block text-[10px] uppercase", t === heute && "font-bold text-red-600")}>{breite >= 40 ? WT[wochentag(t)] : WT[wochentag(t)][0]}</span>
+                      <span className={cn("block text-sm font-semibold", t === heute && "mx-auto w-7 rounded-full bg-red-600 text-white")}>{Number(t.slice(8))}</span>
+                      {!frei(t) && breite >= 28 && (
+                        <span className={cn("block text-[10px] font-medium", f.length ? "text-status-gruen-fg" : "text-muted-foreground/60")}>
+                          {f.length ? (breite >= 56 ? `${f.length} frei` : f.length) : "–"}
+                        </span>
+                      )}
+                      {frei(t) && breite >= 28 && <span className="block text-[10px]">&nbsp;</span>}
+                      {i === heuteIndex && <span className="absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-red-600" />}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
-            {/* Wochenende, Feiertag und heute als Hintergrund */}
-            <div className="pointer-events-none absolute bottom-0 top-0 z-0" style={{ left: LINKS, width: gesamt }}>
-              {tage.map((t, i) => (frei(t) || t === heute) ? <div key={t} className={cn("absolute bottom-0 top-0", frei(t) ? "bg-muted/60" : "bg-primary/5")} style={{ left: i * breite, width: breite }} /> : null)}
-              {tage.map((t, i) => wochentag(t) === 0 && i > 0 ? <div key={`w${t}`} className="absolute bottom-0 top-0 border-l border-foreground/10" style={{ left: i * breite }} /> : null)}
-            </div>
-            <div className="relative z-[1]">
-              {abschnitte.filter((x) => x.reihen.length).map((ab) => (
-                <Fragment key={ab.titel}>
-                  <div className="sticky left-0 z-20 flex items-center gap-1.5 border-b bg-card px-3 py-1 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground" style={{ width: LINKS }}>
-                    {ab.icon}{ab.titel}
-                  </div>
-                  {ab.reihen.map(reiheZeichnen)}
-                </Fragment>
-              ))}
-            </div>
+          </div>
+          {/* Wochenende, Feiertag, Tageslinien und heute als Hintergrund */}
+          <div className="pointer-events-none absolute bottom-0 top-0 z-0" style={{ left: LINKS, width: gesamt }}>
+            {tage.map((t, i) => frei(t) ? <div key={t} className={cn("absolute bottom-0 top-0", feiertagName(t) && wochentag(t) < 5 ? "bg-rose-50" : "bg-amber-50")} style={{ left: i * breite, width: breite }} /> : null)}
+            {breite >= 24 && tage.map((t, i) => i > 0 ? <div key={`l${t}`} className={cn("absolute bottom-0 top-0 border-l", wochentag(t) === 0 ? "border-foreground/20" : "border-dotted border-border")} style={{ left: i * breite }} /> : null)}
+            {breite < 24 && tage.map((t, i) => wochentag(t) === 0 && i > 0 ? <div key={`w${t}`} className="absolute bottom-0 top-0 border-l border-foreground/20" style={{ left: i * breite }} /> : null)}
+            {heuteIndex >= 0 && <div className="absolute bottom-0 top-0 z-[8] w-0.5 bg-red-500/80" style={{ left: heuteIndex * breite + breite / 2 }} />}
+          </div>
+          <div className="relative z-[1] border-b">
+            {reihen.map((r) => ("titel" in r ? (
+              <div key={r.titel} className="flex border-t" style={{ width: LINKS + gesamt }}>
+                <div className="sticky left-0 z-20 shrink-0 border-r bg-card px-3 pb-1 pt-2.5 text-xs font-semibold text-muted-foreground" style={{ width: LINKS }}>{r.titel}</div>
+              </div>
+            ) : reiheZeichnen(r)))}
           </div>
         </div>
       </div>
 
-      {seitenleiste && (
-        <Seitenleiste tag={tage.includes(heute) ? heute : tage[0]} termine={termine} abwesend={abwesend} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge}
-          projekte={projekte.filter((p) => p.status === "aktiv" || p.status === "angebot")} darf={darf}
-          onZiehen={(i, e) => beginne(i, e)} />
+      {infoTermin && info && (
+        <BalkenInfo t={infoTermin} x={info.x} y={info.y} projekt={projekte.find((p) => p.id === infoTermin.projekt_id)} team={teams.find((x) => x.id === infoTermin.team_id)}
+          mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} darf={darf} konflikt={konfliktIds.has(infoTermin.id)}
+          onZu={() => setInfo(null)}
+          onBearbeiten={() => { setInfo(null); onBearbeiten(infoTermin); }}
+          onErledigt={() => void aendern(infoTermin, { status: infoTermin.status === "erledigt" ? "geplant" : "erledigt" }, `${infoTermin.titel}: ${infoTermin.status === "erledigt" ? "wieder offen" : "erledigt"}`)}
+          onGeraet={(id) => void aendern(infoTermin, { fahrzeuge: infoTermin.fahrzeuge.includes(id) ? infoTermin.fahrzeuge.filter((x) => x !== id) : [...infoTermin.fahrzeuge, id] }, `${infoTermin.titel}: Geräte`)}
+          onPersonWeg={(id) => void aendern(infoTermin, { mitarbeiter: infoTermin.mitarbeiter.filter((x) => x !== id) }, `${name(mitarbeiter.find((m) => m.id === id))} aus ${infoTermin.titel}`)}
+          onLoeschen={() => void loeschen(infoTermin)} />
       )}
 
       {z?.bewegt && (
-        <div ref={chipRef} className="pointer-events-none fixed z-50 whitespace-nowrap rounded-md border bg-card px-2 py-1 text-xs font-medium shadow-sm"
+        <div ref={chipRef} className="pointer-events-none fixed z-50 whitespace-nowrap rounded-md border-2 border-primary bg-card px-2 py-1 text-xs font-semibold"
           style={{ left: z.x + 14, top: z.y + 12 }}>{chipText}</div>
       )}
     </div>
@@ -557,54 +602,140 @@ function kw(iso: string): number {
 }
 
 function Balken({
-  t, lage, breite, top, hoehe, team, blass, projekt, fahrzeuge, konflikt, darf, gezogen, ziel, onGriff,
+  t, lage, freiIndex, breite, top, hoehe, projekt, konflikt, darf, offen, gezogen, ziel, onGriff,
 }: {
   t: Termin;
   lage: { links: number; laenge: number; offenLinks: boolean; offenRechts: boolean };
+  freiIndex: (i: number) => boolean;
   breite: number;
   top: number;
   hoehe: number;
-  team?: Team;
-  blass: boolean;
   projekt?: Projekt;
-  fahrzeuge: Fahrzeug[];
   konflikt: boolean;
   darf: boolean;
+  offen: boolean;
   gezogen: boolean;
   ziel: boolean;
   onGriff: (g: Griff, e: React.PointerEvent) => void;
 }) {
-  const w = lage.laenge * breite;
-  const fz = t.fahrzeuge.map((id) => fahrzeuge.find((f) => f.id === id)?.name).filter(Boolean);
-  const farbe = team ? TEAM_FARBEN[team.farbe]?.klasse : "border-primary/40 bg-primary-soft text-primary";
-  const text = `${projekt ? `${projekt.nummer.slice(-4)} ` : ""}${t.titel}`;
+  const farbe = projektFarbe(projekt);
+  const erledigt = t.status === "erledigt";
+  const hinter = erledigt ? `${farbe}80` : farbe;
+  const schrift = textAuf(farbe);
+  const stuecke = arbeitsStuecke(lage, freiIndex);
+  const breitestes = stuecke.reduce((b, s, i) => (s.laenge > stuecke[b].laenge ? i : b), 0);
+  const text = `${konflikt ? "⚠ " : ""}${t.dringend && !erledigt ? "! " : ""}${erledigt ? "✓ " : ""}${projekt ? `${projekt.nummer.slice(-4)} ` : ""}${t.titel}`;
+  const titel = [t.titel, projekt && `${projekt.nummer} ${projekt.name}`, `${datumText(t.datum).slice(0, 6)}${t.bis_datum ? ` – ${datumText(t.bis_datum).slice(0, 6)}` : ""}`, zeitText(t), `${t.mitarbeiter.length} Leute`].filter(Boolean).join(" · ");
   return (
-    <div data-balken={t.id}
-      title={[t.titel, projekt?.nummer, `${datumText(t.datum).slice(0, 6)}${t.bis_datum ? ` – ${datumText(t.bis_datum).slice(0, 6)}` : ""}`, zeitText(t), fz.join(", "), `${t.mitarbeiter.length} Leute`].filter(Boolean).join(" · ")}
-      onPointerDown={(e) => onGriff("mitte", e)}
-      className={cn("absolute z-[6] flex items-center gap-1 overflow-hidden border px-1.5 text-xs leading-tight", farbe,
-        lage.offenLinks ? "rounded-l-none border-l-0" : "rounded-l-md", lage.offenRechts ? "rounded-r-none border-r-0" : "rounded-r-md",
-        blass && "opacity-55", t.status === "erledigt" && "opacity-50", konflikt && "ring-2 ring-status-rot-fg",
-        gezogen && "z-20 shadow-md ring-2 ring-foreground/50", ziel && "ring-2 ring-primary",
-        darf ? (gezogen ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer")}
-      style={{ left: lage.links * breite + 1, width: w - 2, top, height: hoehe }}>
-      {w > 26 && (
-        <span className="min-w-0 truncate">
-          <span className="font-semibold">{konflikt ? "⚠ " : ""}{t.dringend && t.status !== "erledigt" ? "! " : ""}{t.status === "erledigt" ? "✓ " : ""}{text}</span>
-          {w > 200 && <span className="opacity-75"> · {zeitText(t)}</span>}
-        </span>
-      )}
-      {w > 150 && (fz.length > 0 || t.mitarbeiter.length > 0) && (
-        <span className="ml-auto flex shrink-0 items-center gap-1 opacity-75">
-          <Users className="h-3 w-3" />{t.mitarbeiter.length}
-          {fz.length > 0 && <><Truck className="ml-0.5 h-3 w-3" /><span className="max-w-[7rem] truncate">{fz.join(", ")}</span></>}
-        </span>
-      )}
-      {darf && w > 24 && (
-        <>
-          <span className="absolute inset-y-0 left-0 w-2 cursor-ew-resize hover:bg-foreground/15" onPointerDown={(e) => onGriff("links", e)} aria-hidden />
-          <span className="absolute inset-y-0 right-0 w-2 cursor-ew-resize hover:bg-foreground/15" onPointerDown={(e) => onGriff("rechts", e)} aria-hidden />
-        </>
+    <>
+      {stuecke.map((s, i) => {
+        const w = s.laenge * breite;
+        const erstes = i === 0, letztes = i === stuecke.length - 1;
+        return (
+          <div key={s.links} data-balken={t.id} title={titel} onPointerDown={(e) => onGriff("mitte", e)}
+            className={cn("absolute z-[6] flex items-center overflow-hidden px-1.5 text-xs font-semibold leading-tight",
+              erstes && !lage.offenLinks ? "rounded-l-md" : "rounded-l-sm", letztes && !lage.offenRechts ? "rounded-r-md" : "rounded-r-sm",
+              konflikt && "ring-2 ring-red-600", offen && "ring-2 ring-foreground",
+              gezogen && "z-20 ring-2 ring-foreground/60", ziel && "ring-2 ring-primary",
+              darf ? (gezogen ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer")}
+            style={{ left: s.links * breite + 2, width: w - 4, top, height: hoehe, backgroundColor: hinter, color: schrift,
+              backgroundImage: erledigt ? "repeating-linear-gradient(135deg, transparent 0 6px, rgba(255,255,255,.25) 6px 12px)" : undefined }}>
+            {i === breitestes && w > 22 && <span className="min-w-0 truncate">{text}{w > 230 && <span className="font-normal opacity-80"> · {zeitText(t)}</span>}</span>}
+            {darf && erstes && w > 20 && <span className="absolute inset-y-0 left-0 w-2 cursor-ew-resize hover:bg-black/20" onPointerDown={(e) => onGriff("links", e)} aria-hidden />}
+            {darf && letztes && w > 20 && <span className="absolute inset-y-0 right-0 w-2 cursor-ew-resize hover:bg-black/20" onPointerDown={(e) => onGriff("rechts", e)} aria-hidden />}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/** Kleines Fenster direkt am Balken — erst „Bearbeiten“ öffnet das große Formular */
+function BalkenInfo({
+  t, x, y, projekt, team, mitarbeiter, fahrzeuge, darf, konflikt, onZu, onBearbeiten, onErledigt, onGeraet, onPersonWeg, onLoeschen,
+}: {
+  t: Termin; x: number; y: number; projekt?: Projekt; team?: Team; mitarbeiter: Profil[]; fahrzeuge: Fahrzeug[]; darf: boolean; konflikt: boolean;
+  onZu: () => void; onBearbeiten: () => void; onErledigt: () => void; onGeraet: (id: string) => void; onPersonWeg: (id: string) => void; onLoeschen: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [lage, setLage] = useState({ left: x + 8, top: y + 12 });
+  const [loeschFrage, setLoeschFrage] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setLage({
+      left: Math.max(8, Math.min(x + 8, window.innerWidth - r.width - 8)),
+      top: y + 12 + r.height > window.innerHeight - 8 ? Math.max(8, y - r.height - 12) : y + 12,
+    });
+  }, [x, y, t.id]);
+  useEffect(() => {
+    const weg = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node) && !(e.target as HTMLElement).closest?.("[data-balken]")) onZu(); };
+    const taste = (e: KeyboardEvent) => { if (e.key === "Escape") onZu(); };
+    document.addEventListener("pointerdown", weg, true);
+    window.addEventListener("keydown", taste);
+    return () => { document.removeEventListener("pointerdown", weg, true); window.removeEventListener("keydown", taste); };
+  }, [onZu]);
+  const farbe = projektFarbe(projekt);
+  const leute = t.mitarbeiter.map((id) => mitarbeiter.find((m) => m.id === id)).filter((m): m is Profil => !!m);
+  const geraete = fahrzeuge.filter((f) => f.aktiv !== false);
+  return (
+    <div ref={ref} role="dialog" aria-label={t.titel} data-balken-info
+      className="fixed z-50 w-[22rem] max-w-[calc(100vw-1rem)] rounded-lg border-2 bg-card text-sm shadow-xl" style={{ ...lage, borderColor: farbe }}>
+      <div className="flex items-start gap-2 border-b px-3 py-2.5" style={{ background: `${farbe}14` }}>
+        <span className="mt-1 h-3 w-3 shrink-0 rounded-full" style={{ background: farbe }} />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold leading-snug">{t.dringend && t.status !== "erledigt" ? "! " : ""}{t.titel}</p>
+          {projekt && <Link to={`/projekte/${projekt.id}`} className="text-xs font-medium text-primary hover:underline">{projekt.nummer} · {projekt.name}</Link>}
+        </div>
+        <button type="button" onClick={onZu} className="-mr-1 -mt-0.5 rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Schließen"><X className="h-4 w-4" /></button>
+      </div>
+      <div className="space-y-2 px-3 py-2.5">
+        <p className="flex items-center gap-2"><Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+          {kurz(t.datum)}{t.bis_datum ? ` – ${kurz(t.bis_datum)}` : ""} · {zeitText(t)}
+          {t.status === "erledigt" && <span className="ml-auto rounded-full bg-status-gruen px-2 text-xs font-semibold text-status-gruen-fg">Erledigt</span>}
+        </p>
+        {t.ort && <p className="flex items-center gap-2 text-muted-foreground"><MapPin className="h-4 w-4 shrink-0" /><span className="truncate">{t.ort}</span></p>}
+        {konflikt && <p className="rounded bg-status-rot px-2 py-1 text-xs font-medium text-status-rot-fg">⚠ Jemand ist doppelt eingeteilt oder abwesend</p>}
+        <div className="flex items-start gap-2">
+          <Users className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="flex min-w-0 flex-wrap gap-1">
+            {team && <span className="rounded-full border px-2 py-0.5 text-xs font-semibold">Team {team.name}</span>}
+            {leute.map((m) => (
+              <span key={m.id} className="flex items-center gap-1 rounded-full bg-muted py-0.5 pl-0.5 pr-2 text-xs">
+                <Avatar profil={m} className="h-5 w-5 text-[9px]" />{m.vorname || name(m)}
+                {darf && <button type="button" onClick={() => onPersonWeg(m.id)} className="-mr-1 rounded-full p-0.5 hover:bg-background" aria-label={`${name(m)} herausnehmen`}><X className="h-3 w-3" /></button>}
+              </span>
+            ))}
+            {!team && !leute.length && <span className="text-xs text-muted-foreground">Noch niemand — Person am Griff ⋮⋮ hereinziehen</span>}
+          </div>
+        </div>
+        <div className="flex items-start gap-2">
+          <Truck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="flex min-w-0 flex-wrap gap-1">
+            {geraete.filter((f) => t.fahrzeuge.includes(f.id) || darf).map((f) => {
+              const dabei = t.fahrzeuge.includes(f.id);
+              return darf ? (
+                <button key={f.id} type="button" onClick={() => onGeraet(f.id)} aria-pressed={dabei}
+                  className={cn("rounded-full border px-2 py-0.5 text-xs", dabei ? "border-primary bg-primary-soft font-semibold text-primary" : "text-muted-foreground hover:bg-muted")}>
+                  {dabei && <Check className="mr-0.5 inline h-3 w-3" />}{f.name}
+                </button>
+              ) : <span key={f.id} className="rounded-full bg-muted px-2 py-0.5 text-xs">{f.name}</span>;
+            })}
+          </div>
+        </div>
+        {t.beschreibung && <p className="line-clamp-3 whitespace-pre-line text-xs text-muted-foreground">{t.beschreibung}</p>}
+      </div>
+      {darf && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-2">
+          <Button size="sm" className="h-9 gap-1.5" onClick={onBearbeiten}><Pencil className="h-4 w-4" /> Bearbeiten</Button>
+          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={onErledigt}><Check className="h-4 w-4" /> {t.status === "erledigt" ? "Wieder offen" : "Erledigt"}</Button>
+          {loeschFrage ? (
+            <Button size="sm" variant="destructive" className="ml-auto h-9" onClick={onLoeschen}>Wirklich löschen</Button>
+          ) : (
+            <Button size="sm" variant="ghost" className="ml-auto h-9 gap-1.5 text-destructive hover:text-destructive" onClick={() => setLoeschFrage(true)}><Trash2 className="h-4 w-4" /> Löschen</Button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -615,26 +746,24 @@ function TeamKopf({ team, mitarbeiter, fahrzeuge, darf, offen, onKlappen, onBus 
 }) {
   const leiter = mitarbeiter.find((m) => m.id === team.leiter_id);
   const busse = fahrzeuge.filter((f) => f.art === "bus" || f.art === "pkw" || f.id === team.fahrzeug_id);
+  const bus = fahrzeuge.find((f) => f.id === team.fahrzeug_id);
   return (
     <span className="flex w-full min-w-0 items-center gap-1.5 py-1">
       <button type="button" onClick={onKlappen} aria-label={offen ? `${team.name} zuklappen` : `${team.name} aufklappen`} aria-expanded={offen}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded hover:bg-background">
+        className="flex h-7 w-6 shrink-0 items-center justify-center rounded hover:bg-background">
         <ChevronDown className={cn("h-4 w-4 transition-transform", !offen && "-rotate-90")} />
       </button>
-      <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", TEAM_FARBEN[team.farbe]?.punkt ?? "bg-slate-500")} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">{team.name}{leiter && !team.name.includes(leiter.vorname ?? "") ? <span className="font-normal text-muted-foreground"> · {leiter.vorname}</span> : null}</span>
-        <span className="flex items-center gap-1">
-          <Truck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          {darf ? (
-            <select value={team.fahrzeug_id ?? ""} onChange={(e) => onBus(e.target.value || null)} aria-label={`Bus von ${team.name}`}
-              className="h-6 min-w-0 max-w-[10rem] truncate rounded border bg-card px-1 text-xs" onPointerDown={(e) => e.stopPropagation()}>
-              <option value="">kein Bus</option>
-              {busse.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-          ) : <span className="truncate text-xs text-muted-foreground">{fahrzeuge.find((f) => f.id === team.fahrzeug_id)?.name ?? "kein Bus"}</span>}
-          <span className="ml-auto text-xs text-muted-foreground">{team.mitglieder.length}</span>
-        </span>
+      <span className={cn("h-3 w-3 shrink-0 rounded-full", TEAM_FARBEN[team.farbe]?.punkt ?? "bg-slate-500")} />
+      <span className="min-w-0 truncate text-sm font-bold" title={leiter ? `Team ${team.name} · Leitung ${name(leiter)}` : `Team ${team.name}`}>{team.name}</span>
+      <span className="ml-auto flex shrink-0 items-center gap-1 rounded-md border bg-card px-1.5 text-xs" title="Bus des Teams — Einsätze ab heute fahren mit">
+        <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+        {darf ? (
+          <select value={team.fahrzeug_id ?? ""} onChange={(e) => onBus(e.target.value || null)} aria-label={`Bus von ${team.name}`}
+            className="h-6 max-w-[6.5rem] truncate bg-transparent font-medium outline-none" onPointerDown={(e) => e.stopPropagation()}>
+            <option value="">kein Bus</option>
+            {busse.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        ) : <span className="py-0.5 font-medium">{bus?.name ?? "kein Bus"}</span>}
       </span>
     </span>
   );
@@ -643,85 +772,58 @@ function TeamKopf({ team, mitarbeiter, fahrzeuge, darf, offen, onKlappen, onBus 
 function PersonKopf({ m, darf, onGriff }: { m: Profil; darf: boolean; onGriff: (e: React.PointerEvent) => void }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      {darf && <span className="shrink-0 cursor-grab text-muted-foreground" onPointerDown={onGriff} title={`${name(m)} auf einen Einsatz ziehen`}><GripVertical className="h-4 w-4" /></span>}
-      <Avatar profil={m} className="h-6 w-6 text-[10px]" />
+      {darf && <span className="shrink-0 cursor-grab touch-none text-muted-foreground/60 hover:text-foreground" onPointerDown={onGriff} title={`${name(m)} auf einen Einsatz oder ein Team ziehen`}><GripVertical className="h-4 w-4" /></span>}
+      <Avatar profil={m} className="h-5 w-5 text-[9px]" />
       <span className="truncate text-sm">{name(m)}</span>
     </span>
   );
 }
 
-function FahrzeugKopf({ f, heute, darf, onGriff }: { f: Fahrzeug; heute: string; darf: boolean; onGriff: (e: React.PointerEvent) => void }) {
-  const faellig = faelligkeiten(f, heute);
-  return (
-    <span className="flex min-w-0 items-center gap-1.5">
-      {darf && <span className="shrink-0 cursor-grab text-muted-foreground" onPointerDown={onGriff} title={`${f.name} auf einen Einsatz ziehen`}><GripVertical className="h-4 w-4" /></span>}
-      <span className="min-w-0">
-        <span className="flex items-center gap-1.5 text-sm font-medium">
-          <span className="truncate">{f.name}</span>
-          {faellig.some((x) => x.ueberfaellig) && <span title={faellig.map((x) => x.was).join(", ") + " überfällig"}><AlertTriangle className="h-3.5 w-3.5 text-status-rot-fg" /></span>}
-        </span>
-        <span className="block truncate text-xs text-muted-foreground">{[FAHRZEUG_ART[f.art as FahrzeugArt]?.text, f.kennzeichen, f.gemietet && "gemietet"].filter(Boolean).join(" · ")}</span>
-      </span>
-    </span>
-  );
-}
-
-/** Rechts: Projekte zum Einplanen, wer und was heute frei ist — alles zum Hereinziehen */
-function Seitenleiste({
-  tag, termine, abwesend, mitarbeiter, fahrzeuge, projekte, darf, onZiehen,
-}: {
-  tag: string;
-  termine: Termin[];
-  abwesend: { user_id: string | null; von: string | null; bis: string | null }[];
-  mitarbeiter: Profil[];
-  fahrzeuge: Fahrzeug[];
-  projekte: Projekt[];
-  darf: boolean;
-  onZiehen: (i: Inhalt, e: React.PointerEvent) => void;
+/** Oben: Projekte ohne Einsatz ab heute — zum Hereinziehen. Suche findet alle laufenden. */
+function Streifen({ projekte, eingeplant, darf, onZiehen, rechts }: {
+  projekte: Projekt[]; eingeplant: Set<string>; darf: boolean; onZiehen: (id: string, e: React.PointerEvent) => void; rechts: ReactNode;
 }) {
+  const [offen, setOffen] = useState(() => { try { return localStorage.getItem(STREIFEN_KEY) !== "zu"; } catch { return true; } });
   const [suche, setSuche] = useState("");
-  const amTagListe = termine.filter((t) => amTag(t, tag));
-  const belegt = new Set(amTagListe.flatMap((t) => [...t.mitarbeiter, ...t.fahrzeuge]));
-  const weg = new Set(abwesend.filter((a) => a.von && a.bis && a.von <= tag && a.bis >= tag).map((a) => a.user_id));
-  const freiLeute = mitarbeiter.filter((m) => !belegt.has(m.id) && !weg.has(m.id));
-  const freiFz = fahrzeuge.filter((f) => !belegt.has(f.id));
+  const umschalten = () => { setOffen(!offen); try { localStorage.setItem(STREIFEN_KEY, offen ? "zu" : "auf"); } catch { /* egal */ } };
+  const laufend = projekte.filter((p) => p.status === "aktiv" || p.status === "angebot");
   const q = suche.trim().toLowerCase();
-  const pListe = projekte.filter((p) => !q || `${p.nummer} ${p.name} ${p.ort ?? ""}`.toLowerCase().includes(q)).slice(0, 40);
-  const chip = cn("flex min-h-9 touch-none items-center gap-1.5 rounded-full border bg-card px-2.5 text-xs font-medium", darf && "cursor-grab hover:border-primary/50");
+  const liste = (q ? laufend.filter((p) => `${p.nummer} ${p.name} ${p.ort ?? ""}`.toLowerCase().includes(q)) : laufend.filter((p) => !eingeplant.has(p.id))).slice(0, 30);
+  const ungeplant = laufend.filter((p) => !eingeplant.has(p.id)).length;
   return (
-    <aside className="space-y-3">
-      <section className="rounded-lg border bg-card p-3">
-        <p className="pb-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Projekte einplanen</p>
-        <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Projekt suchen …" aria-label="Projekt suchen"
-          className="mb-2 h-9 w-full rounded-md border bg-background px-2.5 text-sm" />
-        <ul className="max-h-[22rem] space-y-1 overflow-y-auto">
-          {pListe.map((p) => (
-            <li key={p.id} onPointerDown={darf ? (e) => onZiehen({ art: "projekt", id: p.id }, e) : undefined} data-projekt-ziehen={p.id}
-              className={cn("flex touch-none items-center gap-2 rounded-md border px-2 py-1.5 text-xs", darf && "cursor-grab hover:border-primary/50")}>
-              <FolderKanban className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="min-w-0"><span className="block font-semibold">{p.nummer}</span><span className="block truncate">{p.name}</span></span>
-            </li>
-          ))}
-        </ul>
-        {darf && <p className="mt-2 text-xs text-muted-foreground">Auf ein Team, eine Person oder einen Bus ziehen — eingeplant bis Freitag.</p>}
-      </section>
-      <section className="rounded-lg border bg-card p-3">
-        <p className="pb-1.5 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">Frei am {datumText(tag).slice(0, 6)}</p>
-        <div className="flex flex-wrap gap-1.5">
-          {freiLeute.map((m) => (
-            <span key={m.id} className={chip} onPointerDown={darf ? (e) => onZiehen({ art: "ressource", was: "person", id: m.id }, e) : undefined}>
-              <Avatar profil={m} className="h-6 w-6 text-[10px]" />{m.vorname || m.nachname}
-            </span>
-          ))}
-          {freiFz.map((f) => (
-            <span key={f.id} className={cn(chip, "px-3")} onPointerDown={darf ? (e) => onZiehen({ art: "ressource", was: "fahrzeug", id: f.id }, e) : undefined}>
-              <Truck className="h-3.5 w-3.5 text-muted-foreground" />{f.name}
-            </span>
-          ))}
-          {!freiLeute.length && !freiFz.length && <p className="text-xs text-muted-foreground">Alle eingeteilt.</p>}
+    <div className="flex min-h-11 items-center gap-2 bg-card px-3 py-1.5" data-streifen>
+      {darf && (
+        <button type="button" onClick={umschalten} aria-expanded={offen} className="flex shrink-0 items-center gap-1.5 text-sm font-semibold">
+          <FolderKanban className="h-4 w-4 text-muted-foreground" />
+          Noch nicht eingeplant
+          <span className={cn("rounded-full px-1.5 text-xs", ungeplant ? "bg-status-gelb text-status-gelb-fg" : "bg-muted text-muted-foreground")}>{ungeplant}</span>
+          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", !offen && "-rotate-90")} />
+        </button>
+      )}
+      {darf && offen ? (
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <label className="relative shrink-0">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Projekt suchen …" aria-label="Projekt suchen"
+              className="h-8 w-40 rounded-md border bg-background pl-7 pr-2 text-sm" />
+          </label>
+          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-0.5">
+            {liste.map((p) => {
+              const farbe = projektFarbe(p);
+              return (
+                <span key={p.id} onPointerDown={(e) => onZiehen(p.id, e)} data-projekt-ziehen={p.id} title={`${p.nummer} ${p.name} — auf ein Team oder eine Person ziehen`}
+                  className="flex h-8 shrink-0 cursor-grab touch-none items-center gap-1.5 rounded-md border bg-card px-2 text-xs hover:border-foreground/40"
+                  style={{ borderLeft: `4px solid ${farbe}` }}>
+                  <span className="font-semibold">{p.nummer.slice(-4)}</span>
+                  <span className="max-w-[12rem] truncate">{p.name}</span>
+                </span>
+              );
+            })}
+            {!liste.length && <span className="self-center text-xs text-muted-foreground">{q ? "Kein Projekt gefunden." : "Alle laufenden Projekte sind eingeplant."}</span>}
+          </div>
         </div>
-        {darf && <p className="mt-2 text-xs text-muted-foreground">Auf einen Einsatz-Balken ziehen = dazuholen.</p>}
-      </section>
-    </aside>
+      ) : <div className="flex-1" />}
+      {rechts}
+    </div>
   );
 }

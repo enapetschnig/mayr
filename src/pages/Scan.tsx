@@ -888,7 +888,7 @@ export default function Scan() {
           {info.projekt && (
             <div className="space-y-2">
               <Label htmlFor="scan-projekt">Projekt</Label>
-              <ProjektWahl id="scan-projekt" wert={projektId} onChange={(id) => { setProjektId(id); projektMerken(id); }} />
+              <ProjektWahl id="scan-projekt" nurInArbeit wert={projektId} onChange={(id) => { setProjektId(id); projektMerken(id); }} />
             </div>
           )}
 

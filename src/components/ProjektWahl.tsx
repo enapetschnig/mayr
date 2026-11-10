@@ -5,6 +5,8 @@ import { useProjekte, type ProjektMitKunde } from "@/hooks/useDaten";
  * Auswahl eines Projekts — mit Projektnummer vorn, damit man am Handy auch
  * bei zwei „Huber“-Baustellen sofort die richtige trifft.
  * Standard: nur laufende Projekte (In Arbeit, Angebot, Zu verrechnen).
+ * `nurInArbeit`: zum Buchen (Stunden, Material, Regie) — die Datenbank lässt
+ * nur Projekte „In Arbeit“ zu.
  */
 export function ProjektWahl({
   wert,
@@ -12,15 +14,17 @@ export function ProjektWahl({
   id,
   leerText = "Projekt wählen",
   mitAbgeschlossenen = false,
+  nurInArbeit = false,
 }: {
   wert: string;
   onChange: (id: string, projekt?: ProjektMitKunde) => void;
   id?: string;
   leerText?: string;
   mitAbgeschlossenen?: boolean;
+  nurInArbeit?: boolean;
 }) {
   const { data: projekte = [] } = useProjekte();
-  const liste = projekte.filter((p) => mitAbgeschlossenen || p.status !== "abgeschlossen" || p.id === wert);
+  const liste = projekte.filter((p) => p.id === wert || (nurInArbeit ? p.status === "aktiv" : mitAbgeschlossenen || p.status !== "abgeschlossen"));
 
   return (
     <Select value={wert} onValueChange={(v) => onChange(v, projekte.find((p) => p.id === v))}>

@@ -208,3 +208,42 @@ export const ANSICHTEN: { wert: Ansicht; text: string; tage: number; breite: num
   { wert: "monat", text: "Monat", tage: 35, breite: 34, schritt: 28 },
   { wert: "3monate", text: "3 Monate", tage: 91, breite: 16, schritt: 28 },
 ];
+
+/** Kräftige, gut unterscheidbare Farben je Projekt (Balken der Plantafel) */
+export const PROJEKT_FARBEN = ["#2563EB", "#16A34A", "#D97706", "#9333EA", "#DC2626", "#0891B2", "#65A30D", "#DB2777", "#4F46E5", "#CA8A04", "#0D9488", "#EA580C"];
+
+/**
+ * Farbe eines Projekts: aus der laufenden Nummer („2026-0007“ → 7), so
+ * bekommen aufeinanderfolgende Projekte verschiedene Farben; ohne Nummer aus der ID.
+ */
+export function projektFarbe(p: { id: string; nummer?: string | null } | null | undefined): string {
+  if (!p) return "#64748B";
+  const n = Number(p.nummer?.match(/(\d+)\s*$/)?.[1]);
+  if (Number.isFinite(n) && n > 0) return PROJEKT_FARBEN[(n - 1) % PROJEKT_FARBEN.length];
+  let h = 0;
+  for (const c of p.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return PROJEKT_FARBEN[h % PROJEKT_FARBEN.length];
+}
+
+/** Weiße oder schwarze Schrift auf einer Farbe */
+export function textAuf(hex: string): "#ffffff" | "#111827" {
+  const m = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(m.slice(i, i + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 165 ? "#111827" : "#ffffff";
+}
+
+/**
+ * Ein mehrtägiger Balken in Arbeitstag-Stücke zerlegt: Wochenende und
+ * Feiertage bleiben Lücken. Ein Einsatz NUR an freien Tagen (Samstag-Notdienst)
+ * bleibt ganz. Ergebnis in Tagen ab Anzeigebeginn.
+ */
+export function arbeitsStuecke(lage: { links: number; laenge: number }, istFrei: (i: number) => boolean): { links: number; laenge: number }[] {
+  const stuecke: { links: number; laenge: number }[] = [];
+  for (let i = lage.links; i < lage.links + lage.laenge; i++) {
+    if (istFrei(i)) continue;
+    const letzte = stuecke.at(-1);
+    if (letzte && letzte.links + letzte.laenge === i) letzte.laenge++;
+    else stuecke.push({ links: i, laenge: 1 });
+  }
+  return stuecke.length ? stuecke : [{ ...lage }];
+}

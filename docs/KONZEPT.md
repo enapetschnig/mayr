@@ -64,7 +64,7 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
 | `firma` | genau eine Zeile: Briefkopf, Bank, Stundensatz, Materialaufschlag, Texte |
 | `profiles` | Mitarbeiter: Vorname, Nachname, `rolle` chef/monteur, `aktiv`, Farbe |
 | `kunden` | Kundenstamm, `nummer` ab 1001 |
-| `projekte` | `nummer` 2026-0001 (Trigger), `status` angebot/aktiv/verrechnen/abgeschlossen, Baustellenadresse, optional eigener Stundensatz |
+| `projekte` | `nummer` 2026-0001 (Trigger), `status` angebot/aktiv/verrechnen/abgeschlossen (Pille auf Kachel, Liste und im Projekt antippen = umstellen, `ProjektStatusWahl`), Baustellenadresse, optional eigener Stundensatz. Gebucht (Stunden, Ausfassen/direkt, Regie) wird nur bei „aktiv“ = In Arbeit — Trigger `nur_in_arbeit_buchen`; Garantiestunden gehen auch danach, Rückgaben immer |
 | `zeiten` | Stunden je Mitarbeiter, Projekt optional; `regiebericht_id`, `rechnung_id` |
 | `artikel` | Artikelstamm; Preise **je Einheit**; `ean`; `lagerartikel`, `mindestbestand` |
 | `artikel_codes` | weitere Strichcodes (Karton = `menge` Stück, gelernte Codes) |
@@ -444,21 +444,35 @@ Migration `20261110100000_fuhrpark_teams_plantafel.sql`, Logik in
   Tanken); Monteure melden Schäden und Tanken, alles andere der Chef.
 - `teams`: Name, Farbe, Leitung, Mitglieder, Stamm-Bus. Ein Einsatz
   (`termine`) hat `team_id`, `mitarbeiter[]` und `fahrzeuge[]`.
-- Plantafel am PC = Gantt (`components/plantafel/Gantt.tsx`, Rechenteil
-  `balkenLage`, `verschieben`, `bahnen` in `lib/plantafel.ts`): Ansicht Woche,
-  2 Wochen, Monat, 3 Monate; Spalte links fest, Tagesbreite passt sich an.
-  Zeilen: je Team ein Kopf (zuklappbar, Bus als Auswahl) mit den Leuten
-  darunter, „Ohne Team“, „Busse, Steiger & Geräte“, „Nicht eingeteilt“.
-  Mehrtägige Einsätze sind ein Balken; überlappende liegen in Bahnen.
-- Ziehen (Maus, am Handy/Tablet langer Druck): Balken = verschieben, auch
-  in eine andere Zeile (`ablegen`: anderes Team → Leute und Bus wechseln mit,
-  Person auf Person tauscht); mit Strg/Alt = kopieren; Ränder = länger/kürzer;
-  leere Tage aufziehen = neuer Einsatz für genau diese Tage; Projekt aus der
-  rechten Liste auf eine Zeile = Einsatz bis Freitag 7:00–15:30; Person oder
-  Gerät am Griff ⋮⋮ auf einen Balken (`zuweisen`) oder auf ein Team (Bus
-  tauschen bzw. Mitglied wechseln). Bus tauschen ändert auch die Einsätze
-  des Teams ab heute. Alles mit Rückgängig (Knopf, Strg+Z), Esc bricht ab.
-  Konflikte (doppelt, abwesend) rot. Am Handy eine Liste je Tag.
+- Plantafel und Kalender sind eins (beide zeigen `termine`; `/kalender`
+  leitet auf `/plantafel`). Am PC füllt die Seite Breite und Höhe
+  (`PageHeader voll`), Ansicht Woche, 2 Wochen, Monat, 3 Monate als Gantt
+  (`components/plantafel/Gantt.tsx`) oder „Kalender“ als Monatsblatt mit
+  Tagesliste (`components/plantafel/Monat.tsx`, Alle/Meine).
+- Gantt nach Vorbild Steinbrecher: Kopf mit Monat, KW und Tag (darunter
+  „x frei“, Namen im Tooltip), Wochenende/Feiertag gelb bzw. rosa, rote
+  Heute-Linie. Jeder Balken trägt die Farbe seines Projekts (`projektFarbe`,
+  12 kräftige Farben, Schrift per `textAuf`), Wochenenden sind Lücken
+  (`arbeitsStuecke`). Zeilen: je Team ein Kopf (zuklappbar, Bus als Auswahl —
+  Busse haben keine eigene Zeile) mit seinen Leuten, „Ohne Team“, „Nicht
+  eingeteilt“. In der Personenzeile erscheinen Einsätze des eigenen Teams nur
+  als dünner Strich, eigene Einsätze als Balken.
+- Balken antippen = kleines Fenster am Balken (`BalkenInfo`: Projekt, Zeit,
+  Ort, Leute herausnehmen, Geräte an/ab, Erledigt, Löschen); erst
+  „Bearbeiten“ öffnet das große Formular.
+- Oben „Noch nicht eingeplant“: laufende Projekte ohne Einsatz ab heute (Suche
+  findet alle laufenden) — auf eine Zeile ziehen = Einsatz bis Freitag
+  7:00–15:30. Ziehen (Maus, am Tablet langer Druck): Balken = verschieben,
+  auch in eine andere Zeile (`ablegen`); mit Strg/Alt = kopieren; Ränder =
+  länger/kürzer; leere Tage aufziehen = neuer Einsatz; Person am Griff ⋮⋮ auf
+  einen Balken (`zuweisen`) oder ein Team (Mitglied wechseln). Bus tauschen
+  ändert auch die Einsätze des Teams ab heute. Alles mit Rückgängig (Knopf,
+  Strg+Z). Konflikte (doppelt, abwesend) als roter Knopf in der Leiste.
+- Am Handy eine Liste je Tag der Woche, Alle oder Meine (Monteur: Meine),
+  mit Abwesenheiten, Farbstreifen je Projekt.
+- Fuhrpark: oben je Art eine Kachel zum Filtern (Anzahl, wie viele unterwegs)
+  plus „Fällig & Schäden“, darunter je Art ein Block mit Kacheln (im Einsatz
+  oder frei, Team, heute, Fälligkeiten).
 - Fällig (Pickerl, Service, Prüfung in 30 Tagen) und offene Schäden stehen
   im Fuhrpark und auf der Startseite.
 

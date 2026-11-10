@@ -577,6 +577,17 @@ console.log("\n— Abwesenheiten, Konto, Einsätze —");
   ok(!e10 && !!zg, "Garantiestunden buchen" + (e10 ? abgelehnt(e10) : ""));
   const { data: za } = await chef.from("projekt_zahlen").select("stunden, stunden_offen").eq("projekt_id", pr2.id).single();
   ok(Number(za?.stunden) === 3 && Number(za?.stunden_offen) === 0, "Garantiestunden zählen, aber nicht als offen");
+
+  // Gebucht wird nur auf Projekte „In Arbeit“ — Garantie ausgenommen
+  const { data: prStatus } = await chef.from("projekte").select("status").eq("id", pr2.id).single();
+  await chef.from("projekte").update({ status: "verrechnen" }).eq("id", pr2.id);
+  const { error: e11 } = await monteur.from("zeiten").insert({ projekt_id: pr2.id, stunden: 1 }).select("id").single();
+  ok(!!e11 && /In Arbeit/.test(e11.message), "Stunden auf „Zu verrechnen“ abgelehnt");
+  const { error: e12 } = await monteur.from("zeiten").insert({ projekt_id: pr2.id, stunden: 1, art: "garantie" }).select("id").single();
+  ok(!e12, "Garantie auf „Zu verrechnen“ geht" + (e12 ? abgelehnt(e12) : ""));
+  const { error: e13 } = await monteur.from("regieberichte").insert({ projekt_id: pr2.id }).select("id").single();
+  ok(!!e13, "Regiebericht auf „Zu verrechnen“ abgelehnt");
+  await chef.from("projekte").update({ status: prStatus?.status ?? "aktiv" }).eq("id", pr2.id);
 }
 
 console.log("\n— Buchhaltung —");
