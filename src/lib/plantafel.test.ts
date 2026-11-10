@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ablegen, inZeile, konflikte, tageZwischen, ueberschneiden, zuweisen, type PlanTermin } from "./plantafel";
+import { ablegen, bahnen, balkenLage, inZeile, konflikte, tageZwischen, ueberschneiden, verschieben, zuweisen, type PlanTermin } from "./plantafel";
 import { faelligkeiten } from "./fuhrpark";
 
 const t = (teil: Partial<PlanTermin> & { id: string }): PlanTermin => ({
@@ -106,5 +106,30 @@ describe("faelligkeiten", () => {
   });
   it("gemietet: nichts zu tun", () => {
     expect(faelligkeiten({ ...f, gemietet: true }, "2026-11-10")).toEqual([]);
+  });
+});
+
+describe("Gantt", () => {
+  it("balkenLage schneidet am Rand ab", () => {
+    expect(balkenLage("2026-11-08", "2026-11-11", "2026-11-09", 7)).toEqual({ links: 0, laenge: 3, offenLinks: true, offenRechts: false });
+    expect(balkenLage("2026-11-20", "2026-11-21", "2026-11-09", 7)).toBeNull();
+  });
+  it("verschieben: Mitte, Ränder, nie über das andere Ende", () => {
+    const e = { datum: "2026-11-10", bis_datum: "2026-11-12" };
+    expect(verschieben(e, "mitte", 2)).toEqual({ datum: "2026-11-12", bis_datum: "2026-11-14" });
+    expect(verschieben(e, "rechts", 3)).toEqual({ datum: "2026-11-10", bis_datum: "2026-11-15" });
+    expect(verschieben(e, "links", -1)).toEqual({ datum: "2026-11-09", bis_datum: "2026-11-12" });
+    expect(verschieben(e, "links", 5)).toEqual({ datum: "2026-11-12", bis_datum: null });
+    expect(verschieben(e, "rechts", -9)).toEqual({ datum: "2026-11-10", bis_datum: null });
+    expect(verschieben({ datum: "2026-11-10", bis_datum: null }, "rechts", 4)).toEqual({ datum: "2026-11-10", bis_datum: "2026-11-14" });
+  });
+  it("bahnen: Überlappende untereinander, Folgende in dieselbe Bahn", () => {
+    const { bahn, anzahl } = bahnen([
+      { id: "a", datum: "2026-11-10", bis_datum: "2026-11-12" },
+      { id: "b", datum: "2026-11-11", bis_datum: null },
+      { id: "c", datum: "2026-11-13", bis_datum: null },
+    ]);
+    expect(anzahl).toBe(2);
+    expect([bahn.get("a"), bahn.get("b"), bahn.get("c")]).toEqual([0, 1, 0]);
   });
 });

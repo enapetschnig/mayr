@@ -12,6 +12,10 @@
 --    2026-0005 Kirchenwirt  Regie: RB-001 verrechnet (RE-001 bezahlt),
 --                           RB-002 unterschrieben und offen, RB-003 Entwurf
 --    2026-0006 Sonnenhof    abgeschlossen, RE-2026-002 überfällig, Erinnerung draußen
+--    2026-0007 Wohnanlage   laufend, große Baustelle der letzten Monate (Stundenauswertung)
+--    2026-0008 Autohaus     laufend, Team Tom mit Steiger (Plantafel der nächsten Wochen)
+--  Dazu: drei Monate Stunden mit Uhrzeit für alle Monteure bis gestern
+--  (ohne Feiertage, Urlaub, Krankenstand) und Einsätze bis acht Wochen voraus.
 -- ============================================================================
 do $$
 declare
@@ -424,6 +428,10 @@ begin
     f_kern uuid := (select id from fahrzeuge where name = 'Kernbohrgerät');
     w date := date_trunc('week', current_date)::date;
     e6 uuid := gen_random_uuid(); e7 uuid := gen_random_uuid(); e8 uuid := gen_random_uuid();
+    -- Drei Monate Stunden ab dem Monatsersten (für die Stundenauswertung)
+    s date := (date_trunc('month', current_date) - interval '3 months')::date;
+    f_miet uuid := (select id from fahrzeuge where name like 'Miet-Steiger%');
+    k7 uuid; k8 uuid; p7 uuid; p8 uuid;
   begin
     if v_tom is null then
       raise notice 'Weitere Demo-Mitarbeiter fehlen — scripts/demo-konten.mjs ausführen.';
@@ -464,15 +472,137 @@ begin
           (v_sarah, p3, 3.5, 'Kundendienst Sonnenhof')
         ) as x(u, p, h, t)
        where extract(isodow from d) < 6
+         and to_char(d, 'MM-DD') not in ('01-01', '01-06', '05-01', '08-15', '10-26', '11-01', '12-08', '12-25', '12-26')
          and not (x.u = v_jonas and extract(isodow from d) = 4);
       -- Fahrzeit und Überstunden, damit die Auswertung etwas zu trennen hat
       insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, art, km, erstellt_von)
       select x.u, x.p, d::date, 0.5, '06:30', '07:00', 0, 'Fahrt zur Baustelle', 'fahrt', 38, x.u
         from generate_series(w - 21, current_date - 1, interval '7 day') d
-        cross join (values (v_tom, p2), (v_eva, p1)) as x(u, p);
+        cross join (values (v_tom, p2), (v_eva, p1)) as x(u, p)
+       where to_char(d, 'MM-DD') not in ('01-01', '01-06', '05-01', '08-15', '10-26', '11-01', '12-08', '12-25', '12-26');
       insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, art, erstellt_von)
       values (v_eva, p1, w - 10, 2, '15:30', '17:30', 0, 'Verteiler fertig verdrahten', 'ue50', v_eva),
              (v_sarah, p2, w - 6, 1.5, '19:00', '20:30', 0, 'Störung Kühlraum am Abend', 'ue100', v_sarah);
+
+      -- ── Zwei größere Baustellen, auf denen die Monate davor gearbeitet wurde ──
+      insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
+        values ('Wohnbau Leonding (Demo)', 'DI Karin Moser', 'Welser Straße 40', '4060', 'Leonding', '+43 000 0000107', 'bau@wohnbau-leonding.demo', 'ATU00000007', 'Bauleitung jeden Dienstag vor Ort')
+        returning id into k7;
+      insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
+        values ('Autohaus Steyr (Demo)', 'Markus Brandl', 'Industriestraße 5', '4400', 'Steyr', '+43 000 0000108', 'werkstatt@autohaus-steyr.demo', 'ATU00000008', null)
+        returning id into k8;
+      insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von, created_at)
+        values ('Wohnanlage Leonding – 12 Wohnungen', k7, 'aktiv', 'Welser Straße 40', '4060', 'Leonding',
+                'Elektroinstallation 12 Wohnungen, Tiefgarage mit Wallbox-Vorbereitung, Stiegenhaus, Photovoltaik am Dach.', v_chef,
+                (s + time '09:00') at time zone 'Europe/Vienna')
+        returning id into p7;
+      insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von, created_at)
+        values ('Autohaus Steyr – Werkstatt und Schauraum', k8, 'aktiv', 'Industriestraße 5', '4400', 'Steyr',
+                'Werkstatt: Hallenbeleuchtung LED, Kraftsteckdosen, Hebebühnen anschließen. Schauraum: Lichtsteuerung.', v_chef,
+                (s + 20 + time '09:00') at time zone 'Europe/Vienna')
+        returning id into p8;
+
+      -- Urlaub im Sommer und Berufsschule, damit die Monate echte Lücken haben
+      insert into abwesenheiten (user_id, art, von, bis, status, entschieden_von, entschieden_am, erstellt_von) values
+        (v_eva,   'urlaub', date_trunc('week', s + 7)::date,  date_trunc('week', s + 7)::date + 11, 'genehmigt', v_chef, now(), v_eva),
+        (v_tom,   'urlaub', date_trunc('week', s + 21)::date, date_trunc('week', s + 21)::date + 4, 'genehmigt', v_chef, now(), v_tom),
+        (v_jonas, 'urlaub', date_trunc('week', s + 21)::date, date_trunc('week', s + 21)::date + 4, 'genehmigt', v_chef, now(), v_jonas),
+        (v_sarah, 'urlaub', date_trunc('week', s + 14)::date, date_trunc('week', s + 14)::date + 4, 'genehmigt', v_chef, now(), v_sarah),
+        (v_stefan,'urlaub', date_trunc('week', s + 42)::date, date_trunc('week', s + 42)::date + 4, 'genehmigt', v_chef, now(), v_stefan),
+        (v_lisa,  'urlaub', date_trunc('week', s + 14)::date, date_trunc('week', s + 14)::date + 4, 'genehmigt', v_chef, now(), v_lisa),
+        (v_lisa,  'berufsschule', date_trunc('week', s + 35)::date, date_trunc('week', s + 35)::date + 11, 'genehmigt', v_chef, now(), v_chef),
+        (v_tom,   'krank', date_trunc('week', s + 56)::date + 1, date_trunc('week', s + 56)::date + 2, 'genehmigt', v_chef, now(), v_tom);
+
+      -- Jeder Arbeitstag mit Von–Bis: meist 7:00–15:30, manchmal früher, länger oder auf zwei
+      -- Baustellen, Freitag bis 13:00. Feiertage, Abwesenheiten und schon gebuchte Tage bleiben frei.
+      with tage as (
+        select x.u, x.wer, d::date as d, extract(isodow from d)::int as wt,
+               abs(hashtext(x.u::text || d::date::text)) % 100 as h,
+               abs(hashtext(d::date::text || x.wer)) % 7 as t
+          from generate_series(s, current_date - 1, interval '1 day') d
+          cross join (values (v_max, 'max'), (v_lisa, 'lisa'), (v_tom, 'tom'), (v_jonas, 'jonas'),
+                             (v_eva, 'eva'), (v_stefan, 'stefan'), (v_sarah, 'sarah')) as x(u, wer)
+         where extract(isodow from d) < 6
+           and to_char(d, 'MM-DD') not in ('01-01', '01-06', '05-01', '08-15', '10-26', '11-01', '12-08', '12-25', '12-26')
+           and not exists (select 1 from zeiten z where z.user_id = x.u and z.datum = d::date)
+           and not exists (select 1 from abwesenheiten a where a.user_id = x.u and a.status = 'genehmigt' and d::date between a.von and a.bis)
+      ), plan as (
+        -- welche Baustelle: Wohnanlage die ersten Wochen, dann je Team die eigene; der Kundendienst wechselt
+        select tage.*,
+               case
+                 when wer = 'sarah' then (array[p3, p5, p8, p2, p1, p5, p3])[1 + t]
+                 when wer in ('tom', 'jonas') then case when d < s + 20 then p7 else p8 end
+                 when wer in ('max', 'lisa') then case when d < s + 35 then p7 else p1 end
+                 else p7
+               end as p
+          from tage
+      )
+      insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, art, erstellt_von, created_at)
+      select u, p, d,
+             case when wt = 5 then 6 when h < 60 then 8 when h < 75 then 8 when h < 87 then 9.5 else 4.5 end,
+             case when wt = 5 then time '07:00' when h < 60 then time '07:00' when h < 75 then time '06:30' when h < 87 then time '07:00' else time '07:00' end,
+             case when wt = 5 then time '13:00' when h < 60 then time '15:30' when h < 75 then time '15:00' when h < 87 then time '17:00' else time '11:30' end,
+             case when wt = 5 or h >= 87 then 0 else 30 end,
+             case
+               when p = p7 then (array['Leerverrohrung Top 1–4', 'Schlitze gefräst, Dosen gesetzt', 'Kabel eingezogen Stiege 1', 'Unterverteiler Top 5 bestückt',
+                                       'Fundamenterder angeschlossen', 'Leitungen Tiefgarage verlegt', 'Steigleitung Stiege 2'])[1 + t]
+               when p = p8 then (array['Hallenbeleuchtung LED montiert', 'Kabeltrasse Werkstatt', 'CEE-Steckdosen gesetzt', 'Hebebühne 3 angeschlossen',
+                                       'Schauraum Lichtsteuerung', 'Verteiler Werkstatt verdrahtet', 'Leitungen Waschstraße'])[1 + t]
+               when p = p1 then (array['Dosen und Leitungen OG', 'Verteiler verdrahtet', 'Netzwerk und Medien', 'Leitungen Keller', 'Installation EG', 'Schalter und Steckdosen gesetzt', 'Messung und Beschriftung'])[1 + t]
+               when p = p2 then 'Kundendienst Bäckerei Gruber'
+               when p = p3 then 'Kundendienst Sonnenhof'
+               else 'Kundendienst Kirchenwirt'
+             end,
+             'arbeit', u, (d + time '16:30') at time zone 'Europe/Vienna'
+        from plan;
+      -- An Tagen auf zwei Baustellen: der Nachmittag woanders (12:00–15:30)
+      insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, art, erstellt_von, created_at)
+      select z.user_id, case when z.projekt_id = p7 then p1 else p7 end, z.datum, 3.5, '12:00', '15:30', 0,
+             case when z.projekt_id = p7 then 'Nachmittag Huber: Dosen setzen' else 'Nachmittag Wohnanlage: Material geholt, Leitungen' end,
+             'arbeit', z.user_id, z.created_at
+        from zeiten z
+       where z.datum >= s and z.von = '07:00' and z.bis = '11:30' and z.user_id <> v_sarah and z.regiebericht_id is null;
+      -- Montags die Fahrt mit dem Bus (Teamleitung, mit Kilometern)
+      insert into zeiten (user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, art, km, erstellt_von)
+      select z.user_id, z.projekt_id, z.datum, 0.5, '06:30', '07:00', 0, 'Fahrt zur Baustelle', 'fahrt', case when z.projekt_id = p8 then 46 else 18 end, z.user_id
+        from zeiten z
+       where z.datum >= s and z.datum < w - 21 and extract(isodow from z.datum) = 1 and z.von = '07:00' and z.art = 'arbeit'
+         and z.user_id in (v_max, v_tom, v_eva);
+
+      -- ── Plantafel: die nächsten Wochen, Teams mit Bus über mehrere Tage ──
+      insert into termine (titel, beschreibung, ort, datum, bis_datum, von, bis, ganztags, projekt_id, mitarbeiter, fahrzeuge, team_id, user_id)
+      select x.titel, x.text, x.ort, w + x.ab, w + x.bis, '07:00', '15:30', false, x.p, x.leute, x.fz, x.team, v_chef
+        from (values
+          -- Team Max mit Bus 1
+          ('Huber – Feininstallation', 'Schalter, Steckdosen, Leuchtenauslässe', 'Musterstraße 12, 4020 Linz', 14, 18, p1, array[v_max, v_lisa], array[f_bus1], t_max),
+          ('Wohnanlage – Verteiler Top 1–6', 'Unterverteiler bestücken und beschriften', 'Welser Straße 40, 4060 Leonding', 21, 25, p7, array[v_max, v_lisa], array[f_bus1], t_max),
+          ('Huber – Fertigstellung und Messung', 'Messprotokoll, Übergabe an den Bauherrn', 'Musterstraße 12, 4020 Linz', 28, 30, p1, array[v_max, v_lisa], array[f_bus1], t_max),
+          ('Wohnanlage – Tiefgarage', 'Wallbox-Vorbereitung, Beleuchtung', 'Welser Straße 40, 4060 Leonding', 31, 39, p7, array[v_max, v_lisa], array[f_bus1], t_max),
+          ('Wohnanlage – Stiegenhaus', null, 'Welser Straße 40, 4060 Leonding', 42, 53, p7, array[v_max, v_lisa], array[f_bus1], t_max),
+          -- Team Tom mit Bus 3, im Autohaus mit Steiger
+          ('Autohaus – Hallenbeleuchtung', 'Hallendecke 7 m, Steiger mitnehmen', 'Industriestraße 5, 4400 Steyr', 14, 16, p8, array[v_tom, v_jonas], array[f_bus3, f_steiger], t_tom),
+          ('Autohaus – Kraftsteckdosen Werkstatt', null, 'Industriestraße 5, 4400 Steyr', 17, 25, p8, array[v_tom, v_jonas], array[f_bus3], t_tom),
+          ('Gruber – Backstube Restarbeiten', null, 'Hauptplatz 3, 4600 Wels', 28, 29, p2, array[v_tom, v_jonas], array[f_bus3], t_tom),
+          ('Autohaus – Schauraum Lichtsteuerung', 'DALI programmieren', 'Industriestraße 5, 4400 Steyr', 30, 39, p8, array[v_tom, v_jonas], array[f_bus3], t_tom),
+          ('Autohaus – Hebebühnen anschließen', null, 'Industriestraße 5, 4400 Steyr', 42, 46, p8, array[v_tom, v_jonas], array[f_bus3], t_tom),
+          -- Team Eva mit Bus 2
+          ('Wohnanlage – Leitungen Top 7–12', null, 'Welser Straße 40, 4060 Leonding', 14, 25, p7, array[v_eva, v_stefan], array[f_bus2], t_eva),
+          ('Wohnanlage – PV am Dach', 'Module und Wechselrichter, Steiger für den Kran-Hub', 'Welser Straße 40, 4060 Leonding', 28, 32, p7, array[v_eva, v_stefan], array[f_bus2, f_miet], t_eva),
+          ('Wohnanlage – Top 7–12 Feininstallation', null, 'Welser Straße 40, 4060 Leonding', 35, 46, p7, array[v_eva, v_stefan], array[f_bus2], t_eva)
+        ) as x(titel, text, ort, ab, bis, p, leute, fz, team);
+      -- Kundendienst: einzelne Tage mit dem PKW
+      insert into termine (titel, beschreibung, ort, datum, von, bis, ganztags, projekt_id, mitarbeiter, fahrzeuge, team_id, user_id)
+      select x.titel, null, x.ort, w + x.tag, x.von::time, x.bis::time, false, x.p, array[v_sarah], array[f_pkw], t_kd, v_chef
+        from (values
+          ('E-Check Sonnenhof Stiege 1', 'Sonnenweg 6, 4040 Linz', 8, '08:00', '12:00', p3),
+          ('Wartung Notlicht Autohaus', 'Industriestraße 5, 4400 Steyr', 10, '08:00', '11:00', p8),
+          ('Kirchenwirt – Küche Herd anschließen', 'Kirchenplatz 1, 4320 Perg', 15, '13:00', '15:00', p5),
+          ('E-Check Bäckerei Gruber', 'Hauptplatz 3, 4600 Wels', 17, '07:00', '11:00', p2),
+          ('Sonnenhof – Zählerplatz Abnahme Netz', 'Sonnenweg 8, 4040 Linz', 22, '09:00', '10:30', p3),
+          ('Kirchenwirt – Gastgarten winterfest', 'Kirchenplatz 1, 4320 Perg', 24, '08:00', '10:00', p5),
+          ('E-Check Wohnanlage Baustrom', 'Welser Straße 40, 4060 Leonding', 29, '07:00', '09:00', p7),
+          ('Autohaus – Wallbox Kundenparkplatz', 'Industriestraße 5, 4400 Steyr', 31, '08:00', '14:00', p8)
+        ) as x(titel, ort, tag, von, bis, p);
     end if;
 
     -- ── Eingangsrechnungen mit Positionen: prüfen → freigeben → überweisen ──
@@ -519,6 +649,9 @@ begin
          {"artikelnummer":"120006946","bezeichnung":"Kunststoffdübel 8x70","menge":100,"einheit":"Stk"}]'::jsonb,
        now(), coalesce(v_tom, v_max));
   end;
+  -- Das Verschieben um ganze Wochen kann Stunden auf einen Feiertag legen — die fallen weg
+  delete from zeiten where to_char(datum, 'MM-DD') in ('01-01', '01-06', '05-01', '08-15', '10-26', '11-01', '12-08', '12-25', '12-26')
+     and regiebericht_id is null and rechnung_id is null;
   -- Einkauf aus den Rabatten neu (betrifft auch die Demo-Artikel aus 02)
   loop
     exit when rabatte_anwenden('Sonepar', 5000) = 0;

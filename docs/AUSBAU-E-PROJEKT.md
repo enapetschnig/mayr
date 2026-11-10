@@ -38,8 +38,8 @@ Hardware existiert.
 | 9 | **Eingangsrechnungen einlesen** | ZUGFeRD-/XRechnung-Daten aus dem PDF als Vorschlag, Abgleich mit der Bestellung (teurer = rot), Skonto-Frist mit Erinnerung | KI liest Foto/PDF, prüfen → freigeben → SEPA-Datei, Positionen je Projekt, Lieferschein-Abgleich, Skonto auf der Startseite (10.11.2026); ZUGFeRD-XML und Abgleich mit der Bestellung offen |
 | 10 | **Kunden & Stamm** | Mehrere Ansprechpartner, eigene Rechnungsadresse (Hausverwaltung), Reverse Charge am Kunden, Warnung bei säumigen Kunden, Textbausteine, Aufschlag je Warengruppe, Kostensatz je Mitarbeiter (echte Nachkalkulation), Preisänderungsliste nach Datanorm-Import, Kupferzuschlag | geplant |
 | 11 | **Geräte, Etiketten, Mängel** | Geräte & Werkzeuge mit QR (Übergabe per Scan, Kalibriertermine, Messgerät im Prüfprotokoll), Strichcode-Etiketten für Lagerartikel, Mängel mit Frist bei Anlagen → Angebot | geplant |
-| 13 | **Plantafel & Fuhrpark** | Teams mit Bus, Einsätze ziehen, Steiger und Maschinen einteilen, Konflikte, Bordbuch, Pickerl/Service/Prüfung fällig, Schäden vom Handy | ✅ 10.11.2026 |
-| 14 | **Stundenauswertung** | Zeitraum, Mitarbeiter/Team, Projekt, Art, verrechnet; gruppiert, CSV, Stundennachweis | ✅ 10.11.2026 |
+| 13 | **Plantafel & Fuhrpark** | Teams mit Bus, Einsätze ziehen, Steiger und Maschinen einteilen, Konflikte, Bordbuch, Pickerl/Service/Prüfung fällig, Schäden vom Handy; Gantt mit Woche bis 3 Monate, alles ziehen, Bus je Team tauschen, Rückgängig | ✅ 10.11.2026 |
+| 14 | **Stundenauswertung** | Zeitraum, Mitarbeiter/Team, Projekt, Art, verrechnet; gruppiert, CSV, Stundennachweis; Von–Bis je Tag mit Zeitleiste | ✅ 10.11.2026 |
 | 15 | **KI im Angebot** | Material per KI aus dem eigenen Stamm, Aufschläge je Position und Beleg, Rabatte je Lieferant/Hersteller/Rabattgruppe | ✅ 10.11.2026 |
 | 12 | **Später / auf Wunsch** | Offline-Warteschlange für Buchungen, einfaches Aufmaß, ÖNORM-LV | später |
 

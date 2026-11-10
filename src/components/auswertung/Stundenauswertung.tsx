@@ -11,7 +11,8 @@ import { useSitzung } from "@/hooks/useSitzung";
 import { alleZeilen, csvHerunterladen } from "@/lib/abfrage";
 import { datum, isoTag, stunden, tageDazu, zahl } from "@/lib/format";
 import { pdfDateiname, pdfTeilenOderLaden } from "@/lib/pdfBasis";
-import { filtern, gruppieren, type Gruppierung, type ZeitZeile } from "@/lib/stundenAuswertung";
+import { filtern, gruppieren, tagesnachweis, type Gruppierung, type ZeitZeile } from "@/lib/stundenAuswertung";
+import { VonBis } from "@/components/auswertung/VonBis";
 import { stundenPdf } from "@/lib/stundenPdf";
 import { abwesenheitStunden, abwesenheitsTage, lohnSumme } from "@/lib/zeitkonto";
 import { name, STUNDEN_ART, type StundenArt } from "@/lib/types";
@@ -19,7 +20,8 @@ import { cn } from "@/lib/utils";
 
 const ARTEN = Object.keys(STUNDEN_ART) as StundenArt[];
 const ART_KURZ: Record<StundenArt, string> = { arbeit: "Arbeit", fahrt: "Fahrt", ue50: "Ü 50 %", ue100: "Ü 100 %", garantie: "Garantie" };
-const GRUPPEN: [Gruppierung, string][] = [["person", "Mitarbeiter"], ["projekt", "Projekt"], ["woche", "Woche"], ["tag", "Tag"], ["art", "Art"]];
+/** „zeiten“ = Von–Bis je Mitarbeiter und Tag (Zeitleiste), sonst Summen je Gruppe */
+const GRUPPEN: [Gruppierung | "zeiten", string][] = [["person", "Mitarbeiter"], ["projekt", "Projekt"], ["woche", "Woche"], ["tag", "Tag"], ["art", "Art"], ["zeiten", "Von–Bis je Tag"]];
 
 /** Montag der Woche */
 const montag = (iso: string) => {
@@ -56,7 +58,7 @@ export function Stundenauswertung() {
   const [projekt, setProjekt] = useState("");
   const [arten, setArten] = useState<string[]>([]);
   const [verrechnet, setVerrechnet] = useState<"alle" | "ja" | "nein">("alle");
-  const [nach, setNach] = useState<Gruppierung>("person");
+  const [nach, setNach] = useState<Gruppierung | "zeiten">("person");
   const [offen, setOffen] = useState<Set<string>>(new Set());
   const [pdfLaeuft, setPdfLaeuft] = useState(false);
   const { data: teams = [] } = useTeams();
@@ -84,9 +86,11 @@ export function Stundenauswertung() {
     id: z.id, user_id: z.user_id, person: name(z.profiles), projekt_id: z.projekt_id,
     projekt: z.projekte ? `${z.projekte.nummer} ${z.projekte.name}` : null, datum: z.datum, stunden: Number(z.stunden),
     art: z.art ?? "arbeit", km: z.km == null ? null : Number(z.km), verrechnet: !!(z.rechnung_id || z.regieberichte?.rechnung_id),
+    von: z.von, bis: z.bis, pause_minuten: z.pause_minuten, taetigkeit: z.taetigkeit,
   })), [roh]);
   const gefiltert = useMemo(() => filtern(zeilen, { personen, projekte: projekt ? [projekt] : [], arten, verrechnet }), [zeilen, personen, projekt, arten, verrechnet]);
-  const gruppen = useMemo(() => gruppieren(gefiltert, nach, (a) => STUNDEN_ART[a as StundenArt]?.text ?? a), [gefiltert, nach]);
+  const gruppen = useMemo(() => (nach === "zeiten" ? [] : gruppieren(gefiltert, nach, (a) => STUNDEN_ART[a as StundenArt]?.text ?? a)), [gefiltert, nach]);
+  const tage = useMemo(() => (nach === "zeiten" ? tagesnachweis(gefiltert) : []), [gefiltert, nach]);
   const gesamt = gruppieren(gefiltert, "art").reduce((s, g) => s + g.stunden, 0);
   const jeArtGesamt = Object.fromEntries(gruppieren(gefiltert, "art").map((g) => [g.schluessel, g.stunden]));
   const kmGesamt = gefiltert.reduce((s, z) => s + (z.km ?? 0), 0);
@@ -98,6 +102,13 @@ export function Stundenauswertung() {
   const teamAktiv = (mitglieder: string[]) => mitglieder.length > 0 && mitglieder.length === personen.length && mitglieder.every((m) => personen.includes(m));
 
   const csv = () => {
+    if (nach === "zeiten") {
+      csvHerunterladen(`von-bis-${von}-bis-${bis}.csv`, [
+        ["Mitarbeiter", "Datum", "Beginn", "Ende", "Pause (Min.)", "Stunden", "Ohne Uhrzeit", "Baustellen", "Hinweise"],
+        ...tage.map((t) => [t.person, datum(t.datum), t.beginn ?? "", t.ende ?? "", t.pause || null, t.stunden, t.ohneZeit || null, t.projekte.join(", "), t.hinweise.join(", ")]),
+      ]);
+      return;
+    }
     csvHerunterladen(`stunden-${von}-bis-${bis}.csv`, [
       ["Mitarbeiter", "Datum", "Von", "Bis", "Pause (Min.)", "Stunden", "Art", "km", "Projekt", "Tätigkeit", "Verrechnet"],
       ...gefiltert.sort((a, b) => a.person.localeCompare(b.person, "de") || a.datum.localeCompare(b.datum)).map((z) => {
@@ -221,6 +232,8 @@ export function Stundenauswertung() {
           <div className="flex justify-center py-10 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : !gefiltert.length ? (
           <Leer icon={Clock} text="Keine Stunden für diese Auswahl." />
+        ) : nach === "zeiten" ? (
+          <div className={cn(zeitenQ.isPlaceholderData && "opacity-60")}><VonBis tage={tage} profile={mitarbeiter} /></div>
         ) : (
           <div className={cn("overflow-x-auto rounded-lg border bg-card", zeitenQ.isPlaceholderData && "opacity-60")}>
             <table className="w-full text-sm">

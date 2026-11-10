@@ -417,11 +417,21 @@ Migration `20261110100000_fuhrpark_teams_plantafel.sql`, Logik in
   Tanken); Monteure melden Schäden und Tanken, alles andere der Chef.
 - `teams`: Name, Farbe, Leitung, Mitglieder, Stamm-Bus. Ein Einsatz
   (`termine`) hat `team_id`, `mitarbeiter[]` und `fahrzeuge[]`.
-- Plantafel: Zeilen nach Team, Person oder Fahrzeug, Spalten Tage; Einsätze
-  ziehen (`ablegen`: anderes Team → Leute und Bus wechseln mit, Person auf
-  Person tauscht), Leute und Steiger aus der Seitenleiste auf einen Einsatz
-  ziehen (`zuweisen`). Konflikte (doppelt, abwesend) rot. Der Monteur sieht
-  seine Einsätze wie gehabt am Handy.
+- Plantafel am PC = Gantt (`components/plantafel/Gantt.tsx`, Rechenteil
+  `balkenLage`, `verschieben`, `bahnen` in `lib/plantafel.ts`): Ansicht Woche,
+  2 Wochen, Monat, 3 Monate; Spalte links fest, Tagesbreite passt sich an.
+  Zeilen: je Team ein Kopf (zuklappbar, Bus als Auswahl) mit den Leuten
+  darunter, „Ohne Team“, „Busse, Steiger & Geräte“, „Nicht eingeteilt“.
+  Mehrtägige Einsätze sind ein Balken; überlappende liegen in Bahnen.
+- Ziehen (Maus, am Handy/Tablet langer Druck): Balken = verschieben, auch
+  in eine andere Zeile (`ablegen`: anderes Team → Leute und Bus wechseln mit,
+  Person auf Person tauscht); mit Strg/Alt = kopieren; Ränder = länger/kürzer;
+  leere Tage aufziehen = neuer Einsatz für genau diese Tage; Projekt aus der
+  rechten Liste auf eine Zeile = Einsatz bis Freitag 7:00–15:30; Person oder
+  Gerät am Griff ⋮⋮ auf einen Balken (`zuweisen`) oder auf ein Team (Bus
+  tauschen bzw. Mitglied wechseln). Bus tauschen ändert auch die Einsätze
+  des Teams ab heute. Alles mit Rückgängig (Knopf, Strg+Z), Esc bricht ab.
+  Konflikte (doppelt, abwesend) rot. Am Handy eine Liste je Tag.
 - Fällig (Pickerl, Service, Prüfung in 30 Tagen) und offene Schäden stehen
   im Fuhrpark und auf der Startseite.
 
@@ -431,6 +441,10 @@ Migration `20261110100000_fuhrpark_teams_plantafel.sql`, Logik in
 Mitarbeiter oder Team, Projekt (auch „ohne“), Art und verrechnet; gruppiert
 nach Mitarbeiter, Projekt, Woche, Tag oder Art, jede Gruppe aufklappbar bis
 zur einzelnen Buchung. CSV und Stundennachweis-PDF der Auswahl.
+„Von–Bis je Tag“ (`tagesnachweis`, `components/auswertung/VonBis.tsx`): je
+Person und Tag Beginn, Ende, Pause, Stunden und eine Zeitleiste 6–19 Uhr mit
+den einzelnen Blöcken; je Person Ø Beginn/Ende; auffällig sind Beginn vor 6,
+Ende nach 19, über 10 h, Überschneidung, Lücke über 1 h. Auch als CSV.
 
 ### Startseite und Menü
 

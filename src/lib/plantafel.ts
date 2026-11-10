@@ -161,3 +161,50 @@ export function inZeile(t: PlanTermin, z: Zeile): boolean {
   if (z.art === "fahrzeug") return t.fahrzeuge.includes(z.id);
   return !t.team_id && t.mitarbeiter.length === 0;
 }
+
+/** Lage eines Balkens in Tagen ab Anzeigebeginn, abgeschnitten; null = nicht zu sehen */
+export function balkenLage(von: string, bis: string, start: string, anzahl: number): { links: number; laenge: number; offenLinks: boolean; offenRechts: boolean } | null {
+  const a = tageZwischen(start, von), b = tageZwischen(start, bis);
+  if (b < 0 || a > anzahl - 1) return null;
+  const links = Math.max(0, a), rechts = Math.min(anzahl - 1, b);
+  return { links, laenge: rechts - links + 1, offenLinks: a < 0, offenRechts: b > anzahl - 1 };
+}
+
+export type Griff = "mitte" | "links" | "rechts";
+
+/**
+ * Balken gezogen: in der Mitte verschiebt den ganzen Einsatz, am linken Rand
+ * den Beginn, am rechten das Ende — nie über das andere Ende hinaus.
+ * Ein Tag = bis_datum null.
+ */
+export function verschieben(t: Pick<Termin, "datum" | "bis_datum">, griff: Griff, d: number): Pick<Termin, "datum" | "bis_datum"> {
+  const bis = t.bis_datum ?? t.datum;
+  let von2 = t.datum, bis2 = bis;
+  if (griff === "mitte") { von2 = tageDazu(t.datum, d); bis2 = tageDazu(bis, d); }
+  if (griff === "links") von2 = tageDazu(t.datum, Math.min(d, tageZwischen(t.datum, bis)));
+  if (griff === "rechts") bis2 = tageDazu(bis, Math.max(d, -tageZwischen(t.datum, bis)));
+  return { datum: von2, bis_datum: bis2 > von2 ? bis2 : null };
+}
+
+/** Überlappende Balken einer Zeile untereinander: Bahn je Einsatz und wie viele Bahnen */
+export function bahnen<T extends { id: string; datum: string; bis_datum: string | null }>(liste: T[]): { bahn: Map<string, number>; anzahl: number } {
+  const sortiert = [...liste].sort((a, b) => a.datum.localeCompare(b.datum) || (b.bis_datum ?? b.datum).localeCompare(a.bis_datum ?? a.datum));
+  const ende: string[] = [];
+  const bahn = new Map<string, number>();
+  for (const t of sortiert) {
+    let i = ende.findIndex((e) => e < t.datum);
+    if (i < 0) { i = ende.length; ende.push(""); }
+    ende[i] = t.bis_datum ?? t.datum;
+    bahn.set(t.id, i);
+  }
+  return { bahn, anzahl: ende.length };
+}
+
+/** Zeiträume der Plantafel: Tage, Mindestbreite je Tag in px (sonst füllt die Tafel die Breite), Schritt für ◀ ▶ */
+export type Ansicht = "woche" | "2wochen" | "monat" | "3monate";
+export const ANSICHTEN: { wert: Ansicht; text: string; tage: number; breite: number; schritt: number }[] = [
+  { wert: "woche", text: "Woche", tage: 7, breite: 110, schritt: 7 },
+  { wert: "2wochen", text: "2 Wochen", tage: 14, breite: 60, schritt: 7 },
+  { wert: "monat", text: "Monat", tage: 35, breite: 34, schritt: 28 },
+  { wert: "3monate", text: "3 Monate", tage: 91, breite: 16, schritt: 28 },
+];
