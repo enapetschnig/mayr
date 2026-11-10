@@ -12,7 +12,7 @@ import { useSitzung } from "@/hooks/useSitzung";
 import { isoTag } from "@/lib/format";
 
 /**
- * /belege/neu?typ=angebot|rechnung[&projekt=<id>|&kunde=<id>][&sprache=1][&import=1]
+ * /belege/neu?typ=angebot|rechnung[&projekt=<id>|&kunde=<id>][&sprache=1][&import=1][&ki=1]
  * /belege/:id
  *
  * Neu: Startwerte aus Firma (Texte), Projekt und dessen Kunde. Gespeichert
@@ -82,6 +82,7 @@ function NeuerBeleg({ params }: { params: URLSearchParams }) {
       daten={null}
       startKopf={kopf}
       autoSprache={params.get("sprache") === "1"}
+      autoKi={params.get("ki") === "1"}
       autoImport={typ === "rechnung" && !!projekt && params.get("import") === "1"}
     />
   );

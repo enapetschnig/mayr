@@ -13,11 +13,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Leer } from "@/components/Bausteine";
 import { euro, zahl } from "@/lib/format";
+import { aufschlagAus } from "@/lib/kalkulation";
 import { EINHEITEN } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   duplizieren, entfernen, gruppenGroesse, kannVerschieben, mengeVon, positionGesamt, positionsNummern, preisVon,
-  verschieben, zahlText, zwischensummen, type EditorPosition,
+  preisText, verschieben, zahlText, zwischensummen, type EditorPosition,
 } from "./editor";
 import { PositionDialog } from "./PositionDialog";
 
@@ -52,6 +53,16 @@ export function PositionenEditor({
   const zs = useMemo(() => zwischensummen(positionen.map((p) => ({ art: p.art, gesamt: positionGesamt(p) }))), [positionen]);
   const titelAnzahl = positionen.filter((p) => p.art === "titel").length;
 
+  /** „EK 10,00 · +30 %“ unter dem Preis — nur intern, nie auf dem PDF */
+  const kalkText = (p: EditorPosition) => {
+    if (p.ek_preis == null) return null;
+    const auf = aufschlagAus({ preis: preisVon(p), ek: p.ek_preis, minuten: p.minuten, satz: stundensatz ?? 0 });
+    return (
+      <span title="Einkauf und Aufschlag — nur intern" className={cn("zahl block whitespace-nowrap text-[11px] leading-tight text-muted-foreground", auf != null && auf < 0 && "text-destructive")}>
+        EK {preisText(p.ek_preis)}{auf != null && ` · ${auf > 0 ? "+" : ""}${Math.round(auf)} %`}
+      </span>
+    );
+  };
   const aendern = (id: string, werte: Partial<EditorPosition>) =>
     setPositionen((alt) => alt.map((p) => (p.id === id ? { ...p, ...werte } : p)));
   const mengePlus = (p: EditorPosition, d: number) => aendern(p.id, { menge: zahlText(Math.max(0, mengeVon(p) + d)) });
@@ -204,6 +215,7 @@ export function PositionenEditor({
                         {bearbeitbar
                           ? <Input value={p.einzelpreis} onChange={(e) => aendern(p.id, { einzelpreis: e.target.value })} inputMode="decimal" className="zahl h-9 text-right" />
                           : <p className="zahl py-1 text-right">{euro(preisVon(p))}</p>}
+                        <span className="block pt-0.5 text-right">{kalkText(p)}</span>
                       </td>
                     </>
                   )}
@@ -300,6 +312,7 @@ export function PositionenEditor({
               >
                 <span className="zahl block font-semibold">{euro(positionGesamt(p))}</span>
                 <span className="zahl block text-xs text-muted-foreground">à {euro(preisVon(p))}</span>
+                {kalkText(p)}
               </button>
             </div>
           </div>

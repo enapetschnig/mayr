@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Loader2, Package, Plus, ScanBarcode, Search, SearchX, Upload } from "lucide-react";
+import { BadgePercent, ChevronLeft, ChevronRight, Loader2, Package, Plus, ScanBarcode, Search, SearchX, Sparkles, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
 import { Leer, StatusPille } from "@/components/Bausteine";
@@ -11,7 +12,8 @@ import { ScanDialog } from "@/components/scanner/ScanDialog";
 import { artikelZuCode } from "@/components/scanner/artikelZuCode";
 import { ArtikelDialog } from "@/components/stamm/ArtikelDialog";
 import { ImportDialog } from "@/components/stamm/ImportDialog";
-import { fehlerText, useBestandSummen, useLieferanten } from "@/components/stamm/stammDaten";
+import { RabatteDialog } from "@/components/stamm/RabatteDialog";
+import { fehlerText, useArtikelGruppen, useBestandSummen, useLieferanten } from "@/components/stamm/stammDaten";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,6 +45,9 @@ export default function ArtikelSeite() {
   const q = useVerzoegert(text.trim(), 300);
   const [kategorie, setKategorie] = useState("alle");
   const [lieferant, setLieferant] = useState("alle");
+  const [hersteller, setHersteller] = useState("alle");
+  const [rabatteOffen, setRabatteOffen] = useState(false);
+  const navigate = useNavigate();
   const [nurLager, setNurLager] = useState(false);
   const [inaktive, setInaktive] = useState(false);
   const [seite, setSeite] = useState(0);
@@ -57,12 +62,19 @@ export default function ArtikelSeite() {
   const [scanOffen, setScanOffen] = useState(false);
   const { data: lieferanten = [] } = useLieferanten();
   const { data: bestaende = {} } = useBestandSummen();
+  // Hersteller (mit Anzahl) des gewählten Lieferanten — „-“ = ohne Hersteller
+  const { data: gruppen = [] } = useArtikelGruppen(lieferant === "alle" ? null : lieferant);
+  const herstellerListe = useMemo(() => {
+    const m = new Map<string, number>();
+    gruppen.forEach((g) => m.set(g.hersteller ?? "-", (m.get(g.hersteller ?? "-") ?? 0) + g.anzahl));
+    return [...m.entries()].sort((a, b) => (a[0] === "-" ? 1 : b[0] === "-" ? -1 : a[0].localeCompare(b[0])));
+  }, [gruppen]);
 
   // Die Suchfunktion der Datenbank kennt nur aktive Artikel — inaktive sucht die Liste.
   const sucheAktiv = q.length > 0 && !inaktive;
 
   // Anderer Filter → zurück auf Seite 1, noch im selben Render (sonst würde kurz Seite 3 des neuen Filters geladen)
-  const filter = [q, kategorie, lieferant, nurLager, inaktive].join("|");
+  const filter = [q, kategorie, lieferant, hersteller, nurLager, inaktive].join("|");
   const [filterVorher, setFilterVorher] = useState(filter);
   if (filter !== filterVorher) {
     setFilterVorher(filter);
@@ -79,10 +91,14 @@ export default function ArtikelSeite() {
   });
 
   const suche = useQuery({
-    queryKey: ["artikel", "suche", q, SUCHE_MAX],
+    queryKey: ["artikel", "suche", q, SUCHE_MAX, lieferant, hersteller],
     enabled: sucheAktiv,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("artikel_suchen", { p_q: q, p_anzahl: SUCHE_MAX });
+      // Lieferant und Hersteller filtert die Datenbank — sonst fiele ein Hersteller aus den besten 200 heraus
+      const { data, error } = await supabase.rpc("artikel_suchen", {
+        p_q: q, p_anzahl: SUCHE_MAX,
+        p_lieferant: lieferant === "alle" ? undefined : lieferant, p_hersteller: hersteller === "alle" ? undefined : hersteller,
+      });
       if (error) throw error;
       return (data ?? []) as Artikel[];
     },
@@ -90,13 +106,15 @@ export default function ArtikelSeite() {
   });
 
   const liste = useQuery({
-    queryKey: ["artikel", "liste", kategorie, lieferant, nurLager, inaktive, inaktive ? q : "", seite],
+    queryKey: ["artikel", "liste", kategorie, lieferant, hersteller, nurLager, inaktive, inaktive ? q : "", seite],
     enabled: !sucheAktiv,
     queryFn: async () => {
       let abfrage = supabase.from("artikel").select("*", { count: "exact" }).eq("aktiv", !inaktive);
       if (kategorie === "ohne") abfrage = abfrage.is("kategorie", null);
       else if (kategorie !== "alle") abfrage = abfrage.eq("kategorie", kategorie);
       if (lieferant !== "alle") abfrage = abfrage.eq("lieferant", lieferant);
+      if (hersteller === "-") abfrage = abfrage.is("hersteller", null);
+      else if (hersteller !== "alle") abfrage = abfrage.eq("hersteller", hersteller);
       if (nurLager) abfrage = abfrage.eq("lagerartikel", true);
       if (inaktive && q) abfrage = abfrage.ilike("bezeichnung", `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`);
       const von = seite * PRO_SEITE;
@@ -110,14 +128,13 @@ export default function ArtikelSeite() {
   // Suchtreffer werden hier gefiltert und geblättert
   const treffer = (suche.data ?? []).filter((a) =>
     (kategorie === "alle" || (kategorie === "ohne" ? !a.kategorie : a.kategorie === kategorie))
-    && (lieferant === "alle" || a.lieferant === lieferant)
     && (!nurLager || a.lagerartikel));
   const zeilen = sucheAktiv ? treffer.slice(seite * PRO_SEITE, (seite + 1) * PRO_SEITE) : liste.data?.artikel ?? [];
   const gesamt = sucheAktiv ? treffer.length : liste.data?.gesamt ?? 0;
   const laedt = sucheAktiv ? suche.isLoading : liste.isLoading;
   const holt = sucheAktiv ? suche.isFetching : liste.isFetching;
   const gekappt = sucheAktiv && (suche.data?.length ?? 0) >= SUCHE_MAX;
-  const gefiltert = !!q || kategorie !== "alle" || lieferant !== "alle" || nurLager || inaktive;
+  const gefiltert = !!q || kategorie !== "alle" || lieferant !== "alle" || hersteller !== "alle" || nurLager || inaktive;
 
   const blaettern = (richtung: number) => {
     setSeite((s) => Math.max(0, s + richtung));
@@ -181,6 +198,16 @@ export default function ArtikelSeite() {
       aktionen={
         <>
           {istChef && (
+            <Button variant="outline" className="h-11 px-3" onClick={() => navigate("/belege/neu?typ=angebot&ki=1")} aria-label="Material per KI zusammenstellen">
+              <Sparkles className="h-4 w-4" /><span className="hidden sm:inline">KI-Angebot</span>
+            </Button>
+          )}
+          {istChef && (
+            <Button variant="outline" className="h-11 px-3" onClick={() => setRabatteOffen(true)} aria-label="Rabatte beim Großhandel">
+              <BadgePercent className="h-4 w-4" /><span className="hidden sm:inline">Rabatte</span>
+            </Button>
+          )}
+          {istChef && (
             <Button variant="outline" className="h-11 px-3" onClick={() => setImportOffen(true)} aria-label="Datanorm- oder CSV-Import">
               <Upload className="h-4 w-4" /><span className="hidden sm:inline">Import</span>
             </Button>
@@ -213,11 +240,18 @@ export default function ArtikelSeite() {
               <SelectItem value="ohne">Ohne Kategorie</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={lieferant} onValueChange={setLieferant}>
+          <Select value={lieferant} onValueChange={(v) => { setLieferant(v); setHersteller("alle"); }}>
             <SelectTrigger className="h-11 sm:w-52" aria-label="Lieferant"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="alle">Alle Lieferanten</SelectItem>
               {lieferanten.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={hersteller} onValueChange={setHersteller}>
+            <SelectTrigger className="h-11 sm:w-56" aria-label="Hersteller"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="alle">Alle Hersteller</SelectItem>
+              {herstellerListe.map(([h, n]) => <SelectItem key={h} value={h}>{h === "-" ? "Ohne Hersteller" : h} · {zahl(n)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Umschalter aktiv={nurLager} onClick={() => setNurLager((v) => !v)}>Nur Lagerartikel</Umschalter>
@@ -344,6 +378,7 @@ export default function ArtikelSeite() {
 
       <ArtikelDialog open={dialogOffen} onOpenChange={setDialogOffen} artikel={auswahl.artikel} vorgabe={auswahl.vorgabe} />
       {istChef && <ImportDialog open={importOffen} onOpenChange={setImportOffen} />}
+      {istChef && <RabatteDialog open={rabatteOffen} onOpenChange={setRabatteOffen} />}
       <ScanDialog open={scanOffen} onOpenChange={setScanOffen} onCode={gescannt} titel="Artikel per Strichcode finden" />
     </Seite>
   );

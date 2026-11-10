@@ -65,6 +65,7 @@ begin
   delete from leistungen;
   delete from artikel_codes;
   delete from teams;
+  delete from rabatte;
   delete from fahrzeuge;
   -- der eingespielte Datanorm-Katalog (scripts/datanorm-einspielen.ts) bleibt
   delete from artikel where quelle is distinct from 'datanorm';
@@ -170,6 +171,12 @@ begin
     (f_steiger, current_date - 344, 'pruefung', 'Jährliche Prüfung ohne Mängel', null, 240, true, v_chef);
 
   -- ── Teams: wer meistens zusammen fährt ──────────────────────────────────
+  -- Einkaufskonditionen (Demo-Werte, keine echten): Grundrabatt, Hager, Jung-Gruppe AI25
+  insert into rabatte (lieferant, hersteller, rabattgruppe, rabatt, notiz) values
+    ('Sonepar', null, null, 32, 'Grundrabatt laut Jahresgespräch'),
+    ('Sonepar', 'Hager', null, 36, 'Verteiler-Aktion'),
+    ('Sonepar', null, 'AI25', 40, 'Jung LS 990 Projektpreis');
+
   insert into teams (name, farbe, leiter_id, mitglieder, fahrzeug_id, reihenfolge) values
     ('Max', 'blau', v_max, array_remove(array[v_max, v_lisa], null), f_bus1, 1),
     ('Tom', 'gruen', v_tom, array_remove(array[v_tom, v_jonas], null), f_bus3, 2),

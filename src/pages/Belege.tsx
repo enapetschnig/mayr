@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { AlertTriangle, FileText, Plus, Receipt, Search, X } from "lucide-react";
+import { AlertTriangle, FileText, Plus, Receipt, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -111,6 +111,9 @@ export default function Belege() {
   const neuKnoepfe = pc ? (
     <>
       <Button asChild variant="outline" className="h-10">
+        <Link to="/belege/neu?typ=angebot&ki=1"><Sparkles className="h-4 w-4" /> Angebot mit KI</Link>
+      </Button>
+      <Button asChild variant="outline" className="h-10">
         <Link to="/belege/neu?typ=rechnung"><Plus className="h-4 w-4" /> Neue Rechnung</Link>
       </Button>
       <Button asChild className="h-10">
@@ -152,6 +155,7 @@ export default function Belege() {
         <div className="grid grid-cols-2 gap-2.5">
           <AktionsKachel icon={FileText} titel="Neues Angebot" to="/belege/neu?typ=angebot" ton="primaer" />
           <AktionsKachel icon={Receipt} titel="Neue Rechnung" to="/belege/neu?typ=rechnung" />
+          <AktionsKachel icon={Sparkles} titel="Angebot mit KI" unter="„PV-Anlage 9 kWp“ — Material kommt von selbst" to="/belege/neu?typ=angebot&ki=1" className="col-span-2" />
         </div>
       )}
 

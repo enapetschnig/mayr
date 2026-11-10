@@ -75,3 +75,13 @@ const erg = await hochladen(pakete(zeilen, 1000), async (paket) => {
   return { neu: paket.length, aktualisiert: 0 };
 }, { parallel: 4 });
 console.log(`gespeichert: ${erg.neu}, Fehler: ${erg.fehler}${erg.meldungen.length ? " — " + erg.meldungen.slice(0, 3).join("; ") : ""}`);
+
+// Einkauf nach den hinterlegten Rabatten (Grundrabatt, Hersteller, Rabattgruppe) neu
+let neuGerechnet = 0;
+for (;;) {
+  const { data, error } = await supabase.rpc("rabatte_anwenden", { p_lieferant: "Sonepar", p_max: 5000 });
+  if (error) { console.error(`Rabatte: ${error.message}`); break; }
+  if (!data) break;
+  neuGerechnet += data;
+}
+console.log(`Einkauf nach Rabatten neu: ${neuGerechnet}`);

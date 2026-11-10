@@ -519,4 +519,8 @@ begin
          {"artikelnummer":"120006946","bezeichnung":"Kunststoffdübel 8x70","menge":100,"einheit":"Stk"}]'::jsonb,
        now(), coalesce(v_tom, v_max));
   end;
+  -- Einkauf aus den Rabatten neu (betrifft auch die Demo-Artikel aus 02)
+  loop
+    exit when rabatte_anwenden('Sonepar', 5000) = 0;
+  end loop;
 end $$;

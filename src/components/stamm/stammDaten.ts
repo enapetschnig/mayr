@@ -105,3 +105,18 @@ export function fehlerText(e: { code?: string; message?: string } | null | undef
   if (/Failed to fetch|NetworkError/i.test(e.message ?? "")) return "Keine Verbindung — bitte später noch einmal versuchen.";
   return e.message ?? "Unbekannter Fehler";
 }
+
+export type ArtikelGruppe = { hersteller: string | null; rabattgruppe: string | null; anzahl: number };
+
+/** Hersteller und Rabattgruppen eines Lieferanten mit Artikelanzahl */
+export function useArtikelGruppen(lieferant: string | null) {
+  return useQuery({
+    queryKey: ["artikel", "gruppen", lieferant],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("artikel_gruppen", { p_lieferant: lieferant ?? undefined });
+      if (error) throw error;
+      return (data ?? []).map((g) => ({ ...g, anzahl: Number(g.anzahl) })) as ArtikelGruppe[];
+    },
+  });
+}

@@ -217,6 +217,7 @@ export type Database = {
           mindestbestand: number | null
           quelle: string
           rabattgruppe: string | null
+          suchtext: string | null
           updated_at: string
           vk_preis: number | null
           warengruppe: string | null
@@ -241,6 +242,7 @@ export type Database = {
           mindestbestand?: number | null
           quelle?: string
           rabattgruppe?: string | null
+          suchtext?: string | null
           updated_at?: string
           vk_preis?: number | null
           warengruppe?: string | null
@@ -265,6 +267,7 @@ export type Database = {
           mindestbestand?: number | null
           quelle?: string
           rabattgruppe?: string | null
+          suchtext?: string | null
           updated_at?: string
           vk_preis?: number | null
           warengruppe?: string | null
@@ -1982,6 +1985,39 @@ export type Database = {
           },
         ]
       }
+      rabatte: {
+        Row: {
+          created_at: string
+          hersteller: string | null
+          id: string
+          lieferant: string
+          notiz: string | null
+          rabatt: number
+          rabattgruppe: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hersteller?: string | null
+          id?: string
+          lieferant: string
+          notiz?: string | null
+          rabatt: number
+          rabattgruppe?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hersteller?: string | null
+          id?: string
+          lieferant?: string
+          notiz?: string | null
+          rabatt?: number
+          rabattgruppe?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       regieberichte: {
         Row: {
           arbeiten: string
@@ -2493,8 +2529,22 @@ export type Database = {
     }
     Functions: {
       angebot_verrechnet: { Args: { p_id: string }; Returns: boolean }
+      artikel_gruppen: {
+        Args: { p_lieferant?: string }
+        Returns: {
+          anzahl: number
+          hersteller: string
+          rabattgruppe: string
+        }[]
+      }
       artikel_suchen: {
-        Args: { p_anzahl?: number; p_q: string }
+        Args: {
+          p_anzahl?: number
+          p_hersteller?: string
+          p_lieferant?: string
+          p_q: string
+          p_unscharf?: boolean
+        }
         Returns: {
           aktiv: boolean
           artikelnummer: string | null
@@ -2515,6 +2565,7 @@ export type Database = {
           mindestbestand: number | null
           quelle: string
           rabattgruppe: string | null
+          suchtext: string | null
           updated_at: string
           vk_preis: number | null
           warengruppe: string | null
@@ -2561,6 +2612,10 @@ export type Database = {
       passwort_setzen: {
         Args: { p_passwort: string; p_user: string }
         Returns: undefined
+      }
+      rabatte_anwenden: {
+        Args: { p_lieferant: string; p_max?: number }
+        Returns: number
       }
       regie_unterschrieben: { Args: { p_id: string }; Returns: boolean }
       regie_zeiten_zuordnen: {

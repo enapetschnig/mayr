@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Ban, Calculator, Check, Clock, Copy, Download, FileText, FolderInput, LockOpen, Mic, MoreVertical, Package, PenLine, Percent, Plus,
-  Receipt, RotateCcw, Rows3, Save, SplitSquareHorizontal, ThumbsDown, ThumbsUp, Trash2, Undo2,
+  Receipt, RotateCcw, Rows3, Save, Sparkles, SplitSquareHorizontal, ThumbsDown, ThumbsUp, Trash2, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -34,6 +34,7 @@ import { belegStatus, TON_KLASSE, type Artikel, type Beleg, type Firma } from "@
 import { cn } from "@/lib/utils";
 import { ArbeitszeitDialog } from "./ArbeitszeitDialog";
 import { ArtikelDialog } from "./ArtikelDialog";
+import { AufschlaegeDialog } from "./AufschlaegeDialog";
 import { BelegKopf, BelegTexte } from "./BelegKopf";
 import { belegLaden, useBelegKurz, useFolgeRechnungen, useLeistungsKatalog, useNachfolger, type BelegMitPositionen } from "./daten";
 import {
@@ -42,6 +43,7 @@ import {
   type EditorPosition, type KatalogLeistung, type Kopf,
 } from "./editor";
 import { ImportDialog, type ImportErgebnis } from "./ImportDialog";
+import { KiMaterialDialog } from "./KiMaterialDialog";
 import { LeistungDialog } from "./LeistungDialog";
 import { PositionDialog } from "./PositionDialog";
 import { PositionenEditor } from "./PositionenEditor";
@@ -62,7 +64,7 @@ const DETAIL = (id: string) => ["belege", "detail", id];
 const NACH_AENDERUNG = ["belege", "projekte", "projekt_zahlen", "zeiten", "material", "regieberichte"];
 
 type Frage = "fertig" | "storno" | "entsperren" | null;
-type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | "teil" | null;
+type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | "teil" | "aufschlaege" | "ki" | null;
 type Icon = ComponentType<{ className?: string }>;
 
 /**
@@ -71,7 +73,7 @@ type Icon = ComponentType<{ className?: string }>;
  * Fertige Rechnungen sind nur noch zum Lesen, Bezahlen und Stornieren da.
  */
 export function BelegEditor({
-  id, daten, startKopf, autoSprache = false, autoImport = false,
+  id, daten, startKopf, autoSprache = false, autoImport = false, autoKi = false,
 }: {
   id: string;
   /** null = neuer Beleg, noch nicht in der Datenbank */
@@ -79,6 +81,8 @@ export function BelegEditor({
   startKopf?: Kopf;
   autoSprache?: boolean;
   autoImport?: boolean;
+  /** gleich „Material per KI“ öffnen */
+  autoKi?: boolean;
 }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -105,7 +109,7 @@ export function BelegEditor({
   const [frage, setFrage] = useState<Frage>(null);
   const [loeschen, setLoeschen] = useState<{ projektMoeglich: boolean; projektAuch: boolean } | null>(null);
   const [vorschau, setVorschau] = useState<{ url: string; blob: Blob; dateiname: string } | null>(null);
-  const [dialog, setDialog] = useState<Dialog>(autoSprache ? "sprache" : autoImport ? "import" : null);
+  const [dialog, setDialog] = useState<Dialog>(autoSprache ? "sprache" : autoImport ? "import" : autoKi ? "ki" : null);
   const [titelOffen, setTitelOffen] = useState(false);
   const [freie, setFreie] = useState<EditorPosition | null>(null);
   /** Buchungen, die beim letzten Speichern schon an einer anderen Rechnung hingen */
@@ -598,6 +602,22 @@ export function BelegEditor({
   // Alle Preise um ± % — Aufschlag oder Rabatt aufs ganze Angebot (Zeilen ohne Betrag bleiben)
   const preiseUmProzent = (prozent: number) =>
     setPositionen((alt) => alt.map((p) => (ohneBetrag(p) || p.art === "abzug" ? p : { ...p, einzelpreis: preisText(umProzent(preisVon(p), prozent)) })));
+  /** Vorschlag der KI: optional unter eigenem Titel, Hinweise als Textzeile */
+  const kiUebernehmen = (neue: EditorPosition[], titel: string | null, hinweise: string[]) => {
+    let liste = positionen;
+    let ziel = aktiverTitel;
+    if (titel) {
+      const t = titelPosition(titel);
+      liste = [...liste, t];
+      ziel = t.id;
+      setAktiverTitel(t.id);
+    }
+    if (hinweise.length) liste = hinzufuegen(liste, leerePosition("text", { bezeichnung: "Hinweise", langtext: hinweise.map((h) => `– ${h}`).join("\n"), menge: "0" }), ziel).liste;
+    liste = neue.reduce((l, p) => hinzufuegen(l, p, ziel).liste, liste);
+    setPositionen(liste);
+    const ohnePreis = neue.filter((p) => !preisVon(p)).length;
+    toast.success(`${neue.length} ${neue.length === 1 ? "Position" : "Positionen"} übernommen${ohnePreis ? ` — ${ohnePreis} ohne Preis, bitte eintragen` : ""}`);
+  };
   const freieHinzufuegen = (p: EditorPosition) => {
     setPositionen((alt) => hinzufuegen(alt, p, aktiverTitel).liste);
     setFreie(null);
@@ -858,6 +878,7 @@ export function BelegEditor({
     ...(!istAngebot ? [{ key: "import", text: kopf.projekt_id ? "Aus dem Projekt übernehmen" : "Aus dem Projekt (erst Projekt wählen)", icon: FolderInput, onClick: () => setDialog("import"), primaer: true, aus: !kopf.projekt_id }] : []),
     { key: "leistung", text: istAngebot ? "Leistung hinzufügen" : "Leistung", icon: Plus, onClick: () => setDialog("leistung"), primaer: istAngebot },
     { key: "sprache", text: "Diktieren", icon: Mic, onClick: () => setDialog("sprache") },
+    { key: "ki", text: "Material per KI", icon: Sparkles, onClick: () => setDialog("ki") },
     { key: "arbeitszeit", text: "Arbeitszeit", icon: Clock, onClick: () => setDialog("arbeitszeit") },
     { key: "titel", text: "Raum / Titel", icon: Rows3, onClick: () => setTitelOffen(true) },
     { key: "artikel", text: "Artikel", icon: Package, onClick: () => setDialog("artikel") },
@@ -970,7 +991,8 @@ export function BelegEditor({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
         <BelegTexte kopf={kopf} aendern={kopfAendern} bearbeitbar={bearbeitbar} pc={pc} />
         <Summen netto={s.netto} ust={s.ust} brutto={s.brutto} ustSatz={kopf.ust_satz} ohneUst={ohneUst} firma={firma} kalk={kalk}
-          onProzent={bearbeitbar && anzahl > 0 ? preiseUmProzent : undefined} />
+          onProzent={bearbeitbar && anzahl > 0 ? preiseUmProzent : undefined}
+          onAufschlaege={bearbeitbar && anzahl > 0 ? () => setDialog("aufschlaege") : undefined} />
       </div>
 
       {entwurf && !pc && (
@@ -1017,6 +1039,10 @@ export function BelegEditor({
         firma={firma}
         stundensatz={stundensatz}
       />
+      <KiMaterialDialog open={dialog === "ki"} onOpenChange={(o) => setDialog(o ? "ki" : null)} onUebernehmen={kiUebernehmen} />
+      <AufschlaegeDialog open={dialog === "aufschlaege"} onOpenChange={(o) => setDialog(o ? "aufschlaege" : null)} positionen={positionen}
+        stundensatz={stundensatz} materialStandard={Number(firma?.material_aufschlag ?? 0)} ustSatz={kopf.ust_satz} ohneUst={ohneUst}
+        onAnwenden={(neu) => { setPositionen(neu); toast.success("Preise neu gerechnet"); }} />
       <ArtikelDialog open={dialog === "artikel"} onOpenChange={(o) => setDialog(o ? "artikel" : null)} ziel={titelName} onArtikel={artikelPlus} />
       <ArbeitszeitDialog
         open={dialog === "arbeitszeit"}
@@ -1200,7 +1226,7 @@ function MenuePunkt({ icon: I, onClick, children, gefahr }: { icon: Icon; onClic
 }
 
 function Summen({
-  netto, ust, brutto, ustSatz, ohneUst, firma, kalk, onProzent,
+  netto, ust, brutto, ustSatz, ohneUst, firma, kalk, onProzent, onAufschlaege,
 }: {
   netto: number;
   ust: number;
@@ -1211,6 +1237,8 @@ function Summen({
   kalk: { stunden: number; ek: number };
   /** Alle Preise um ± % ändern (nur bearbeitbar) */
   onProzent?: (prozent: number) => void;
+  /** Material-Aufschlag und Stundensatz für den ganzen Beleg */
+  onAufschlaege?: () => void;
 }) {
   const [prozentOffen, setProzentOffen] = useState(false);
   const [prozent, setProzent] = useState("");
@@ -1258,9 +1286,14 @@ function Summen({
               )}
             </dl>
           )}
+          {onAufschlaege && (
+            <Button variant="outline" className="mt-1 w-full gap-1.5" onClick={onAufschlaege}>
+              <Calculator className="h-4 w-4" /> Aufschläge: Material und Stundensatz
+            </Button>
+          )}
           {onProzent && (
             <Button variant="outline" className="mt-1 w-full gap-1.5" onClick={() => { setProzent(""); setProzentOffen(true); }}>
-              <Percent className="h-4 w-4" /> Alle Preise ändern (Aufschlag / Rabatt)
+              <Percent className="h-4 w-4" /> Alle Preise ± % (Nachlass / Zuschlag)
             </Button>
           )}
         </div>

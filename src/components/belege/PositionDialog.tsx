@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Calculator, ChevronDown, Trash2 } from "lucide-react";
+import { Calculator, ChevronDown, Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FormularDialog } from "@/components/FormularDialog";
 import { dezimalLesen, euro, zahl } from "@/lib/format";
 import { useSitzung } from "@/hooks/useSitzung";
-import { kalkPreis, lohnarten } from "@/lib/kalkulation";
+import { aufschlagAus, kalkPreis, lohnarten } from "@/lib/kalkulation";
 import { EINHEITEN } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { ART_NAME, positionGesamt, preisText, type EditorPosition, type PositionsArt } from "./editor";
 
 const ARTEN_WAEHLBAR: PositionsArt[] = ["leistung", "artikel", "arbeit", "material", "pauschale", "text"];
@@ -29,37 +30,51 @@ export function PositionDialog({
 }) {
   const { firma } = useSitzung();
   const [p, setP] = useState<EditorPosition | null>(position);
-  // Kalkulation: Einkauf, Aufschlag, Minuten und Satz als Text, bis „Als Preis übernehmen“
+  // Kalkulation: Einkauf, Aufschlag, Minuten und Satz als Text — jede Änderung rechnet den Einzelpreis neu
   const [kalkOffen, setKalkOffen] = useState(false);
   const [ek, setEk] = useState("");
   const [aufschlag, setAufschlag] = useState("");
   const [minuten, setMinuten] = useState("");
   const [satzName, setSatzName] = useState("Standard");
+  const standardSatz = stundensatz ?? Number(firma?.stundensatz ?? 0);
   useEffect(() => {
     setP(position);
     if (!position) return;
     setKalkOffen(position.ek_preis != null || position.minuten != null);
     setEk(position.ek_preis == null ? "" : zahl(position.ek_preis));
     setMinuten(position.minuten == null ? "" : zahl(position.minuten));
-    setAufschlag(zahl(Number(firma?.material_aufschlag ?? 0)));
+    // der Aufschlag, der im Preis steckt — sonst der des Betriebs
+    const drin = aufschlagAus({ preis: dezimalLesen(position.einzelpreis) ?? 0, ek: position.ek_preis, minuten: position.minuten, satz: standardSatz });
+    setAufschlag(zahl(drin ?? Number(firma?.material_aufschlag ?? 0)));
     setSatzName("Standard");
-  }, [position, firma?.material_aufschlag]);
+  }, [position, firma?.material_aufschlag, standardSatz]);
   if (!p) return null;
 
-  const saetze = lohnarten(firma, stundensatz ?? Number(firma?.stundensatz ?? 0));
+  const saetze = lohnarten(firma, standardSatz);
   const satz = saetze.find((l) => l.name === satzName) ?? saetze[0];
   const kalkulierbar = p.art !== "arbeit" && p.art !== "pauschale";
-  const vorschlag = kalkPreis({
-    ek: dezimalLesen(ek) ?? 0, aufschlag: dezimalLesen(aufschlag) ?? 0, minuten: dezimalLesen(minuten) ?? 0, satz: satz?.satz ?? 0,
-  });
-  const kalkAendern = (teil: { ek?: string; minuten?: string }) => {
-    if (teil.ek !== undefined) setEk(teil.ek);
-    if (teil.minuten !== undefined) setMinuten(teil.minuten);
-    // EK und Montagezeit gehen in die interne Kalkulation des Belegs
-    const e = teil.ek !== undefined ? dezimalLesen(teil.ek) : p.ek_preis;
-    const m = teil.minuten !== undefined ? dezimalLesen(teil.minuten) : p.minuten;
-    setP({ ...p, ek_preis: e, minuten: m });
+  const kalkAendern = (teil: { ek?: string; aufschlag?: string; minuten?: string; satzName?: string }) => {
+    const werte = { ek, aufschlag, minuten, satzName, ...teil };
+    setEk(werte.ek);
+    setAufschlag(werte.aufschlag);
+    setMinuten(werte.minuten);
+    setSatzName(werte.satzName);
+    const e = dezimalLesen(werte.ek);
+    const m = dezimalLesen(werte.minuten);
+    const s2 = (saetze.find((l) => l.name === werte.satzName) ?? saetze[0])?.satz ?? 0;
+    const preis = kalkPreis({ ek: e ?? 0, aufschlag: dezimalLesen(werte.aufschlag) ?? 0, minuten: m ?? 0, satz: s2 });
+    // EK und Montagezeit gehen in die interne Kalkulation des Belegs, der Preis direkt in die Position
+    setP({ ...p, ek_preis: e, minuten: m, einzelpreis: preis > 0 ? preisText(preis) : p.einzelpreis });
   };
+  const aufschlagPlus = (d: number) => kalkAendern({ aufschlag: zahl(Math.round(((dezimalLesen(aufschlag) ?? 0) + d) * 10) / 10) });
+  /** Einzelpreis von Hand geändert: der Aufschlag folgt */
+  const preisAendern = (wert: string) => {
+    setP({ ...p, einzelpreis: wert });
+    const drin = aufschlagAus({ preis: dezimalLesen(wert) ?? 0, ek: dezimalLesen(ek), minuten: dezimalLesen(minuten), satz: satz?.satz ?? 0 });
+    if (drin != null) setAufschlag(zahl(drin));
+  };
+  const ekZahl = dezimalLesen(ek);
+  const ertrag = ekZahl != null ? (dezimalLesen(p.einzelpreis) ?? 0) - ekZahl - ((dezimalLesen(minuten) ?? 0) / 60) * (satz?.satz ?? 0) : null;
 
   const titel = p.art === "titel";
   const text = p.art === "text";
@@ -111,7 +126,7 @@ export function PositionDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="pos-ep">Einzelpreis netto €</Label>
-              <Input id="pos-ep" inputMode="decimal" className="h-12 text-right zahl" value={p.einzelpreis} onChange={(e) => set({ einzelpreis: e.target.value })} />
+              <Input id="pos-ep" inputMode="decimal" className="h-12 text-right zahl" value={p.einzelpreis} onChange={(e) => preisAendern(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>Gesamt</Label>
@@ -130,7 +145,7 @@ export function PositionDialog({
               <button type="button" onClick={() => setKalkOffen(!kalkOffen)} aria-expanded={kalkOffen}
                 className="flex min-h-12 w-full items-center gap-2 px-3 text-left text-sm font-medium">
                 <Calculator className="h-4 w-4 text-primary" />
-                <span className="flex-1">Preis kalkulieren <span className="font-normal text-muted-foreground">— Einkauf + Aufschlag + Arbeitszeit</span></span>
+                <span className="flex-1">Einkauf und Aufschlag <span className="font-normal text-muted-foreground">— {ekZahl != null ? `EK ${euro(ekZahl)} · Aufschlag ${aufschlag || 0} %` : "Einkauf + Aufschlag + Arbeitszeit"}</span></span>
                 <ChevronDown className={kalkOffen ? "h-4 w-4 rotate-180 transition-transform" : "h-4 w-4 transition-transform"} />
               </button>
               {kalkOffen && (
@@ -142,7 +157,16 @@ export function PositionDialog({
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="k-auf">Aufschlag %</Label>
-                      <Input id="k-auf" inputMode="decimal" className="zahl h-12 text-right" value={aufschlag} onChange={(e) => setAufschlag(e.target.value)} />
+                      <div className="flex">
+                        <Button type="button" variant="outline" className="h-12 w-10 shrink-0 rounded-r-none px-0" aria-label="Aufschlag 5 % weniger" onClick={() => aufschlagPlus(-5)}>
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <Input id="k-auf" inputMode="decimal" className="zahl h-12 min-w-0 rounded-none border-x-0 text-center" value={aufschlag}
+                          onChange={(e) => kalkAendern({ aufschlag: e.target.value })} />
+                        <Button type="button" variant="outline" className="h-12 w-10 shrink-0 rounded-l-none px-0" aria-label="Aufschlag 5 % mehr" onClick={() => aufschlagPlus(5)}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="k-min">Arbeitszeit Min.</Label>
@@ -150,7 +174,7 @@ export function PositionDialog({
                     </div>
                     <div className="space-y-1.5">
                       <Label>Stundensatz</Label>
-                      <Select value={satz?.name} onValueChange={setSatzName}>
+                      <Select value={satz?.name} onValueChange={(v) => kalkAendern({ satzName: v })}>
                         <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {saetze.map((l) => <SelectItem key={l.name} value={l.name}>{l.name} · {euro(l.satz)}</SelectItem>)}
@@ -158,15 +182,10 @@ export function PositionDialog({
                       </Select>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm text-muted-foreground">
-                      = <span className="zahl text-base font-semibold text-foreground">{euro(vorschlag)}</span> je {p.einheit}
-                    </p>
-                    <Button variant="outline" disabled={vorschlag <= 0 || preisText(vorschlag) === p.einzelpreis}
-                      onClick={() => set({ einzelpreis: preisText(vorschlag) })}>
-                      Als Einzelpreis übernehmen
-                    </Button>
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Einzelpreis = Einkauf + Aufschlag{dezimalLesen(minuten) ? " + Arbeitszeit × Stundensatz" : ""} — ändert sich mit.
+                    {ertrag != null && <> Aufschlag je {p.einheit}: <span className={cn("zahl font-semibold", ertrag < 0 ? "text-destructive" : "text-foreground")}>{euro(ertrag)}</span></>}
+                  </p>
                 </div>
               )}
             </section>
