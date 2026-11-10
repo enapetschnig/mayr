@@ -1,9 +1,8 @@
-import { useEffect, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { AlertTriangle, FileText, Plus, Receipt, Search, Sparkles, X } from "lucide-react";
+import { useMemo } from "react";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { AlertTriangle, CalendarClock, CheckCircle2, FileText, Plus, Receipt, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Seite } from "@/components/PageHeader";
 import { AktionsKachel, Kennzahl, Leer } from "@/components/Bausteine";
 import { useIstPc } from "@/components/AppLayout";
@@ -12,48 +11,65 @@ import { listenStatus, useBelege, verrechneteAngeboteAus, type BelegListenEintra
 import { euro, isoTag } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Typ = "alle" | "angebot" | "rechnung";
+type Typ = "angebot" | "rechnung";
+type Filter = { wert: string; text: string; passt: (status: string, b: BelegListenEintrag, heute: string) => boolean };
 
-const STATUS_FILTER: { wert: string; text: string; typ?: Typ }[] = [
-  { wert: "alle", text: "Alle Status" },
-  { wert: "entwurf", text: "Entwürfe" },
-  { wert: "offen", text: "Offen" },
-  { wert: "ueberfaellig", text: "Überfällig", typ: "rechnung" },
-  { wert: "bezahlt", text: "Bezahlt", typ: "rechnung" },
-  { wert: "storniert", text: "Storniert", typ: "rechnung" },
-  { wert: "angenommen", text: "Angenommen", typ: "angebot" },
-  { wert: "abgelehnt", text: "Abgelehnt", typ: "angebot" },
-  { wert: "verrechnet", text: "In Rechnung übernommen", typ: "angebot" },
-];
+/** Nachfassen: offen und nicht mehr gültig — oder in den nächsten 7 Tagen abgelaufen */
+const nachfassen = (status: string, b: BelegListenEintrag, heute: string) =>
+  status === "offen" && !!b.gueltig_bis && b.gueltig_bis <= tagePlus(heute, 7);
+const tagePlus = (iso: string, n: number) => {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+const FILTER: Record<Typ, Filter[]> = {
+  angebot: [
+    { wert: "alle", text: "Alle", passt: () => true },
+    { wert: "offen", text: "Ohne Antwort", passt: (s) => s === "offen" },
+    { wert: "nachfassen", text: "Nachfassen", passt: nachfassen },
+    { wert: "angenommen", text: "Angenommen", passt: (s) => s === "angenommen" },
+    { wert: "entwurf", text: "Entwürfe", passt: (s) => s === "entwurf" },
+    { wert: "verrechnet", text: "In Rechnung", passt: (s) => s === "verrechnet" },
+    { wert: "abgelehnt", text: "Abgelehnt", passt: (s) => s === "abgelehnt" },
+  ],
+  rechnung: [
+    { wert: "alle", text: "Alle", passt: () => true },
+    { wert: "offen", text: "Offen", passt: (s) => s === "offen" || s === "ueberfaellig" },
+    { wert: "ueberfaellig", text: "Überfällig", passt: (s) => s === "ueberfaellig" },
+    { wert: "entwurf", text: "Entwürfe", passt: (s) => s === "entwurf" },
+    { wert: "bezahlt", text: "Bezahlt", passt: (s) => s === "bezahlt" },
+    { wert: "storniert", text: "Storniert", passt: (s) => s === "storniert" || s === "storno" },
+  ],
+};
 
 const normal = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
+/** Alte Adressen `/belege?typ=…&filter=…` (Lesezeichen, Startseite) auf die neuen Seiten */
+export function BelegeWeiter() {
+  const [params] = useSearchParams();
+  const f = params.get("filter");
+  const typ = params.get("typ") === "angebot" || f === "angebote" ? "angebot" : "rechnung";
+  const neu = new URLSearchParams();
+  if (f && f !== "angebote") neu.set("filter", f);
+  else if (f === "angebote") neu.set("filter", "offen");
+  if (params.get("q")) neu.set("q", params.get("q")!);
+  return <Navigate to={`/${typ === "angebot" ? "angebote" : "rechnungen"}${neu.toString() ? `?${neu}` : ""}`} replace />;
+}
+
 /**
- * Alle Angebote und Rechnungen. Filter stehen in der Adresse
- * (`?typ=rechnung&filter=offen&q=huber`) — die Startseite verlinkt direkt
- * auf „überfällig“, „offen“, „Entwürfe“ und „Angebote ohne Antwort“.
+ * Angebote oder Rechnungen — zwei eigene Seiten, weil die Frage dahinter eine
+ * andere ist: „Wem muss ich nachtelefonieren?“ und „Wer hat noch nicht bezahlt?“.
+ * Filter in der Adresse (`?filter=offen&q=huber`), die Startseite verlinkt direkt.
  */
-export default function Belege() {
+export default function Belege({ typ }: { typ: Typ }) {
   const pc = useIstPc();
   const heute = isoTag();
   const [params, setParams] = useSearchParams();
-  const { data: belege = [], isLoading, error } = useBelege();
-
-  // Links der Startseite: ?filter=angebote → Angebote ohne Antwort,
-  // ?filter=offen|ueberfaellig → Rechnungen
-  useEffect(() => {
-    const f = params.get("filter");
-    if (params.get("typ")) return;
-    const typ = f === "angebote" ? "angebot" : f === "offen" || f === "ueberfaellig" ? "rechnung" : null;
-    if (!typ) return;
-    const neu = new URLSearchParams(params);
-    neu.set("typ", typ);
-    if (f === "angebote") neu.set("filter", "offen");
-    setParams(neu, { replace: true });
-  }, [params, setParams]);
-
-  const typ: Typ = params.get("typ") === "angebot" ? "angebot" : params.get("typ") === "rechnung" ? "rechnung" : "alle";
-  const filter = STATUS_FILTER.some((s) => s.wert === params.get("filter")) ? params.get("filter")! : "alle";
+  const { data: alle = [], isLoading, error } = useBelege();
+  const angebot = typ === "angebot";
+  const filterListe = FILTER[typ];
+  const filter = filterListe.find((f) => f.wert === params.get("filter")) ?? filterListe[0];
   const suche = params.get("q") ?? "";
 
   const setzen = (werte: Record<string, string | null>) => {
@@ -62,199 +78,129 @@ export default function Belege() {
     setParams(neu, { replace: true });
   };
 
-  const verrechnet = useMemo(() => verrechneteAngeboteAus(belege), [belege]);
-
-  const zahlen = useMemo(() => {
-    const offen = belege.filter((b) => b.typ === "rechnung" && b.status === "offen");
-    const ueber = offen.filter((b) => b.faellig_am && b.faellig_am < heute);
-    const angebote = belege.filter((b) => b.typ === "angebot" && b.status === "offen" && !verrechnet.has(b.id));
-    const summe = (l: BelegListenEintrag[], feld: "brutto" | "netto") => l.reduce((s, b) => s + Number(b[feld]), 0);
-    return {
-      offen: offen.length, offenSumme: summe(offen, "brutto"),
-      ueber: ueber.length, ueberSumme: summe(ueber, "brutto"),
-      angebote: angebote.length, angeboteSumme: summe(angebote, "netto"),
-      entwuerfe: belege.filter((b) => b.status === "entwurf").length,
-    };
-  }, [belege, heute, verrechnet]);
+  const verrechnet = useMemo(() => verrechneteAngeboteAus(alle), [alle]);
+  const belege = useMemo(() => alle.filter((b) => b.typ === typ), [alle, typ]);
+  const mitStatus = useMemo(() => belege.map((b) => ({ b, s: listenStatus(b, heute, verrechnet) })), [belege, heute, verrechnet]);
 
   const liste = useMemo(() => {
     const woerter = normal(suche).split(/\s+/).filter(Boolean);
-    return belege.filter((b) => {
-      if (typ !== "alle" && b.typ !== typ) return false;
-      const status = listenStatus(b, heute, verrechnet);
-      if (filter === "offen" && !(status === "offen" || status === "ueberfaellig")) return false;
-      if (filter === "storniert" && !(status === "storniert" || status === "storno")) return false;
-      if (filter !== "alle" && filter !== "offen" && filter !== "storniert" && status !== filter) return false;
+    return mitStatus.filter(({ b, s }) => {
+      if (!filter.passt(s, b, heute)) return false;
       if (!woerter.length) return true;
       const text = normal([b.nummer, b.empf_name, b.betreff, b.projekte?.nummer, b.projekte?.name].filter(Boolean).join(" "));
       return woerter.every((w) => text.includes(w));
-    });
-  }, [belege, typ, filter, suche, heute, verrechnet]);
+    }).map(({ b }) => b);
+  }, [mitStatus, filter, suche, heute]);
 
-  // Angebote und Rechnungen getrennt — zusammengezählt sagt die Summe nichts.
-  // Es zählen nur fertige: keine Entwürfe, kein Storno, keine abgelehnten Angebote.
-  const zaehlt = (b: BelegListenEintrag) =>
-    b.typ === "rechnung" ? b.status === "offen" || b.status === "bezahlt" : b.status === "offen" || b.status === "angenommen";
-  const summenListe = (["rechnung", "angebot"] as const)
-    .map((t) => {
-      const l = liste.filter((b) => b.typ === t && zaehlt(b));
-      return { typ: t, anzahl: l.length, summe: l.reduce((s, b) => s + Number(b.brutto), 0) };
-    })
-    .filter((x) => x.anzahl > 0);
-  const ohneListe = [
-    liste.some((b) => b.status === "entwurf") && "Entwürfe",
-    liste.some((b) => b.status === "storniert" || b.status === "storno") && "Storno",
-    liste.some((b) => b.status === "abgelehnt") && "abgelehnte Angebote",
-  ].filter((x): x is string => !!x);
-  const gefiltert = typ !== "alle" || filter !== "alle" || !!suche;
+  const anzahl = (f: Filter) => mitStatus.filter(({ b, s }) => f.passt(s, b, heute)).length;
+  const summe = (f: (s: string, b: BelegListenEintrag) => boolean, feld: "netto" | "brutto") =>
+    mitStatus.filter(({ b, s }) => f(s, b)).reduce((x, { b }) => x + Number(b[feld]), 0);
+  const zaehlen = (f: (s: string, b: BelegListenEintrag) => boolean) => mitStatus.filter(({ b, s }) => f(s, b)).length;
+  const n = (k: number, eins: string, viele: string) => `${k} ${k === 1 ? eins : viele}`;
+  const jahr = heute.slice(0, 4);
+
+  // Kennzahlen = Abkürzungen in den Filter
+  const kacheln = angebot
+    ? [
+      { titel: "Ohne Antwort", icon: FileText, wert: euro(summe((s) => s === "offen", "netto")), unter: `${n(zaehlen((s) => s === "offen"), "Angebot", "Angebote")} · netto`, filter: "offen" },
+      { titel: "Nachfassen", icon: CalendarClock, wert: String(zaehlen((s, b) => nachfassen(s, b, heute))), unter: "läuft ab oder abgelaufen", filter: "nachfassen" },
+      { titel: "Angenommen", icon: CheckCircle2, wert: euro(summe((s) => s === "angenommen", "netto")), unter: "noch nicht in Rechnung · netto", filter: "angenommen" },
+      { titel: "Entwürfe", icon: FileText, wert: String(zaehlen((s) => s === "entwurf")), unter: "noch nicht fertig", filter: "entwurf" },
+    ]
+    : [
+      { titel: "Offen", icon: Receipt, wert: euro(summe((s) => s === "offen" || s === "ueberfaellig", "brutto")), unter: n(zaehlen((s) => s === "offen" || s === "ueberfaellig"), "Rechnung", "Rechnungen"), filter: "offen" },
+      { titel: "Überfällig", icon: AlertTriangle, wert: euro(summe((s) => s === "ueberfaellig", "brutto")), unter: zaehlen((s) => s === "ueberfaellig") ? `${n(zaehlen((s) => s === "ueberfaellig"), "Rechnung", "Rechnungen")} — mahnen` : "nichts überfällig", filter: "ueberfaellig" },
+      { titel: "Entwürfe", icon: FileText, wert: String(zaehlen((s) => s === "entwurf")), unter: "noch nicht fertig", filter: "entwurf" },
+      { titel: `Bezahlt ${jahr}`, icon: CheckCircle2, wert: euro(summe((s, b) => s === "bezahlt" && (b.bezahlt_am ?? b.datum).startsWith(jahr), "brutto")), unter: "brutto", filter: "bezahlt" },
+    ];
+
+  // Es zählen nur fertige: keine Entwürfe, kein Storno, keine abgelehnten Angebote
+  const zaehlt = (b: BelegListenEintrag) => (angebot ? b.status === "offen" || b.status === "angenommen" : b.status === "offen" || b.status === "bezahlt");
+  const listenSumme = liste.filter(zaehlt).reduce((x, b) => x + Number(angebot ? b.netto : b.brutto), 0);
+  const gefiltert = filter.wert !== "alle" || !!suche;
+  const pfad = angebot ? "/belege/neu?typ=angebot" : "/belege/neu?typ=rechnung";
 
   const neuKnoepfe = pc ? (
-    <>
-      <Button asChild variant="outline" className="h-10">
-        <Link to="/belege/neu?typ=angebot&ki=1"><Sparkles className="h-4 w-4" /> Angebot mit KI</Link>
-      </Button>
-      <Button asChild variant="outline" className="h-10">
-        <Link to="/belege/neu?typ=rechnung"><Plus className="h-4 w-4" /> Neue Rechnung</Link>
-      </Button>
-      <Button asChild className="h-10">
-        <Link to="/belege/neu?typ=angebot"><Plus className="h-4 w-4" /> Neues Angebot</Link>
-      </Button>
-    </>
+    angebot ? (
+      <>
+        <Button asChild variant="outline" className="h-10"><Link to="/belege/neu?typ=angebot&ki=1"><Sparkles className="h-4 w-4" /> Angebot mit KI</Link></Button>
+        <Button asChild className="h-10"><Link to={pfad}><Plus className="h-4 w-4" /> Neues Angebot</Link></Button>
+      </>
+    ) : <Button asChild className="h-10"><Link to={pfad}><Plus className="h-4 w-4" /> Neue Rechnung</Link></Button>
   ) : undefined;
 
-  const statusOptionen = STATUS_FILTER.filter((s) => !s.typ || typ === "alle" || s.typ === typ);
-
-  const anzahlText = (n: number, eins: string, viele: string) => `${n} ${n === 1 ? eins : viele}`;
-  const kacheln = [
-    {
-      titel: "Offene Rechnungen", kurz: "Offen", icon: Receipt, wert: euro(zahlen.offenSumme),
-      unter: anzahlText(zahlen.offen, "Rechnung", "Rechnungen"), unterKurz: anzahlText(zahlen.offen, "Rechnung", "Rechnungen"),
-      aktiv: typ === "rechnung" && filter === "offen", onClick: () => setzen({ typ: "rechnung", filter: "offen" }),
-    },
-    {
-      titel: "Überfällig", kurz: "Überfällig", icon: AlertTriangle, wert: euro(zahlen.ueberSumme),
-      unter: zahlen.ueber ? `${anzahlText(zahlen.ueber, "Rechnung", "Rechnungen")} — nachfragen` : "nichts überfällig",
-      unterKurz: zahlen.ueber ? anzahlText(zahlen.ueber, "Rechnung", "Rechnungen") : "nichts überfällig",
-      aktiv: filter === "ueberfaellig", onClick: () => setzen({ typ: "rechnung", filter: "ueberfaellig" }),
-    },
-    {
-      titel: "Angebote ohne Antwort", kurz: "Angebote offen", icon: FileText, wert: euro(zahlen.angeboteSumme),
-      unter: `${anzahlText(zahlen.angebote, "Angebot", "Angebote")} · netto`, unterKurz: `${anzahlText(zahlen.angebote, "Angebot", "Angebote")} · netto`,
-      aktiv: typ === "angebot" && filter === "offen", onClick: () => setzen({ typ: "angebot", filter: "offen" }),
-    },
-    {
-      titel: "Entwürfe", kurz: "Entwürfe", icon: FileText, wert: String(zahlen.entwuerfe),
-      unter: "noch nicht fertiggestellt", unterKurz: "nicht fertig",
-      aktiv: filter === "entwurf", onClick: () => setzen({ typ: null, filter: "entwurf" }),
-    },
-  ];
-
   return (
-    <Seite titel="Angebote & Rechnungen" untertitel={`${belege.length} Belege`} aktionen={neuKnoepfe} breit={pc}>
+    <Seite titel={angebot ? "Angebote" : "Rechnungen"} untertitel={`${belege.length} ${angebot ? (belege.length === 1 ? "Angebot" : "Angebote") : (belege.length === 1 ? "Rechnung" : "Rechnungen")}`}
+      aktionen={neuKnoepfe} breit={pc}>
       {!pc && (
-        <div className="grid grid-cols-2 gap-2.5">
-          <AktionsKachel icon={FileText} titel="Neues Angebot" to="/belege/neu?typ=angebot" ton="primaer" />
-          <AktionsKachel icon={Receipt} titel="Neue Rechnung" to="/belege/neu?typ=rechnung" />
-          <AktionsKachel icon={Sparkles} titel="Angebot mit KI" unter="„PV-Anlage 9 kWp“ — Material kommt von selbst" to="/belege/neu?typ=angebot&ki=1" className="col-span-2" />
-        </div>
+        angebot ? (
+          <div className="grid grid-cols-2 gap-2.5">
+            <AktionsKachel icon={FileText} titel="Neues Angebot" to={pfad} ton="primaer" />
+            <AktionsKachel icon={Sparkles} titel="Mit KI" unter="„PV-Anlage 9 kWp“" to="/belege/neu?typ=angebot&ki=1" />
+          </div>
+        ) : <AktionsKachel icon={Receipt} titel="Neue Rechnung" to={pfad} ton="primaer" />
       )}
 
-      {/* Kennzahlen = Abkürzungen in den Filter. Am Handy kompakt, damit die Liste nicht nach unten rutscht. */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-2.5">
-        {kacheln.map((k) => (
-          <button
-            key={k.titel}
-            type="button"
-            onClick={k.onClick}
-            aria-pressed={k.aktiv}
-            className={cn(
-              "rounded-lg text-left [&>div]:h-full [&>div]:transition-colors hover:[&>div]:border-primary/50",
-              k.aktiv && "[&>div]:border-primary [&>div]:bg-primary-soft",
-            )}
-          >
-            {pc ? (
-              <Kennzahl titel={k.titel} icon={k.icon} wert={k.wert} unter={k.unter} />
-            ) : (
-              <div className="rounded-lg border bg-card px-3 py-2.5">
-                <p className="flex items-center gap-1.5 truncate text-[11px] font-medium text-muted-foreground"><k.icon className="h-3.5 w-3.5 shrink-0" />{k.kurz}</p>
-                <p className="zahl mt-0.5 text-base font-bold leading-tight">{k.wert}</p>
-                <p className="truncate text-[11px] text-muted-foreground">{k.unterKurz}</p>
-              </div>
-            )}
-          </button>
-        ))}
+        {kacheln.map((k) => {
+          const aktiv = filter.wert === k.filter;
+          return (
+            <button key={k.titel} type="button" onClick={() => setzen({ filter: aktiv ? null : k.filter })} aria-pressed={aktiv}
+              className={cn("rounded-lg text-left [&>div]:h-full [&>div]:transition-colors hover:[&>div]:border-primary/50", aktiv && "[&>div]:border-primary [&>div]:bg-primary-soft")}>
+              {pc ? <Kennzahl titel={k.titel} icon={k.icon} wert={k.wert} unter={k.unter} /> : (
+                <div className="rounded-lg border bg-card px-3 py-2.5">
+                  <p className="flex items-center gap-1.5 truncate text-[11px] font-medium text-muted-foreground"><k.icon className="h-3.5 w-3.5 shrink-0" />{k.titel}</p>
+                  <p className="zahl mt-0.5 text-base font-bold leading-tight">{k.wert}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">{k.unter}</p>
+                </div>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div className="space-y-2.5 lg:flex lg:items-center lg:gap-3 lg:space-y-0">
-        <div className="relative lg:w-80">
+        <div className="relative lg:w-80 lg:shrink-0">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={suche}
-            onChange={(e) => setzen({ q: e.target.value || null })}
-            placeholder="Nummer, Kunde, Betreff …"
-            className="h-11 pl-9 pr-10 text-base lg:text-sm"
-            aria-label="Suchen"
-          />
+          <Input value={suche} onChange={(e) => setzen({ q: e.target.value || null })} placeholder="Nummer, Kunde, Betreff, Projekt …"
+            className="h-11 pl-9 pr-10 text-base lg:text-sm" aria-label="Suchen" />
           {suche && (
             <button type="button" onClick={() => setzen({ q: null })} className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-muted-foreground" aria-label="Suche leeren">
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
-        <div className="flex gap-1.5" role="group" aria-label="Art">
-          {([["alle", "Alle"], ["angebot", "Angebote"], ["rechnung", "Rechnungen"]] as [Typ, string][]).map(([t, text]) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => {
-                const passt = STATUS_FILTER.find((s) => s.wert === filter);
-                setzen({ typ: t === "alle" ? null : t, filter: passt?.typ && t !== "alle" && passt.typ !== t ? null : params.get("filter") });
-              }}
-              className={cn(
-                "h-11 rounded-full border px-4 text-sm font-medium transition-colors",
-                typ === t ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:border-primary/50",
-              )}
-              aria-pressed={typ === t}
-            >
-              {text}
-            </button>
-          ))}
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 lg:pb-0" role="group" aria-label="Status">
+          {filterListe.map((f) => {
+            const k = anzahl(f);
+            if (k === 0 && f.wert !== "alle" && f.wert !== filter.wert) return null;
+            return (
+              <button key={f.wert} type="button" onClick={() => setzen({ filter: f.wert === "alle" ? null : f.wert })} aria-pressed={filter.wert === f.wert}
+                className={cn("flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                  filter.wert === f.wert ? "border-primary bg-primary-soft text-primary" : "bg-card text-muted-foreground hover:bg-muted")}>
+                {f.text} <span className="zahl text-xs opacity-70">{k}</span>
+              </button>
+            );
+          })}
         </div>
-        <Select value={filter} onValueChange={(v) => setzen({ filter: v === "alle" ? null : v })}>
-          <SelectTrigger className="h-11 lg:w-56" aria-label="Status"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {statusOptionen.map((s) => <SelectItem key={s.wert} value={s.wert}>{s.text}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        {gefiltert && (
-          <Button variant="ghost" className="h-11 text-muted-foreground lg:ml-auto" onClick={() => setParams(new URLSearchParams(), { replace: true })}>
-            Filter zurücksetzen
-          </Button>
-        )}
       </div>
 
       {error ? (
-        <Leer icon={AlertTriangle} text={`Belege konnten nicht geladen werden: ${(error as Error).message}`} />
+        <Leer icon={AlertTriangle} text={`Konnte nicht geladen werden: ${(error as Error).message}`} />
       ) : isLoading ? (
         <p className="py-10 text-center text-sm text-muted-foreground">Lädt …</p>
       ) : !liste.length ? (
-        <Leer icon={FileText} text={gefiltert ? "Nichts gefunden — Filter ändern oder zurücksetzen." : "Noch keine Angebote oder Rechnungen."}>
-          {!gefiltert && (
-            <Button asChild className="h-11"><Link to="/belege/neu?typ=angebot"><Plus className="h-4 w-4" /> Erstes Angebot schreiben</Link></Button>
-          )}
+        <Leer icon={angebot ? FileText : Receipt} text={gefiltert ? "Nichts gefunden — Filter ändern oder zurücksetzen." : angebot ? "Noch keine Angebote." : "Noch keine Rechnungen."}>
+          {gefiltert
+            ? <Button variant="outline" className="h-11" onClick={() => setParams(new URLSearchParams(), { replace: true })}>Filter zurücksetzen</Button>
+            : <Button asChild className="h-11"><Link to={pfad}><Plus className="h-4 w-4" /> {angebot ? "Erstes Angebot schreiben" : "Erste Rechnung schreiben"}</Link></Button>}
         </Leer>
       ) : (
         <div className="space-y-2">
           <BelegListe belege={liste} heute={heute} pc={pc} verrechneteAngebote={verrechnet} />
           <p className="px-1 text-right text-xs text-muted-foreground">
-            {liste.length} {liste.length === 1 ? "Beleg" : "Belege"}
-            {summenListe.map((x) => (
-              <span key={x.typ}>
-                {" · "}{x.typ === "rechnung" ? "Rechnungen" : "Angebote"} <span className="zahl font-semibold text-foreground">{euro(x.summe)}</span>
-              </span>
-            ))}
-            {summenListe.length > 0 && " brutto"}
-            {summenListe.length > 0 && ohneListe.length > 0 && ` (ohne ${ohneListe.join(", ").replace(/, ([^,]*)$/, " und $1")})`}
+            {liste.length} {angebot ? (liste.length === 1 ? "Angebot" : "Angebote") : (liste.length === 1 ? "Rechnung" : "Rechnungen")}
+            {listenSumme > 0 && <> · <span className="zahl font-semibold text-foreground">{euro(listenSumme)}</span> {angebot ? "netto" : "brutto"} (ohne Entwürfe{angebot ? ", Abgelehnte" : ", Storno"})</>}
           </p>
         </div>
       )}

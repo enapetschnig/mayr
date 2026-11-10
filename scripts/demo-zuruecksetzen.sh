@@ -27,4 +27,5 @@ for f in 01-stamm 02-artikel 03-verlauf; do
 done
 python3 -I "$D/supabase/demo/unterschriften.py"
 python3 -I "$D/supabase/demo/lieferscheine.py"
+node "$D/supabase/demo/eingangsrechnungen.mjs"
 echo "Demo zurückgesetzt."

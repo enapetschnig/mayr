@@ -6,7 +6,7 @@ import { FormularDialog } from "@/components/FormularDialog";
 import { Leer } from "@/components/Bausteine";
 import { euro, zahl } from "@/lib/format";
 import { leistungPreis } from "@/lib/preise";
-import { normalisieren } from "@/lib/sprachParser";
+import { normalisieren, RAUM_VORSCHLAEGE } from "@/lib/sprachParser";
 import type { Firma } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { mengeInGruppe, type EditorPosition, type KatalogLeistung } from "./editor";
@@ -26,13 +26,20 @@ export function LeistungDialog({
   positionen: EditorPosition[];
   titelId: string | null;
   onTitelWahl: (id: string | null) => void;
-  onNeuerTitel: () => void;
+  /** Neuen Titel mit diesem Namen anlegen und gleich wählen */
+  onNeuerTitel: (name: string) => void;
   onPlus: (l: KatalogLeistung) => void;
   onMinus: (l: KatalogLeistung) => void;
   firma: Firma | null;
   stundensatz: number;
 }) {
   const [suche, setSuche] = useState("");
+  // Neuer Raum direkt in der Chip-Reihe — kein eigener Dialog
+  const [neuRaum, setNeuRaum] = useState<string | null>(null);
+  const raumAnlegen = () => {
+    if (neuRaum?.trim()) onNeuerTitel(neuRaum.trim());
+    setNeuRaum(null);
+  };
   const titel = positionen.filter((p) => p.art === "titel");
 
   const gruppen = useMemo(() => {
@@ -74,13 +81,29 @@ export function LeistungDialog({
           {titel.map((t) => (
             <RaumChip key={t.id} aktiv={t.id === titelId} onClick={() => onTitelWahl(t.id)}>{t.bezeichnung || "Ohne Namen"}</RaumChip>
           ))}
-          <button
-            type="button"
-            onClick={onNeuerTitel}
-            className="inline-flex h-10 shrink-0 items-center gap-1 rounded-full border border-dashed px-3.5 text-sm font-medium text-primary hover:border-primary"
-          >
-            <Plus className="h-4 w-4" /> Raum
-          </button>
+          {neuRaum == null ? (
+            <button
+              type="button"
+              onClick={() => setNeuRaum("")}
+              className="inline-flex h-10 shrink-0 items-center gap-1 rounded-full border border-dashed px-3.5 text-sm font-medium text-primary hover:border-primary"
+            >
+              <Plus className="h-4 w-4" /> Raum
+            </button>
+          ) : (
+            <Input
+              autoFocus
+              value={neuRaum}
+              onChange={(e) => setNeuRaum(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); raumAnlegen(); } if (e.key === "Escape") setNeuRaum(null); }}
+              onBlur={raumAnlegen}
+              list="raum-vorschlaege"
+              placeholder="Raum, Enter"
+              aria-label="Neuer Raum"
+              enterKeyHint="done"
+              className="h-10 w-44 shrink-0 rounded-full"
+            />
+          )}
+          <datalist id="raum-vorschlaege">{RAUM_VORSCHLAEGE.map((r) => <option key={r} value={r} />)}</datalist>
         </div>
       </div>
 

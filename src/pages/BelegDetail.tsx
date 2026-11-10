@@ -45,9 +45,9 @@ function VorhandenerBeleg({ id }: { id: string }) {
   }
   if (!data) {
     return (
-      <Seite titel="Beleg" zurueckPfad="/belege">
+      <Seite titel="Beleg" zurueckPfad="/rechnungen">
         <Leer icon={FileText} text="Diesen Beleg gibt es nicht (mehr).">
-          <Button asChild className="h-11"><Link to="/belege">Zu Angebote &amp; Rechnungen</Link></Button>
+          <Button asChild className="h-11"><Link to="/rechnungen">Zu den Rechnungen</Link></Button>
         </Leer>
       </Seite>
     );

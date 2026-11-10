@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import {
-  ArrowDown, ArrowUp, Copy, CornerDownRight, FileText, Link2, Minus, MoreVertical, Pencil, Plus, Trash2,
+  ArrowDown, ArrowUp, Copy, CornerDownRight, FileText, Link2, Minus, MoreVertical, Pencil, Plus, Rows3, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,12 +14,14 @@ import {
 import { Leer } from "@/components/Bausteine";
 import { euro, zahl } from "@/lib/format";
 import { aufschlagAus } from "@/lib/kalkulation";
+import { RAUM_VORSCHLAEGE } from "@/lib/sprachParser";
 import { EINHEITEN } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
-  duplizieren, entfernen, gruppenGroesse, kannVerschieben, mengeVon, positionGesamt, positionsNummern, preisVon,
-  preisText, verschieben, zahlText, zwischensummen, type EditorPosition,
+  aufschlagVon, duplizieren, entfernen, gruppenGroesse, kannVerschieben, mengeVon, mitAufschlag, mitEinkauf, ohneBetrag, positionGesamt,
+  positionsNummern, preisVon, preisText, titelPosition, verschieben, zahlText, zwischensummen, type EditorPosition,
 } from "./editor";
+import { ZahlFeld } from "./Eingabezeile";
 import { PositionDialog } from "./PositionDialog";
 
 type Setzen = (f: (alt: EditorPosition[]) => EditorPosition[]) => void;
@@ -34,7 +36,7 @@ const langtextZeilen = (t: string) =>
  * „aktive“ — neue Leistungen landen darunter.
  */
 export function PositionenEditor({
-  positionen, setPositionen, bearbeitbar, pc, aktiverTitel, setAktiverTitel, stundensatz,
+  positionen, setPositionen, bearbeitbar, pc, aktiverTitel, setAktiverTitel, stundensatz, kalk = true, materialAufschlag = 0,
 }: {
   positionen: EditorPosition[];
   setPositionen: Setzen;
@@ -44,7 +46,14 @@ export function PositionenEditor({
   setAktiverTitel: (id: string | null) => void;
   /** Standard-Stundensatz für „Preis kalkulieren“ */
   stundensatz?: number;
+  /** Spalten EK und Aufschlag am PC */
+  kalk?: boolean;
+  /** Aufschlag des Betriebs — für den ersten Einkaufspreis einer Position ohne Preis */
+  materialAufschlag?: number;
 }) {
+  const satz = stundensatz ?? 0;
+  const ersetzen = (id: string, f: (p: EditorPosition) => EditorPosition) =>
+    setPositionen((alt) => alt.map((p) => (p.id === id ? f(p) : p)));
   const [bearbeiten, setBearbeiten] = useState<EditorPosition | null>(null);
   const [titelLoeschen, setTitelLoeschen] = useState<EditorPosition | null>(null);
   const [langOffen, setLangOffen] = useState<Set<string>>(new Set());
@@ -82,12 +91,21 @@ export function PositionenEditor({
     } else if (was === "loeschen") loeschen(p);
     else if (was === "langtext") setLangOffen((s) => new Set(s).add(p.id));
     else if (was === "hier") setAktiverTitel(p.id);
+    else if (was === "titelDavor") {
+      const t = titelPosition("");
+      setPositionen((alt) => {
+        const i = alt.findIndex((x) => x.id === p.id);
+        return [...alt.slice(0, i), t, ...alt.slice(i)];
+      });
+      setAktiverTitel(t.id);
+      window.setTimeout(() => document.querySelector<HTMLInputElement>(`[data-titel-id="${t.id}"]`)?.focus(), 50);
+    }
   };
 
   if (!positionen.length) {
     return (
       <section className="rounded-lg border bg-card">
-        <Leer icon={FileText} text={bearbeitbar ? "Noch keine Positionen — Leistung antippen, diktieren oder aus dem Projekt übernehmen." : "Keine Positionen."} />
+        <Leer icon={FileText} text={bearbeitbar ? (pc ? "Noch keine Positionen — unten eintippen, diktieren oder aus dem Projekt übernehmen." : "Noch keine Positionen — Leistung antippen, diktieren oder aus dem Projekt übernehmen.") : "Keine Positionen."} />
       </section>
     );
   }
@@ -133,6 +151,9 @@ export function PositionenEditor({
   );
 
   // ── PC: Tabelle ──
+  // EK und Aufschlag als eigene Spalten (nur intern) — ab 1280 px, sonst klein unter dem Preis
+  const kalkSpalten = kalk && positionen.some((p) => !ohneBetrag(p));
+  const kalkZelle = "hidden xl:table-cell";
   if (pc) {
     return (
       <section className="overflow-hidden rounded-lg border bg-card">
@@ -141,8 +162,10 @@ export function PositionenEditor({
             <tr>
               <th className="w-14 py-2.5 pl-4 text-left font-medium">Pos.</th>
               <th className="py-2.5 pr-2 text-left font-medium">Bezeichnung</th>
-              <th className="w-24 py-2.5 pr-2 text-right font-medium">Menge</th>
-              <th className="w-24 py-2.5 pr-2 text-left font-medium">Einheit</th>
+              <th className="w-20 py-2.5 pr-2 text-right font-medium">Menge</th>
+              <th className="w-20 py-2.5 pr-2 text-left font-medium">Einheit</th>
+              {kalkSpalten && <th className={cn(kalkZelle, "w-24 py-2.5 pr-2 text-right font-medium")} title="Einkaufspreis je Einheit — nur intern">EK</th>}
+              {kalkSpalten && <th className={cn(kalkZelle, "w-24 py-2.5 pr-2 text-right font-medium")} title="Aufschlag auf den Einkauf — nur intern">Aufschlag</th>}
               <th className="w-28 py-2.5 pr-2 text-right font-medium">EP netto</th>
               <th className="w-28 py-2.5 pr-3 text-right font-medium">Gesamt</th>
               {bearbeitbar && <th className="w-[6.5rem] py-2.5 pr-3" aria-label="Aktionen" />}
@@ -154,6 +177,7 @@ export function PositionenEditor({
               const text = p.art === "text";
               const aktiv = bearbeitbar && titel && p.id === aktiverTitel;
               const langtextSichtbar = !titel && (!!p.langtext || langOffen.has(p.id));
+              const auf = aufschlagVon(p, satz);
               return (
                 <tr
                   key={p.id}
@@ -162,13 +186,19 @@ export function PositionenEditor({
                 >
                   <td className={cn("zahl py-2.5 pl-4 text-xs text-muted-foreground", titel && "pt-3.5 text-sm font-semibold text-foreground")}>{nummern[i]}</td>
                   {titel || text ? (
-                    <td colSpan={4} className="py-1.5 pr-2">
+                    <>
+                    <td colSpan={3} className="py-1.5 pr-2">
                       {bearbeitbar ? (
                         <Input
                           value={p.bezeichnung}
                           onChange={(e) => aendern(p.id, { bezeichnung: e.target.value })}
+                          onFocus={titel ? () => setAktiverTitel(p.id) : undefined}
                           className={cn("h-9", titel && "font-semibold", text && "italic")}
-                          placeholder={titel ? "Raum / Titel" : "Hinweistext"}
+                          placeholder={titel ? "Titel, z. B. Küche oder Verteiler" : "Hinweistext"}
+                          list={titel ? "titel-vorschlaege" : undefined}
+                          data-titel-id={titel ? p.id : undefined}
+                          data-text-id={text ? p.id : undefined}
+                          aria-label={titel ? `Titel ${nummern[i]}` : "Hinweistext"}
                         />
                       ) : (
                         <p className={cn("py-1", titel && "font-semibold", text && "italic text-muted-foreground")}>{p.bezeichnung}</p>
@@ -176,6 +206,10 @@ export function PositionenEditor({
                       {titel && p.langtext && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{p.langtext}</p>}
                       {aktiv && bearbeitbar && <p className="mt-1 flex items-center gap-1 text-xs font-medium text-primary"><CornerDownRight className="h-3 w-3" /> Neue Positionen landen hier</p>}
                     </td>
+                    {kalkSpalten && <td className={kalkZelle} />}
+                    {kalkSpalten && <td className={kalkZelle} />}
+                    <td />
+                    </>
                   ) : (
                     <>
                       <td className="py-1.5 pr-2">
@@ -184,14 +218,22 @@ export function PositionenEditor({
                         ) : (
                           <p className="py-1 font-medium">{p.bezeichnung}</p>
                         )}
-                        {langtextSichtbar && (bearbeitbar ? (
+                        {/* Langtext klein und grau — erst ein Klick macht ihn zum Bearbeiten auf, sonst wird die Tabelle lang */}
+                        {langtextSichtbar && (bearbeitbar && langOffen.has(p.id) ? (
                           <Textarea
                             value={p.langtext}
                             onChange={(e) => aendern(p.id, { langtext: e.target.value })}
+                            onBlur={() => setLangOffen((s) => { const n = new Set(s); n.delete(p.id); return n; })}
                             rows={langtextZeilen(p.langtext)}
                             placeholder="Langtext"
                             className="mt-1 min-h-0 text-xs"
+                            autoFocus
                           />
+                        ) : bearbeitbar ? (
+                          <button type="button" onClick={() => setLangOffen((s) => new Set(s).add(p.id))} title="Langtext bearbeiten"
+                            className="mt-0.5 line-clamp-2 w-full rounded px-3 text-left text-xs text-muted-foreground hover:bg-muted/60">
+                            {p.langtext}
+                          </button>
                         ) : <p className="whitespace-pre-line text-xs text-muted-foreground">{p.langtext}</p>)}
                         {p.quelle && <Herkunft />}
                       </td>
@@ -211,11 +253,30 @@ export function PositionenEditor({
                           </select>
                         ) : <p className="py-1">{p.einheit}</p>}
                       </td>
+                      {kalkSpalten && (
+                        <td className={cn(kalkZelle, "py-1.5 pr-2")}>
+                          {bearbeitbar && p.art !== "arbeit" && p.art !== "abzug" ? (
+                            <ZahlFeld wert={p.ek_preis} onWert={(n) => ersetzen(p.id, (x) => mitEinkauf(x, n, satz, materialAufschlag))}
+                              className="h-9 bg-muted/30" placeholder="–" aria-label={`Einkauf ${nummern[i]}`} data-ek-id={p.id} />
+                          ) : <p className="zahl py-1 text-right text-muted-foreground">{p.ek_preis != null ? preisText(p.ek_preis) : ""}</p>}
+                        </td>
+                      )}
+                      {kalkSpalten && (
+                        <td className={cn(kalkZelle, "py-1.5 pr-2")}>
+                          {bearbeitbar && auf != null ? (
+                            <div className="relative">
+                              <ZahlFeld wert={auf} nachkomma={1} onWert={(n) => { if (n != null) ersetzen(p.id, (x) => mitAufschlag(x, n, satz)); }}
+                                className={cn("h-9 bg-muted/30 pr-6", auf < 0 && "text-destructive")} aria-label={`Aufschlag ${nummern[i]}`} data-auf-id={p.id} />
+                              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                            </div>
+                          ) : <p className={cn("zahl py-1 text-right text-muted-foreground", auf != null && auf < 0 && "text-destructive")}>{auf != null ? `${zahl(auf)} %` : ""}</p>}
+                        </td>
+                      )}
                       <td className="py-1.5 pr-2">
                         {bearbeitbar
-                          ? <Input value={p.einzelpreis} onChange={(e) => aendern(p.id, { einzelpreis: e.target.value })} inputMode="decimal" className="zahl h-9 text-right" />
+                          ? <Input value={p.einzelpreis} onChange={(e) => aendern(p.id, { einzelpreis: e.target.value })} inputMode="decimal" className="zahl h-9 text-right" data-preis-id={p.id} aria-label={`Einzelpreis ${nummern[i]}`} />
                           : <p className="zahl py-1 text-right">{euro(preisVon(p))}</p>}
-                        <span className="block pt-0.5 text-right">{kalkText(p)}</span>
+                        <span className={cn("block pt-0.5 text-right", kalkSpalten && "xl:hidden")}>{kalkText(p)}</span>
                       </td>
                     </>
                   )}
@@ -236,6 +297,9 @@ export function PositionenEditor({
             })}
           </tbody>
         </table>
+        <datalist id="titel-vorschlaege">
+          {RAUM_VORSCHLAEGE.map((r) => <option key={r} value={r} />)}
+        </datalist>
         {dialoge}
       </section>
     );
@@ -247,21 +311,40 @@ export function PositionenEditor({
       {positionen.map((p, i) => {
         if (p.art === "titel") {
           const aktiv = bearbeitbar && p.id === aktiverTitel;
+          // Titel direkt in der Karte benennen; solange er leer ist, stehen die üblichen Räume zum Antippen da
+          const vorschlaege = bearbeitbar && !p.bezeichnung.trim()
+            ? RAUM_VORSCHLAEGE.filter((r) => !positionen.some((x) => x.art === "titel" && x.bezeichnung.trim().toLowerCase() === r.toLowerCase())).slice(0, 10)
+            : [];
           return (
-            <div
-              key={p.id}
-              className={cn("flex items-center gap-2 rounded-lg border px-3 py-2.5", aktiv ? "border-primary bg-primary-soft" : "bg-muted/50", i > 0 && "mt-4")}
-            >
-              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => bearbeitbar && setAktiverTitel(p.id)} disabled={!bearbeitbar}>
-                <span className="flex items-baseline gap-2">
-                  <span className="zahl text-sm font-semibold text-muted-foreground">{nummern[i]}</span>
-                  <span className="truncate font-semibold">{p.bezeichnung || "Ohne Namen"}</span>
-                </span>
-                {aktiv && bearbeitbar && <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-primary"><CornerDownRight className="h-3 w-3" /> Neue Positionen landen hier</span>}
-                {p.langtext && <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{p.langtext}</span>}
-              </button>
-              {titelAnzahl > 1 && <span className="zahl shrink-0 text-sm font-semibold">{euro(zs[i] ?? 0)}</span>}
-              {bearbeitbar && <ZeilenMenue p={p} positionen={positionen} onAktion={(a) => aktion(p, a)} />}
+            <div key={p.id} className={cn("rounded-lg border px-3 py-2", aktiv ? "border-primary bg-primary-soft" : "bg-muted/50", i > 0 && "mt-4")}>
+              <div className="flex items-center gap-2">
+                <span className="zahl shrink-0 text-sm font-semibold text-muted-foreground">{nummern[i]}</span>
+                {bearbeitbar ? (
+                  <Input
+                    value={p.bezeichnung}
+                    onChange={(e) => aendern(p.id, { bezeichnung: e.target.value })}
+                    onFocus={() => setAktiverTitel(p.id)}
+                    placeholder="Titel, z. B. Küche"
+                    className="h-10 min-w-0 flex-1 border-transparent bg-transparent px-1.5 font-semibold shadow-none focus-visible:border-input focus-visible:bg-card"
+                    data-titel-id={p.id}
+                    aria-label={`Titel ${nummern[i]}`}
+                    enterKeyHint="done"
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                  />
+                ) : <span className="min-w-0 flex-1 truncate font-semibold">{p.bezeichnung || "Ohne Namen"}</span>}
+                {titelAnzahl > 1 && <span className="zahl shrink-0 text-sm font-semibold">{euro(zs[i] ?? 0)}</span>}
+                {bearbeitbar && <ZeilenMenue p={p} positionen={positionen} onAktion={(a) => aktion(p, a)} />}
+              </div>
+              {vorschlaege.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5 pb-1">
+                  {vorschlaege.map((r) => (
+                    <button key={r} type="button" onClick={() => { aendern(p.id, { bezeichnung: r }); setAktiverTitel(p.id); }}
+                      className="h-9 rounded-full border bg-card px-3 text-sm font-medium active:bg-primary-soft">{r}</button>
+                  ))}
+                </div>
+              )}
+              {aktiv && bearbeitbar && !vorschlaege.length && <span className="flex items-center gap-1 px-1.5 text-xs font-medium text-primary"><CornerDownRight className="h-3 w-3" /> Neue Positionen landen hier</span>}
+              {p.langtext && <span className="line-clamp-2 block px-1.5 text-xs text-muted-foreground">{p.langtext}</span>}
             </div>
           );
         }
@@ -331,7 +414,7 @@ function Herkunft() {
   );
 }
 
-type Aktion = "bearbeiten" | "hoch" | "runter" | "kopieren" | "loeschen" | "langtext" | "hier";
+type Aktion = "bearbeiten" | "hoch" | "runter" | "kopieren" | "loeschen" | "langtext" | "hier" | "titelDavor";
 
 function ZeilenMenue({ p, positionen, onAktion, pc }: { p: EditorPosition; positionen: EditorPosition[]; onAktion: (a: Aktion) => void; pc?: boolean }) {
   const titel = p.art === "titel";
@@ -348,6 +431,7 @@ function ZeilenMenue({ p, positionen, onAktion, pc }: { p: EditorPosition; posit
         {pc && !titel && p.art !== "text" && !p.langtext && (
           <DropdownMenuItem className="h-11 gap-2" onClick={() => onAktion("langtext")}><FileText className="h-4 w-4" /> Langtext hinzufügen</DropdownMenuItem>
         )}
+        {!titel && <DropdownMenuItem className="h-11 gap-2" onClick={() => onAktion("titelDavor")}><Rows3 className="h-4 w-4" /> Titel darüber einfügen</DropdownMenuItem>}
         {!pc && (
           <>
             <DropdownMenuItem className="h-11 gap-2" disabled={!kannVerschieben(positionen, p.id, -1)} onClick={() => onAktion("hoch")}><ArrowUp className="h-4 w-4" /> Nach oben</DropdownMenuItem>

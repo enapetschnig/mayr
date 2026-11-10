@@ -5,6 +5,7 @@ import {
   CalendarOff, CalendarPlus, CheckCircle2, FilePlus2, FolderPlus,
   BellRing, AlertTriangle, Banknote, Bus, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
   ScanBarcode, ShieldCheck, ShoppingCart, UserCheck, Wrench,
+  PhoneCall,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KontoMenue } from "@/components/KontoMenue";
@@ -101,7 +102,7 @@ export default function Index() {
     enabled: istChef,
     queryFn: async () => {
       const [{ data: belege }, { count: wartend }] = await Promise.all([
-        supabase.from("belege").select("id, typ, status, brutto, faellig_am").in("status", ["entwurf", "offen"]),
+        supabase.from("belege").select("id, typ, status, brutto, faellig_am, gueltig_bis").in("status", ["entwurf", "offen"]),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("aktiv", false).eq("gesperrt", false),
       ]);
       const liste = belege ?? [];
@@ -111,7 +112,10 @@ export default function Index() {
         offen: rechnungen.length,
         ueberfaellig: rechnungen.filter((b) => belegStatus(b, heute) === "ueberfaellig").length,
         angebote: liste.filter((b) => b.typ === "angebot" && b.status === "offen").length,
-        entwuerfe: liste.filter((b) => b.status === "entwurf").length,
+        // Gültigkeit läuft in einer Woche ab oder ist vorbei — nachtelefonieren
+        nachfassen: liste.filter((b) => b.typ === "angebot" && b.status === "offen" && b.gueltig_bis && b.gueltig_bis <= tageDazu(heute, 7)).length,
+        entwuerfeAngebote: liste.filter((b) => b.typ === "angebot" && b.status === "entwurf").length,
+        entwuerfeRechnungen: liste.filter((b) => b.typ === "rechnung" && b.status === "entwurf").length,
         wartend: wartend ?? 0,
       };
     },
@@ -214,8 +218,10 @@ export default function Index() {
     schaedenOffen > 0 && { icon: Wrench, text: `${schaedenOffen} ${schaedenOffen === 1 ? "Schaden" : "Schäden"} an Fahrzeugen gemeldet`, to: "/fuhrpark", warn: true },
     eingangZuordnen > 0 && { icon: Inbox, text: `${eingangZuordnen} ${eingangZuordnen === 1 ? "Eingangsrechnung" : "Eingangsrechnungen"} zuordnen`, to: "/eingang?filter=zuzuordnen" },
     zuVerrechnen > 0 && { icon: FolderKanban, text: `${zuVerrechnen} ${zuVerrechnen === 1 ? "Projekt hat" : "Projekte haben"} offene Stunden oder Material`, to: "/projekte?filter=offen" },
-    buero.angebote > 0 && { icon: FileText, text: `${buero.angebote} ${buero.angebote === 1 ? "Angebot wartet" : "Angebote warten"} auf Antwort`, to: "/belege?filter=angebote" },
-    buero.entwuerfe > 0 && { icon: FileText, text: `${buero.entwuerfe} ${buero.entwuerfe === 1 ? "Entwurf" : "Entwürfe"} noch nicht fertig`, to: "/belege?filter=entwurf" },
+    buero.nachfassen > 0 && { icon: PhoneCall, text: `${buero.nachfassen} ${buero.nachfassen === 1 ? "Angebot" : "Angebote"} nachfassen — Gültigkeit läuft ab`, to: "/angebote?filter=nachfassen", warn: true },
+    buero.angebote > buero.nachfassen && { icon: FileText, text: `${buero.angebote} ${buero.angebote === 1 ? "Angebot wartet" : "Angebote warten"} auf Antwort`, to: "/angebote?filter=offen" },
+    buero.entwuerfeAngebote > 0 && { icon: FileText, text: `${buero.entwuerfeAngebote} ${buero.entwuerfeAngebote === 1 ? "Angebot" : "Angebote"} noch Entwurf`, to: "/angebote?filter=entwurf" },
+    buero.entwuerfeRechnungen > 0 && { icon: Receipt, text: `${buero.entwuerfeRechnungen} ${buero.entwuerfeRechnungen === 1 ? "Rechnung" : "Rechnungen"} noch Entwurf`, to: "/rechnungen?filter=entwurf" },
   ] as (Punkt | false)[]).filter((x): x is Punkt => !!x) : [];
 
   const menue = sichtbareNavigation(istChef).filter((n) => n.pfad !== "/");

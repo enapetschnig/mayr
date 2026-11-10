@@ -38,7 +38,7 @@ import { AufschlaegeDialog } from "./AufschlaegeDialog";
 import { BelegKopf, BelegTexte } from "./BelegKopf";
 import { belegLaden, useBelegKurz, useFolgeRechnungen, useLeistungsKatalog, useNachfolger, type BelegMitPositionen } from "./daten";
 import {
-  artikelPosition, fertigHinweise, hinzufuegen, kopfAusBeleg, leerePosition, leistungPosition, leistungWeniger, mengeVon,
+  artikelPosition, fertigHinweise, freierTitelName, hinzufuegen, kopfAusBeleg, leerePosition, leistungPosition, leistungWeniger, mengeVon,
   ohneBetrag, ohneUstFuer, positionAusDb, preisText, preisVon, quelleLesen, quellenIds, summen, titelMitNamen, titelPosition, zahlText,
   type EditorPosition, type KatalogLeistung, type Kopf,
 } from "./editor";
@@ -54,7 +54,7 @@ import {
 import { sicherungLesen, sicherungLoeschen, sicherungSchreiben, sicherungsSchluessel, type Sicherung } from "./sicherung";
 import { SpracheDialog, type SprachUebernahme } from "./SpracheDialog";
 import { TeilrechnungDialog } from "./TeilrechnungDialog";
-import { TitelDialog } from "./TitelDialog";
+import { Eingabezeile } from "./Eingabezeile";
 import { useVerlassenSchutz } from "./useVerlassenSchutz";
 import { VerlassenDialog } from "./VerlassenSchutz";
 
@@ -62,6 +62,14 @@ import { VerlassenDialog } from "./VerlassenSchutz";
 const schnappschuss = (k: Kopf, p: EditorPosition[]) => JSON.stringify([k, p]);
 const DETAIL = (id: string) => ["belege", "detail", id];
 const NACH_AENDERUNG = ["belege", "projekte", "projekt_zahlen", "zeiten", "material", "regieberichte"];
+const KALK_KEY = "elektro.beleg.kalk";
+/** Feld einer gerade angelegten Zeile fokussieren (nach dem nächsten Zeichnen) */
+// Inhalt markiert — Tippen ersetzt „0,00“ statt anzuhängen
+const fokus = (selektor: string) => window.setTimeout(() => {
+  const feld = document.querySelector<HTMLInputElement>(selektor);
+  feld?.focus();
+  feld?.select();
+}, 50);
 
 type Frage = "fertig" | "storno" | "entsperren" | null;
 type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | "teil" | "aufschlaege" | "ki" | null;
@@ -110,7 +118,14 @@ export function BelegEditor({
   const [loeschen, setLoeschen] = useState<{ projektMoeglich: boolean; projektAuch: boolean } | null>(null);
   const [vorschau, setVorschau] = useState<{ url: string; blob: Blob; dateiname: string } | null>(null);
   const [dialog, setDialog] = useState<Dialog>(autoSprache ? "sprache" : autoImport ? "import" : autoKi ? "ki" : null);
-  const [titelOffen, setTitelOffen] = useState(false);
+  // EK und Aufschlag als Spalten am PC — gemerkt je Gerät
+  const [kalkSpalten, setKalkSpalten] = useState(() => {
+    try { return localStorage.getItem(KALK_KEY) !== "aus"; } catch { return true; }
+  });
+  const kalkUmschalten = () => setKalkSpalten((v) => {
+    try { localStorage.setItem(KALK_KEY, v ? "aus" : "an"); } catch { /* privat: egal */ }
+    return !v;
+  });
   const [freie, setFreie] = useState<EditorPosition | null>(null);
   /** Buchungen, die beim letzten Speichern schon an einer anderen Rechnung hingen */
   const [konflikte, setKonflikte] = useState(0);
@@ -470,7 +485,7 @@ export function BelegEditor({
     sicherungLoeschen(schluessel);
     setBasis(aktuellRef.current);
     if (window.history.length > 1) navigate(-1);
-    else navigate("/belege");
+    else navigate(istAngebot ? "/angebote" : "/rechnungen");
   };
   const loeschenFragen = () => ausfuehren("pruefen", async () => {
     const inRechnung = istAngebot ? folge.find((f) => f.status !== "entwurf") : undefined;
@@ -490,7 +505,7 @@ export function BelegEditor({
     if (projektAuch) await projektLoeschen(projektAuch);
     setBasis(aktuellRef.current);
     toast.success(`${entwurf ? "Entwurf" : typText} gelöscht${projektAuch ? " — das Projekt auch" : ""}`);
-    navigate("/belege", { replace: true });
+    navigate(istAngebot ? "/angebote" : "/rechnungen", { replace: true });
     void neuLaden(...NACH_AENDERUNG);
   });
 
@@ -592,10 +607,27 @@ export function BelegEditor({
     setPositionen((alt) => hinzufuegen(alt, leistungPosition(l, firma, stundensatz), aktiverTitel).liste);
   const leistungMinus = (l: KatalogLeistung) => setPositionen((alt) => leistungWeniger(alt, aktiverTitel, l.id));
   const artikelPlus = (a: Artikel) => setPositionen((alt) => hinzufuegen(alt, artikelPosition(a, firma), aktiverTitel).liste);
+  /** Titel ans Ende; ohne Namen gleich zum Eintippen in der Zeile */
   const titelAnlegen = (name: string) => {
-    const t = titelPosition(name);
+    const t = titelPosition(name ? freierTitelName(positionen, name) : "");
     setPositionen((alt) => [...alt, t]);
     setAktiverTitel(t.id);
+    if (!name) fokus(`[data-titel-id="${t.id}"]`);
+  };
+  // Eingabezeile: unter den aktiven Titel, wie die Knöpfe
+  const schnellLeistung = (l: KatalogLeistung, menge: number) =>
+    setPositionen((alt) => hinzufuegen(alt, leistungPosition(l, firma, stundensatz, menge), aktiverTitel).liste);
+  const schnellArtikel = (a: Artikel, menge: number) =>
+    setPositionen((alt) => hinzufuegen(alt, { ...artikelPosition(a, firma), menge: zahlText(menge) }, aktiverTitel).liste);
+  const schnellFrei = (text: string, menge: number) => {
+    const p = leerePosition("leistung", { bezeichnung: text, menge: zahlText(menge), einheit: "Stk" });
+    setPositionen((alt) => hinzufuegen(alt, p, aktiverTitel).liste);
+    fokus(`[data-preis-id="${p.id}"]`);
+  };
+  const schnellText = () => {
+    const p = leerePosition("text", { menge: "0" });
+    setPositionen((alt) => hinzufuegen(alt, p, aktiverTitel).liste);
+    fokus(`[data-text-id="${p.id}"]`);
   };
   const arbeitszeitHinzufuegen = (neue: EditorPosition[]) =>
     setPositionen((alt) => neue.reduce((liste, p) => hinzufuegen(liste, p, aktiverTitel).liste, alt));
@@ -880,23 +912,18 @@ export function BelegEditor({
     { key: "sprache", text: "Diktieren", icon: Mic, onClick: () => setDialog("sprache") },
     { key: "ki", text: "Material per KI", icon: Sparkles, onClick: () => setDialog("ki") },
     { key: "arbeitszeit", text: "Arbeitszeit", icon: Clock, onClick: () => setDialog("arbeitszeit") },
-    { key: "titel", text: "Raum / Titel", icon: Rows3, onClick: () => setTitelOffen(true) },
+    { key: "titel", text: "Raum / Titel", icon: Rows3, onClick: () => titelAnlegen("") },
     { key: "artikel", text: "Artikel", icon: Package, onClick: () => setDialog("artikel") },
     { key: "frei", text: "Freie Position", icon: PenLine, onClick: () => setFreie(leerePosition("leistung")) },
   ];
   const nebenKnoepfe = hinzuKnoepfe.filter((k) => !k.primaer);
 
+  // PC: Titel, Artikel und freie Positionen gehen über die Eingabezeile — oben nur, was mehr kann
+  const pcKnoepfe = hinzuKnoepfe
+    .filter((k) => !["titel", "artikel", "frei"].includes(k.key))
+    .map((k) => (k.key === "leistung" ? { ...k, text: "Leistungskatalog", primaer: false } : k));
   const hinzufuegenLeiste = bearbeitbar && (
-    pc ? (
-      <div className="flex flex-wrap items-center gap-2">
-        {hinzuKnoepfe.map((k) => (
-          <Button key={k.key} variant={k.primaer ? "default" : "outline"} className="h-10" onClick={k.onClick} disabled={k.aus}>
-            <k.icon className="h-4 w-4" /> {k.text}
-          </Button>
-        ))}
-        {titelName && <span className="ml-auto text-xs text-muted-foreground">Neue Positionen landen unter „{titelName}“</span>}
-      </div>
-    ) : (
+    pc ? null : (
       <div className="space-y-2">
         {hinzuKnoepfe.filter((k) => k.primaer).map((k) => (
           <Button key={k.key} className="h-12 w-full text-base" onClick={k.onClick} disabled={k.aus}>
@@ -972,9 +999,24 @@ export function BelegEditor({
       )}
 
       <section className="space-y-2.5">
-        <div className="flex items-baseline justify-between gap-2 px-1">
-          <h2 className="text-[0.9375rem] font-semibold">Positionen</h2>
-          {anzahl > 0 && <span className="text-xs text-muted-foreground">{anzahl} {anzahl === 1 ? "Position" : "Positionen"}</span>}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <h2 className="text-[0.9375rem] font-semibold">
+            Positionen
+            {anzahl > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">{anzahl}</span>}
+          </h2>
+          {pc && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {bearbeitbar && pcKnoepfe.map((k) => (
+                <Button key={k.key} variant={k.primaer ? "default" : "outline"} className="h-9 gap-1.5 px-3" onClick={k.onClick} disabled={k.aus}>
+                  <k.icon className="h-4 w-4" /> {k.text}
+                </Button>
+              ))}
+              <Button variant="ghost" className="hidden h-9 gap-1.5 px-3 text-muted-foreground xl:inline-flex" onClick={kalkUmschalten} aria-pressed={kalkSpalten}
+                title="Einkaufspreis und Aufschlag je Position — nur intern, nie auf dem PDF">
+                <Calculator className="h-4 w-4" /> {kalkSpalten ? "EK/Aufschlag ausblenden" : "EK/Aufschlag zeigen"}
+              </Button>
+            </div>
+          )}
         </div>
         <PositionenEditor
           positionen={positionen}
@@ -984,7 +1026,13 @@ export function BelegEditor({
           aktiverTitel={aktiverTitel}
           setAktiverTitel={setAktiverTitel}
           stundensatz={stundensatz}
+          kalk={kalkSpalten}
+          materialAufschlag={Number(firma?.material_aufschlag ?? 0)}
         />
+        {bearbeitbar && pc && (
+          <Eingabezeile katalog={katalog} stundensatz={stundensatz} ziel={titelName}
+            onLeistung={schnellLeistung} onArtikel={schnellArtikel} onFrei={schnellFrei} onTitel={titelAnlegen} onText={schnellText} />
+        )}
         {hinzufuegenLeiste}
       </section>
 
@@ -994,6 +1042,29 @@ export function BelegEditor({
           onProzent={bearbeitbar && anzahl > 0 ? preiseUmProzent : undefined}
           onAufschlaege={bearbeitbar && anzahl > 0 ? () => setDialog("aufschlaege") : undefined} />
       </div>
+
+      {bearbeitbar && pc && anzahl > 0 && (
+        <div className="sticky bottom-3 z-20 flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border bg-card px-4 py-2.5 text-sm" data-summenleiste>
+          <span>Netto <span className="zahl font-semibold">{euro(s.netto)}</span></span>
+          {!ohneUst && <span>Brutto <span className="zahl font-bold">{euro(s.brutto)}</span></span>}
+          {kalk.ek > 0 && (() => {
+            const r = rohertrag(s.netto, kalk.ek, kalk.stunden);
+            return (
+              <span className="text-muted-foreground" title="Netto minus Material-Einkauf — nur für dich">
+                Bleibt nach Material <span className="zahl font-semibold text-foreground">{euro(r.bleibt)}</span>
+                {r.anteil != null && ` (${Math.round(r.anteil * 100)} %)`}
+                {r.jeStunde != null && <> · je Stunde <span className="zahl font-semibold text-foreground">{euro(r.jeStunde)}</span></>}
+              </span>
+            );
+          })()}
+          <span className="ml-auto flex items-center gap-3">
+            {dirty && <span className="text-xs font-medium text-muted-foreground">nicht gespeichert</span>}
+            <Button className="h-9" onClick={speichern} disabled={!!laeuft || (!dirty && !neu)}>
+              <Save className="h-4 w-4" /> {laeuft === "speichern" ? "Speichert …" : dirty || neu ? "Speichern" : "Gespeichert"}
+            </Button>
+          </span>
+        </div>
+      )}
 
       {entwurf && !pc && (
         <Button variant="outline" className="h-12 w-full" onClick={() => void fertigFragen()} disabled={!!laeuft}>
@@ -1033,7 +1104,7 @@ export function BelegEditor({
         positionen={positionen}
         titelId={aktiverTitel}
         onTitelWahl={setAktiverTitel}
-        onNeuerTitel={() => setTitelOffen(true)}
+        onNeuerTitel={titelAnlegen}
         onPlus={leistungPlus}
         onMinus={leistungMinus}
         firma={firma}
@@ -1050,7 +1121,6 @@ export function BelegEditor({
         lohnarten={lohnartenFuer(firma, stundensatz)}
         onUebernehmen={arbeitszeitHinzufuegen}
       />
-      <TitelDialog open={titelOffen} onOpenChange={setTitelOffen} positionen={positionen} onAnlegen={titelAnlegen} />
       <SpracheDialog
         open={dialog === "sprache"}
         onOpenChange={(o) => setDialog(o ? "sprache" : null)}

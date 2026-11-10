@@ -25,6 +25,7 @@ const Lager = lazy(() => import("./pages/Lager"));
 const Regieberichte = lazy(() => import("./pages/Regieberichte"));
 const RegieDetail = lazy(() => import("./pages/RegieDetail"));
 const Belege = lazy(() => import("./pages/Belege"));
+const BelegeWeiter = lazy(() => import("./pages/Belege").then((m) => ({ default: m.BelegeWeiter })));
 const BelegDetail = lazy(() => import("./pages/BelegDetail"));
 const Kunden = lazy(() => import("./pages/Kunden"));
 const ArtikelSeite = lazy(() => import("./pages/Artikel"));
@@ -88,7 +89,9 @@ const App = () => (
                 <Route path="/regie" element={<S><Regieberichte /></S>} />
                 <Route path="/regie/neu" element={<S><RegieSeite /></S>} />
                 <Route path="/regie/:id" element={<S><RegieSeite /></S>} />
-                <Route path="/belege" element={<S chef><Belege /></S>} />
+                <Route path="/angebote" element={<S chef><Belege typ="angebot" /></S>} />
+                <Route path="/rechnungen" element={<S chef><Belege typ="rechnung" /></S>} />
+                <Route path="/belege" element={<S chef><BelegeWeiter /></S>} />
                 <Route path="/belege/neu" element={<S chef><BelegSeite /></S>} />
                 <Route path="/belege/:id" element={<S chef><BelegSeite /></S>} />
                 <Route path="/eingang" element={<S chef><Eingang /></S>} />

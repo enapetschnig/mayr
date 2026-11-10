@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, BellRing, Bus, CalendarClock, Check, CheckCircle2, ClipboardSignature, Clock, FolderKanban, Navigation, Phone, Play, ScanBarcode } from "lucide-react";
+import { AlertTriangle, BellRing, Bus, CalendarClock, Check, CheckCircle2, ClipboardSignature, Clock, FolderKanban, Navigation, Phone, ScanBarcode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Gruppentitel, StatusPille } from "@/components/Bausteine";
 import { useKalenderAbwesenheit } from "@/components/zeiten/personalDaten";
@@ -28,7 +28,7 @@ const reihung = (a: Termin, b: Termin) => Number(b.dringend) - Number(a.dringend
   || Number(a.status === "erledigt") - Number(b.status === "erledigt")
   || (a.von ?? "").localeCompare(b.von ?? "");
 
-/** Wo muss ich heute hin? Einsätze von heute und vom nächsten Arbeitstag, Beginnen und Erledigt mit einem Tipp. */
+/** Wo muss ich heute hin? Einsätze von heute und vom nächsten Arbeitstag, Erledigt mit einem Tipp. */
 export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) => void }) {
   const neuLaden = useNeuLaden();
   const { profil } = useSitzung();
@@ -61,7 +61,7 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
   const morgenListe = einsaetze.filter((t) => amTag(t, naechster) && t.status !== "erledigt").sort(reihung);
   const geaendert = einsaetze.filter((t) => t.status !== "erledigt" && t.geaendert_am && t.geaendert_von !== profil?.id && gesehen[t.id] !== t.geaendert_am);
 
-  const statusSetzen = async (t: Einsatz, status: "begonnen" | "erledigt") => {
+  const statusSetzen = async (t: Einsatz, status: "erledigt") => {
     setLaeuft(t.id);
     const { error } = await supabase.from("termine").update({ status }).eq("id", t.id);
     setLaeuft(null);
@@ -141,11 +141,8 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
                   {t.status !== "geplant" && <StatusPille eintrag={EINSATZ_STATUS[t.status]} />}
                 </span>
               </div>
-              {t.status === "geplant" && (
-                <Button className="mt-2.5 h-12 w-full gap-2" disabled={!!laeuft} onClick={() => void statusSetzen(t, "begonnen")}><Play className="h-4 w-4" /> Beginnen</Button>
-              )}
-              {t.status === "begonnen" && (
-                <Button className="mt-2.5 h-12 w-full gap-2" disabled={!!laeuft} onClick={() => void statusSetzen(t, "erledigt")}><Check className="h-4 w-4" /> Erledigt</Button>
+              {t.status !== "erledigt" && (
+                <Button variant="outline" className="mt-2.5 h-12 w-full gap-2" disabled={!!laeuft} onClick={() => void statusSetzen(t, "erledigt")}><Check className="h-4 w-4" /> Erledigt</Button>
               )}
               <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 {t.ort && (

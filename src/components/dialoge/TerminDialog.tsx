@@ -232,7 +232,6 @@ export function TerminDialog({
             {termin.erledigt_am && <span className="text-xs text-muted-foreground">{new Date(termin.erledigt_am).toLocaleString("de-AT", { dateStyle: "short", timeStyle: "short" })}</span>}
             <span className="flex-1" />
             {termin.status !== "erledigt" && <Button variant="outline" className="h-11 bg-card" disabled={speichert} onClick={() => void statusSetzen("erledigt")}>Erledigt</Button>}
-            {termin.status === "geplant" && <Button variant="outline" className="h-11 bg-card" disabled={speichert} onClick={() => void statusSetzen("begonnen")}>Beginnen</Button>}
             {termin.status !== "geplant" && <Button variant="ghost" className="h-11" disabled={speichert} onClick={() => void statusSetzen("geplant")}>Zurücksetzen</Button>}
           </div>
         )}

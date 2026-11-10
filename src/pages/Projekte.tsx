@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { FolderKanban, FolderPlus, Search } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Clock, FolderKanban, FolderPlus, LayoutGrid, List, MapPin, Search, User } from "lucide-react";
 import { Seite } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leer, ListenZeile, ProjektStatusBadge } from "@/components/Bausteine";
+import { Leer, ProjektStatusBadge } from "@/components/Bausteine";
 import { ProjektDialog } from "@/components/dialoge/ProjektDialog";
 import { useIstPc } from "@/components/AppLayout";
 import { useProjekte, useProjektZahlen, type ProjektMitKunde } from "@/hooks/useDaten";
 import { stunden } from "@/lib/format";
 import type { ProjektZahlen } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+type Ansicht = "kacheln" | "liste";
+const ANSICHT_KEY = "elektro.projekte.ansicht";
 
 type Filter = "laufend" | "aktiv" | "angebot" | "verrechnen" | "offen" | "abgeschlossen";
 
@@ -40,6 +43,14 @@ export default function Projekte() {
   const { data: zahlen = {} } = useProjektZahlen();
   const [suche, setSuche] = useState("");
   const [neuOffen, setNeuOffen] = useState(false);
+  // Kacheln (wie Steinbrecher) oder Tabelle — am PC wählbar und gemerkt, am Handy immer Kacheln
+  const [ansicht, setAnsicht] = useState<Ansicht>(() => {
+    try { return localStorage.getItem(ANSICHT_KEY) === "liste" ? "liste" : "kacheln"; } catch { return "kacheln"; }
+  });
+  const ansichtSetzen = (a: Ansicht) => {
+    setAnsicht(a);
+    try { localStorage.setItem(ANSICHT_KEY, a); } catch { /* privat: egal */ }
+  };
   const filter = (FILTER.some((f) => f.wert === params.get("filter")) ? params.get("filter") : "laufend") as Filter;
 
   // ?neu=1 (z. B. von der Startseite am PC) öffnet gleich „Neues Projekt“
@@ -80,9 +91,21 @@ export default function Projekte() {
         })}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input className="h-12 pl-9" placeholder="Nummer, Projekt, Kunde oder Ort" value={suche} onChange={(e) => setSuche(e.target.value)} />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input className="h-12 pl-9" placeholder="Nummer, Projekt, Kunde oder Ort" value={suche} onChange={(e) => setSuche(e.target.value)} />
+        </div>
+        {pc && (
+          <div className="inline-flex shrink-0 rounded-md border bg-card p-0.5" role="group" aria-label="Ansicht">
+            {([["kacheln", "Kacheln", LayoutGrid], ["liste", "Liste", List]] as const).map(([a, text, I]) => (
+              <button key={a} type="button" onClick={() => ansichtSetzen(a)} aria-pressed={ansicht === a}
+                className={cn("flex items-center gap-1.5 rounded px-3 text-sm font-medium", ansicht === a ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
+                <I className="h-4 w-4" /> {text}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -91,7 +114,11 @@ export default function Projekte() {
         <Leer icon={FolderKanban} text={suche ? "Nichts gefunden." : "Keine Projekte in dieser Ansicht."}>
           {!suche && <Button onClick={() => setNeuOffen(true)}>Projekt anlegen</Button>}
         </Leer>
-      ) : pc ? (
+      ) : !pc || ansicht === "kacheln" ? (
+        <div className="grid grid-cols-1 gap-2.5 min-[480px]:grid-cols-2 md:grid-cols-3 2xl:grid-cols-4" data-projekt-kacheln>
+          {liste.map((p) => <ProjektKachel key={p.id} p={p} z={zahlen[p.id]} />)}
+        </div>
+      ) : (
         <div className="overflow-hidden rounded-lg border bg-card">
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
@@ -123,30 +150,38 @@ export default function Projekte() {
             </tbody>
           </table>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {liste.map((p) => {
-            const z = zahlen[p.id];
-            return (
-              <ListenZeile key={p.id} to={`/projekte/${p.id}`}>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">{p.nummer}</span>
-                  <ProjektStatusBadge status={p.status} />
-                </div>
-                <p className="mt-0.5 truncate font-semibold">{p.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {[p.kunden?.name, p.ort].filter(Boolean).join(" · ") || "Ohne Kunde"}
-                  {z && Number(z.stunden) > 0 && <> · <span className="zahl">{stunden(Number(z.stunden))}</span></>}
-                </p>
-                {hatOffenes(z) && p.status !== "abgeschlossen" && <p className="mt-1 text-xs text-muted-foreground"><OffenText z={z} /></p>}
-              </ListenZeile>
-            );
-          })}
-        </div>
       )}
 
       <ProjektDialog open={neuOffen} onOpenChange={setNeuOffen} />
     </Seite>
+  );
+}
+
+/** Eine Kachel: Name, Nummer, Kunde, Ort, Status, Stunden und was noch nicht verrechnet ist */
+function ProjektKachel({ p, z }: { p: ProjektMitKunde; z: ProjektZahlen | undefined }) {
+  const ort = [p.strasse, [p.plz, p.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const offen = p.status !== "abgeschlossen" && hatOffenes(z);
+  return (
+    <Link to={`/projekte/${p.id}`} data-projekt-kachel={p.nummer}
+      className="flex min-h-[8.5rem] min-w-0 flex-col gap-1 rounded-lg border bg-card p-3.5 transition-colors hover:border-primary/50 active:scale-[0.99]">
+      <span className="flex items-start gap-2">
+        <span className="min-w-0 flex-1">
+          <span className="font-mono text-xs text-muted-foreground">{p.nummer}</span>
+          <span className="line-clamp-2 break-words font-semibold leading-snug" title={p.name}>{p.name}</span>
+        </span>
+        <ProjektStatusBadge status={p.status} />
+      </span>
+      {p.kunden?.name && (
+        <span className="flex min-w-0 items-center gap-1.5 text-sm"><User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{p.kunden.name}</span></span>
+      )}
+      {ort && (
+        <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground"><MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate" title={ort}>{ort}</span></span>
+      )}
+      <span className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-0.5 pt-1.5 text-xs text-muted-foreground">
+        {z && Number(z.stunden) > 0 && <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /><span className="zahl">{stunden(Number(z.stunden))}</span></span>}
+        {offen && <span className="font-medium text-status-gelb-fg">Nicht verrechnet: <OffenText z={z} /></span>}
+      </span>
+    </Link>
   );
 }
 

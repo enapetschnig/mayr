@@ -1,5 +1,6 @@
 import type { Json } from "@/integrations/supabase/types";
 import { zahlLesen } from "@/lib/format";
+import { aufschlagAus, kalkPreis } from "@/lib/kalkulation";
 import {
   artikelVk, belegSummen, leistungMaterialEk, leistungPreis, runden2, type LeistungsMaterial,
 } from "@/lib/preise";
@@ -626,4 +627,48 @@ export function fertigHinweise(
     rechnung && brutto < 0 && "Summe negativ — für eine Gutschrift die Rechnung lieber stornieren.",
     (!k.empf_strasse.trim() || !k.empf_ort.trim()) && "Anschrift des Empfängers unvollständig",
   ].filter((w): w is string => !!w);
+}
+
+// ── Aufschlag je Position ──
+
+/** Aufschlag in %, der im Preis steckt — null ohne Einkaufspreis */
+export const aufschlagVon = (p: Pick<EditorPosition, "einzelpreis" | "ek_preis" | "minuten">, satz: number) =>
+  aufschlagAus({ preis: preisVon(p), ek: p.ek_preis, minuten: p.minuten, satz });
+
+/** Aufschlag setzen: Preis = Einkauf × (1 + %) + Montagezeit × Stundensatz. Ohne Einkauf bleibt alles. */
+export function mitAufschlag(p: EditorPosition, aufschlag: number, satz: number): EditorPosition {
+  if (p.ek_preis == null || p.ek_preis <= 0) return p;
+  return { ...p, einzelpreis: preisText(kalkPreis({ ek: p.ek_preis, aufschlag, minuten: p.minuten ?? 0, satz })) };
+}
+
+/**
+ * Einkauf ändern: der Aufschlag bleibt, der Preis folgt. Bekommt eine Position
+ * zum ersten Mal einen Einkauf, bleibt ein schon eingetragener Preis stehen
+ * (der Aufschlag ergibt sich daraus) — ohne Preis gilt der Standard-Aufschlag.
+ */
+export function mitEinkauf(p: EditorPosition, ek: number | null, satz: number, standardAufschlag: number): EditorPosition {
+  if (ek == null || ek <= 0) return { ...p, ek_preis: ek == null ? null : ek };
+  const bisher = aufschlagVon(p, satz);
+  if (bisher == null && preisVon(p) > 0) return { ...p, ek_preis: ek };
+  return mitAufschlag({ ...p, ek_preis: ek }, bisher ?? standardAufschlag, satz);
+}
+
+// ── Eingabezeile im Editor ──
+
+export type SchnellEingabe = { titel: string } | { menge: number; text: string };
+
+/**
+ * Was in der Eingabezeile steht: „#Küche“ = Titel, „3 Steckdose“ oder
+ * „3x Steckdose“ = 3 Stück suchen, sonst 1 Stück.
+ */
+export function schnellLesen(eingabe: string): SchnellEingabe | null {
+  const t = eingabe.trim();
+  if (!t) return null;
+  if (t.startsWith("#")) return t.slice(1).trim() ? { titel: t.slice(1).trim() } : null;
+  const m = t.match(/^(\d+(?:[.,]\d+)?)\s*(?:x|×|stk\.?|stück)?\s+(.+)$/i);
+  if (m) {
+    const menge = Number(m[1].replace(",", "."));
+    if (menge > 0 && menge < 100_000) return { menge, text: m[2].trim() };
+  }
+  return { menge: 1, text: t };
 }

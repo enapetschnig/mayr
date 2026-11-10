@@ -247,7 +247,11 @@ Migration `20261103120000_anlagen.sql`:
 
 ### Zeit und Personal (`lib/zeitkonto.ts`, `components/zeiten/`, Seite `/zeiten`)
 
-- **Art je Stunde** in `zeiten.art`: arbeit, fahrt, ue50, ue100, garantie; dazu `zeiten.km`. Auf der Rechnung
+- **Stunden buchen** (`ZeitDialog`): Dauer oder Von–Bis mit Pause; „Weiterer Block“ bucht mehrere Blöcke
+  am selben Tag, je Block ein eigenes Projekt möglich (`lib/zeitBloecke.ts`: Vorschlag 30 min nach dem
+  letzten Ende, Überschneidungen werden abgelehnt — auch gegen schon gebuchte Zeiten). Jeder Block wird
+  eine eigene Zeile in `zeiten`. Kilometer fragt der Dialog nicht mehr ab (`zeiten.km` bleibt für Altbestand).
+- **Art je Stunde** in `zeiten.art`: arbeit, fahrt, ue50, ue100, garantie. Auf der Rechnung
   bekommen Fahrzeit und Überstunden eine eigene Zeile, Überstunden kosten ×1,5 und ×2 (Preis bleibt änderbar).
   Garantie zählt fürs Konto, aber nie als offen und nie auf der Rechnung.
 - **Abwesenheiten sind keine Zeitbuchungen.** Das Konto rechnet genehmigte Tage mit der Sollzeit des Tages,
@@ -264,8 +268,9 @@ Migration `20261103120000_anlagen.sql`:
 ### Einsätze am Handy (`components/einsatz/EinsatzBereich.tsx`)
 
 Ein Einsatz ist ein Termin mit Status. Die Startseite zeigt heute und den nächsten Arbeitstag mit Adresse, Navi,
-Telefon und den Schnellwegen zu Stunden, Material und Regie. Beginnen und Erledigt setzen die Zeiten per Trigger
-`termin_einsatz` und gelten nicht als Terminänderung. Verschiebt das Büro einen Termin, sieht der Monteur beim
+Telefon und den Schnellwegen zu Stunden, Material und Regie. Einen Knopf „Beginnen“ gibt es nicht mehr (die
+Zeit kommt aus den Stunden); „Erledigt“ setzt den Status per Trigger `termin_einsatz` und gilt nicht als
+Terminänderung. Verschiebt das Büro einen Termin, sieht der Monteur beim
 nächsten Öffnen „Termin geändert“; was schon gesehen wurde, merkt sich das Gerät (`elektro.termine.gesehen`). Der
 Chef sieht auf der Startseite Anträge und „erledigter Einsatz, noch nicht verrechnet“.
 
@@ -338,8 +343,14 @@ Bewusst einfach, kein eigenes Kalkulationsblatt:
   Material-Einkauf, was nach Material bleibt und je Arbeitsstunde
   (`rohertrag`). „Alle Preise ± %“ für Nachlass oder Zuschlag
   (`umProzent`).
-- **Aufschlag überall sichtbar**: unter jedem Preis „EK 12,34 · +35 %“; im
-  Positionsdialog Aufschlag ±5 und der Preis rechnet live mit (und umgekehrt).
+- **Aufschlag je Position direkt in der Tabelle** (PC ab 1280 px): Spalten
+  EK | Aufschlag % | EP netto hängen zusammen (`mitEinkauf`, `mitAufschlag`,
+  `aufschlagVon` in `components/belege/editor.ts`): Aufschlag ändern →
+  Preis neu; EK ändern → Aufschlag bleibt, Preis rechnet mit; freier Preis
+  ohne EK → EK eintragen zeigt den Aufschlag. Arbeitsminuten bleiben im Preis.
+  Spalten ausblendbar („EK/Aufschlag ausblenden“, `elektro.beleg.kalk`), kleiner
+  sonst als „EK 12,34 · +35 %“ unter dem Preis; im Positionsdialog Aufschlag
+  ±5 und der Preis rechnet live mit (und umgekehrt).
   „Aufschläge“ im Summenblock setzt Material-Aufschlag und Stundensatz für den
   ganzen Beleg (`aufschlaegeSetzen`; Arbeit nur, wo noch der alte Satz steht).
 - **Material per KI** (`KiMaterialDialog`): „PV-Anlage 9 kW mit Speicher“
@@ -353,8 +364,24 @@ Bewusst einfach, kein eigenes Kalkulationsblatt:
 
 ### Angebote und Rechnungen (`components/belege/`)
 
+- **Eigene Menüpunkte** `/angebote` und `/rechnungen` (`pages/Belege.tsx`,
+  direkt unter Projekte; `/belege?…` leitet weiter). Kennzahlen oben sind
+  zugleich Filter. Angebote: Ohne Antwort, Nachfassen (offen und gültig bis
+  in ≤ 7 Tagen oder abgelaufen), Angenommen, Entwurf, In Rechnung, Abgelehnt.
+  Rechnungen: Offen, Überfällig, Entwurf, Bezahlt, Storniert. Die Startseite
+  verlinkt „nachfassen“ und Entwürfe direkt in den Filter.
 - Ein Editor für beide (`BelegEditor`): Titel als Räume/Abschnitte, Positionen
   aus Leistungskatalog, Artikelstamm, frei oder diktiert (`lib/sprachParser.ts`).
+- **Eingabezeile am PC** (`Eingabezeile.tsx`) unter der Tabelle: tippen,
+  ↑↓, Enter. Sucht Leistungen und Artikel (auch Datanorm); ohne Treffer eine
+  freie Position (Fokus springt in deren Preis). „3 Steckdose“ = Menge 3,
+  „#Küche“ = Titel (`schnellLesen`). Knöpfe „+ Titel“ und „Text“.
+- **Titel ohne Dialog**: direkt in der Zeile benennen (Vorschläge Küche, Bad …
+  als Liste bzw. am Handy als Chips); „Titel darüber einfügen“ im Zeilenmenü.
+  Neue Positionen landen unter dem zuletzt angetippten Titel.
+- Langtext klein und grau (2 Zeilen), antippen zum Bearbeiten. Am PC unten
+  eine feste Summenleiste mit Netto, Brutto, „bleibt nach Material“, je
+  Stunde und Speichern.
 - „Aus dem Projekt übernehmen“ (`ImportDialog`, `importieren.ts`): angenommenes
   Angebot, unterschriebene Regieberichte (je Bericht ein Titel mit Stunden und
   Material samt Zwischensumme), Stunden und Material ohne Bericht. Nicht
@@ -453,7 +480,13 @@ eintragen; dann „Laufende Projekte“, darunter „Zu erledigen“ (Anträge, 
 mahnen, Rechnungen prüfen/überweisen, Skonto läuft ab, Fuhrpark fällig,
 Schäden, zuzuordnen …), dann Einsatz und Schnell festhalten. Das Seitenmenü
 lässt sich ganz auf Symbole einklappen (Cookie `sidebar:state`), jede Gruppe
-einzeln zuklappen (die der offenen Seite bleibt offen).
+einzeln zuklappen (die der offenen Seite bleibt offen). Im Menü stehen Angebote
+und Rechnungen direkt unter Projekte.
+
+Projekte (`pages/Projekte.tsx`) als Kacheln: Nummer, Name, Status, Kunde,
+Adresse, Stunden und was noch nicht verrechnet ist; am Handy eine Spalte,
+ab 480 px zwei, PC drei bis vier. Am PC umschaltbar auf die Liste
+(`elektro.projekte.ansicht`).
 
 ### Betrieb (Einstellungen)
 

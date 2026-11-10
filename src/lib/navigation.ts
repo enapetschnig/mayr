@@ -1,5 +1,5 @@
 import {
-  BarChart3, BookOpenCheck, Bus, FileCheck2, LayoutGrid, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
+  BarChart3, BookOpenCheck, Bus, FileCheck2, FileText, LayoutGrid, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
   Receipt, ScanBarcode, Settings, ShieldCheck, ShoppingCart, Smartphone, Users, Warehouse, type LucideIcon,
 } from "lucide-react";
 
@@ -26,6 +26,8 @@ export type NavEintrag = {
 export const NAVIGATION: NavEintrag[] = [
   { titel: "Start", text: "Übersicht", pfad: "/", icon: Home, gruppe: "haupt" },
   { titel: "Projekte", text: "Baustellen mit Fotos, Stunden, Material", pfad: "/projekte", icon: FolderKanban, gruppe: "haupt" },
+  { titel: "Angebote", text: "Schreiben, vor Ort per Sprache, nachfassen", pfad: "/angebote", icon: FileText, gruppe: "haupt", nurChef: true },
+  { titel: "Rechnungen", text: "Aus dem Projekt, PDF mit Bezahl-QR", pfad: "/rechnungen", icon: Receipt, gruppe: "haupt", nurChef: true },
   { titel: "Plantafel", text: "Teams, Leute, Busse und Steiger einteilen", textMonteur: "Wer fährt wann mit wem wohin", pfad: "/plantafel", icon: LayoutGrid, gruppe: "haupt" },
   { titel: "Kalender", text: "Termine und wer wo eingeteilt ist", pfad: "/kalender", icon: CalendarDays, gruppe: "haupt" },
 
@@ -37,7 +39,6 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Fuhrpark", text: "Busse, Steiger, Maschinen — Pickerl, Service, Schäden", pfad: "/fuhrpark", icon: Bus, gruppe: "baustelle" },
   { titel: "Anlagen & Prüfungen", text: "E-Check, Verteiler, Blitzschutz — was fällig ist", pfad: "/anlagen", icon: ShieldCheck, gruppe: "baustelle" },
 
-  { titel: "Angebote & Rechnungen", text: "Vor Ort per Sprache, PDF mit Bezahl-QR", pfad: "/belege", icon: Receipt, gruppe: "buero", nurChef: true },
   { titel: "Offene Posten", text: "Wer noch zahlen muss, mahnen mit einem Tipp", pfad: "/offene-posten", icon: HandCoins, gruppe: "buero", nurChef: true },
   { titel: "Buchhaltung", text: "Der Monat für den Steuerberater, BMD und RZL", pfad: "/buchhaltung", icon: BookOpenCheck, gruppe: "buero", nurChef: true },
   { titel: "Eingangsrechnungen", text: "Rechnungen vom Großhändler zuordnen", pfad: "/eingang", icon: Inbox, gruppe: "buero", nurChef: true },
