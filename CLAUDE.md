@@ -42,10 +42,11 @@ npm run check        # Absturz-Wächter
 npm test             # vitest (Parser)
 ```
 
-Regeln in der Datenbank prüfen (182 Prüfungen: nicht freigeschaltet, Monteur,
-Chef, Festschreiben, Offene Posten, Stornorechnung, Korrektur, Eingangsrechnungen,
-Teil-/Schlussrechnung, Anlagen und Prüfprotokolle, Bestellungen,
-Regiebericht, Material, Konten, Rechnungsarchiv, Abwesenheiten, Zeitkonto, Einsätze, Buchhaltung) — legt echte Daten und Nummern an, danach **immer** aufräumen:
+Regeln in der Datenbank prüfen (219 Prüfungen: nicht freigeschaltet, Monteur,
+Chef, Festschreiben, Offene Posten, Stornorechnung, Korrektur, Eingangsrechnungen
+mit Freigabe und Positionen, Teil-/Schlussrechnung, Anlagen und Prüfprotokolle,
+Bestellungen, Regiebericht, Material, Konten, Rechnungsarchiv, Abwesenheiten,
+Zeitkonto, Einsätze, Buchhaltung, Fuhrpark und Teams, Lieferscheine, Rabatte) — legt echte Daten und Nummern an, danach **immer** aufräumen:
 
 ```bash
 node tests/rls-test.mjs anlegen                  # 3 Testkonten, dann die ausgegebenen SQL-Zeilen
@@ -79,10 +80,16 @@ Einzeln: `scripts/demo-dateien-loeschen.mjs`, dann `supabase/demo/01-stamm.sql`,
 danach `demo-dateien-loeschen.mjs --archiv` (abgelegte Rechnungs-PDFs — erst
 löschbar, wenn die Rechnung weg ist), `02-artikel.sql` (aus `artikel_sql.py`
 erzeugt), `03-verlauf.sql` je mit `scripts/sql.sh -f`, zuletzt
-`supabase/demo/unterschriften.py`. Demo-Artikel: 158 echte Sonepar-Artikel
-(`artikel-sonepar.json`: Artikelnummer, EAN, Listenpreis samt Kupferzuschlag;
-Hager-Verteiler, Jung LS 990). EK ist ein Demo-Rabatt je Kategorie — echte
-Netto-Konditionen nie ins Repo (öffentlich). Unterschriften
+`supabase/demo/unterschriften.py` und `lieferscheine.py` (Fotos der Demo-Lieferscheine).
+Demo-Artikel: 158 Sonepar-Artikel aus `artikel-sonepar.json` (Artikelnummer, EAN,
+Listenpreis samt Kupferzuschlag) plus ~72.000 aus der Sonepar-Datanorm
+(`quelle = 'datanorm'`, übersteht das Zurücksetzen; neu einspielen mit
+`scripts/datanorm-einspielen.ts <Ordner>`, nur die Marken eines Elektrobetriebs).
+EK = Liste − Rabatt aus der Tabelle `rabatte` (je Lieferant, Hersteller,
+Rabattgruppe; Demo: Sonepar 32 %, Hager 36 %, AI25 40 %), angewandt in Häppchen
+per `rabatte_anwenden` — echte Netto-Konditionen nie ins Repo (öffentlich).
+Demo-Konten: chef/max/lisa plus tom, eva, stefan, sarah, jonas (Passwort
+`demo123`, anlegen mit `SUPABASE_SERVICE_KEY=… node scripts/demo-konten.mjs`). Unterschriften
 im Speicher lassen sich nicht löschen (Policy `unterschriften_bleiben`) — alte
 bleiben nach dem Zurücksetzen als verwaiste Dateien liegen, wenige KB.
 
@@ -94,6 +101,15 @@ Neue Migrationen: `scripts/sql.sh push --dry-run`, dann `scripts/sql.sh push`
 Die Rolle `postgres` darf `session_replication_role` nicht setzen — das
 Zurücksetzen schaltet die Festschreib-Trigger per `alter table … disable
 trigger user` nur innerhalb der eigenen Transaktion aus.
+
+## KI (Edge Function `ki`)
+
+`supabase/functions/ki/index.ts`, Modell `claude-opus-5-5`, Secret
+`ANTHROPIC_API_KEY` (`supabase secrets set`). Aufgaben: `material_vorschlag`
+(„PV-Anlage 9 kW“ → Komponenten aus dem eigenen Artikelstamm, `artikel_suchen`
+ohne Unscharf, höchstens 4 parallel — sonst Statement-Timeout 8 s) und
+`beleg_lesen` (Eingangsrechnung oder Lieferschein aus Foto/PDF). Aufrufer:
+`src/lib/ki.ts`. Deploy: `supabase functions deploy ki --project-ref xcsbbaiwzdivmaodltxm --use-api`.
 
 ## Stolpersteine
 

@@ -35,9 +35,12 @@ Hardware existiert.
 | 6 | **Einsätze am Handy** | Monteur-Startseite „Heute / Morgen“ mit Adresse, Navi, Telefon; Einsatz begonnen/erledigt; Chef sieht „erledigt, noch nicht verrechnet“; Kundendienst/dringend; Hinweis an den Monteur, wenn sich sein Termin ändert | fertig (04.11.2026) |
 | 7 | **Angebot & Rechnung verfeinern** | Wahlpositionen (mit Preis, ohne Summe; beim Umwandeln fragen), sichtbarer Nachlass im Summenblock, Skonto in der Zahlungsbedingung und Zahlungsziel je Kunde, Haftrücklass, Angebot vor Ort unterschreiben (= angenommen), Preise aus dem Stamm neu holen, Nachfass-Datum, PDF ohne Einzelpreise, Räume aus einem anderen Beleg holen | geplant |
 | 8 | **Buchhaltung** | Monatsexport für den Steuerberater (BMD/RZL/DATEV-CSV + alle PDFs als ZIP, „übergeben am“), E-Rechnung ebInterface 6.1 und ZUGFeRD, Bankauszug (ELBA-CSV/camt.053) einlesen und Zahlungen zuordnen, Beleg per E-Mail aus der App mit „gesendet am“, Komplett-Datenexport | Monatsexport BMD/RZL + PDFs fertig (04.11.2026); DATEV, E-Rechnung, Bankauszug, E-Mail, Datenexport offen |
-| 9 | **Eingangsrechnungen einlesen** | ZUGFeRD-/XRechnung-Daten aus dem PDF als Vorschlag, Abgleich mit der Bestellung (teurer = rot), Skonto-Frist mit Erinnerung | geplant |
+| 9 | **Eingangsrechnungen einlesen** | ZUGFeRD-/XRechnung-Daten aus dem PDF als Vorschlag, Abgleich mit der Bestellung (teurer = rot), Skonto-Frist mit Erinnerung | KI liest Foto/PDF, prüfen → freigeben → SEPA-Datei, Positionen je Projekt, Lieferschein-Abgleich, Skonto auf der Startseite (10.11.2026); ZUGFeRD-XML und Abgleich mit der Bestellung offen |
 | 10 | **Kunden & Stamm** | Mehrere Ansprechpartner, eigene Rechnungsadresse (Hausverwaltung), Reverse Charge am Kunden, Warnung bei säumigen Kunden, Textbausteine, Aufschlag je Warengruppe, Kostensatz je Mitarbeiter (echte Nachkalkulation), Preisänderungsliste nach Datanorm-Import, Kupferzuschlag | geplant |
 | 11 | **Geräte, Etiketten, Mängel** | Geräte & Werkzeuge mit QR (Übergabe per Scan, Kalibriertermine, Messgerät im Prüfprotokoll), Strichcode-Etiketten für Lagerartikel, Mängel mit Frist bei Anlagen → Angebot | geplant |
+| 13 | **Plantafel & Fuhrpark** | Teams mit Bus, Einsätze ziehen, Steiger und Maschinen einteilen, Konflikte, Bordbuch, Pickerl/Service/Prüfung fällig, Schäden vom Handy | ✅ 10.11.2026 |
+| 14 | **Stundenauswertung** | Zeitraum, Mitarbeiter/Team, Projekt, Art, verrechnet; gruppiert, CSV, Stundennachweis | ✅ 10.11.2026 |
+| 15 | **KI im Angebot** | Material per KI aus dem eigenen Stamm, Aufschläge je Position und Beleg, Rabatte je Lieferant/Hersteller/Rabattgruppe | ✅ 10.11.2026 |
 | 12 | **Später / auf Wunsch** | Offline-Warteschlange für Buchungen, einfaches Aufmaß, ÖNORM-LV | später |
 
 Bewusst **nicht** übernommen: Registrierkasse/Barverkauf (RKSV-Signatur braucht zertifizierte Hardware
@@ -67,3 +70,7 @@ und darf nicht abschließen (auch per Trigger).
 Noch offen aus dem Abgleich: echter Endrabatt im Summenblock und Wahlpositionen (#7), Skonto und Haftrücklass auf
 der Rechnung, Mahntexte und Mahnsperre, Mängel mit Frist (#11), Plantafel ziehen, Einsatz annehmen/abschließen (#6),
 UID-Prüfung und PLZ→Ort (#10), Bewegungsliste je Artikel, Inventur-PDF.
+
+Am 10.11.2026 erledigt: Plantafel ziehen (#13). Als Nächstes sinnvoll und einfach: Wahlpositionen und Endrabatt
+(#7), Angebot vor Ort unterschreiben, Bankauszug einlesen (#8), Geräte mit QR (#11), Preisänderungsliste nach
+dem Datanorm-Import (#10).

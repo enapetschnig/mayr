@@ -1,7 +1,8 @@
 // Spielt die Sonepar-Datanorm in den Demo-Artikelstamm — mit dem Leser und den
 // Import-Regeln der App (wie „Artikel → Importieren“). Nur die Marken, die ein
 // Elektrobetrieb täglich braucht; alle 594.000 Artikel wären zu groß für die
-// Demo-Datenbank. EK = Liste − Demo-Rabatt (echte Konditionen nie ins Repo).
+// Demo-Datenbank. EK = Liste − Rabatt aus der Tabelle `rabatte` (am Ende per
+// rabatte_anwenden; echte Konditionen nie ins Repo).
 //
 // Die Artikel tragen quelle = 'datanorm' und überstehen das Zurücksetzen der
 // Demo (01-stamm.sql löscht nur die übrigen). Die 158 Demo-Artikel aus

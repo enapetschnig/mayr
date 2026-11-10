@@ -617,6 +617,108 @@ console.log("\n— Buchhaltung —");
   await chef.from("kreditor_konten").delete().eq("schluessel", "rls-test lieferant");
 }
 
+// Fuhrpark und Teams: alle sehen, der Chef pflegt; Monteure melden Schäden und tanken
+{
+  const { error: e1 } = await monteur.from("fahrzeuge").insert({ name: "RLS-Test Bus Monteur" });
+  ok(!!e1, "Monteur legt kein Fahrzeug an" + abgelehnt(e1));
+  const { data: fz, error: e2 } = await chef.from("fahrzeuge").insert({ name: "RLS-Test Steiger", art: "steiger", pruefung_bis: "2030-01-01" }).select("id").single();
+  ok(!e2, "Chef legt einen Steiger an" + (e2 ? abgelehnt(e2) : ""));
+  const { data: fzM } = await monteur.from("fahrzeuge").select("id").eq("id", fz.id);
+  ok(fzM?.length === 1, "Monteur sieht den Fuhrpark");
+  const { data: fzN } = await neu.from("fahrzeuge").select("id").eq("id", fz.id);
+  ok(!fzN?.length, "Nicht freigeschaltet sieht keinen Fuhrpark");
+  const { data: fzU } = await monteur.from("fahrzeuge").update({ km_stand: 1 }).eq("id", fz.id).select("id");
+  ok(!fzU?.length, "Monteur ändert kein Fahrzeug");
+  const { error: e3 } = await monteur.from("fahrzeug_eintraege").insert({ fahrzeug_id: fz.id, art: "schaden", text: "RLS-Test Kratzer", erledigt: false, erstellt_von: monteurId });
+  ok(!e3, "Monteur meldet einen Schaden" + (e3 ? abgelehnt(e3) : ""));
+  const { error: e4 } = await monteur.from("fahrzeug_eintraege").insert({ fahrzeug_id: fz.id, art: "service", text: "RLS-Test Service", erstellt_von: monteurId });
+  ok(!!e4, "Service trägt nur der Chef ein" + abgelehnt(e4));
+  const { data: eU } = await monteur.from("fahrzeug_eintraege").update({ erledigt: true }).eq("fahrzeug_id", fz.id).select("id");
+  ok(!eU?.length, "Schaden erledigen kann nur der Chef");
+
+  const { error: e5 } = await monteur.from("teams").insert({ name: "RLS-Test Team Monteur" });
+  ok(!!e5, "Monteur legt kein Team an" + abgelehnt(e5));
+  const { data: tm, error: e6 } = await chef.from("teams").insert({ name: "RLS-Test Team", mitglieder: [monteurId], fahrzeug_id: fz.id }).select("id").single();
+  ok(!e6, "Chef stellt ein Team mit Bus zusammen" + (e6 ? abgelehnt(e6) : ""));
+  const { data: tmM } = await monteur.from("teams").select("id").eq("id", tm.id);
+  ok(tmM?.length === 1, "Monteur sieht die Teams");
+
+  // Einsatz mit Team und Steiger: der Monteur sieht ihn
+  const { data: te, error: e7 } = await chef.from("termine").insert({ titel: "RLS-Test Einsatz Steiger", datum: "2030-01-02", team_id: tm.id, mitarbeiter: [monteurId], fahrzeuge: [fz.id], projekt_id: projekt.id }).select("id").single();
+  ok(!e7, "Chef teilt Team und Steiger ein" + (e7 ? abgelehnt(e7) : ""));
+  const { data: teM } = await monteur.from("termine").select("id, fahrzeuge").eq("id", te?.id ?? "");
+  ok(teM?.[0]?.fahrzeuge?.includes(fz.id), "Monteur sieht den Einsatz samt Steiger");
+  await chef.from("termine").delete().eq("id", te?.id ?? "");
+  await chef.from("teams").delete().eq("id", tm.id);
+  const { error: e8 } = await chef.from("fahrzeuge").delete().eq("id", fz.id);
+  ok(!e8, "Chef löscht das Fahrzeug samt Einträgen" + (e8 ? abgelehnt(e8) : ""));
+}
+
+// Eingangsrechnungen: prüfen → freigeben → überwiesen; Positionen nur der Chef
+{
+  const { data: er, error: e1 } = await chef.from("eingangsrechnungen")
+    .insert({ lieferant: "RLS-Test Großhandel", nummer: "RLS-2", netto: 200, ust_satz: 20, ust: 40, brutto: 240, iban: "AT611904300234573201" }).select("id, freigabe").single();
+  ok(!e1 && er.freigabe === "offen", "Neue Eingangsrechnung ist zu prüfen" + (e1 ? abgelehnt(e1) : ""));
+  const { error: e2 } = await monteur.from("eingangsrechnungen").update({ freigabe: "freigegeben" }).eq("id", er.id);
+  const { data: nachM } = await chef.from("eingangsrechnungen").select("freigabe").eq("id", er.id).single();
+  ok(nachM.freigabe === "offen", "Monteur gibt keine Rechnung frei" + (e2 ? ` — ${e2.message}` : ""));
+  const { error: e3 } = await monteur.from("eingang_positionen").insert({ eingangsrechnung_id: er.id, bezeichnung: "RLS-Test Kabel", gesamt: 10 });
+  ok(!!e3, "Monteur schreibt keine Rechnungspositionen" + abgelehnt(e3));
+  const { error: e4 } = await chef.from("eingang_positionen").insert([
+    { eingangsrechnung_id: er.id, pos: 1, bezeichnung: "RLS-Test NYM-J 3x1,5", menge: 100, einheit: "m", einzelpreis: 1, gesamt: 100, projekt_id: projekt.id, lieferschein_nr: "RLS-LS-1", artikelnummer: null },
+    { eingangsrechnung_id: er.id, pos: 2, bezeichnung: "RLS-Test Dose", menge: 50, einheit: "Stk", einzelpreis: 2, gesamt: 100, projekt_id: null, lieferschein_nr: null, artikelnummer: null },
+  ]);
+  ok(!e4, "Chef ordnet Positionen einzeln Projekten zu" + (e4 ? abgelehnt(e4) : ""));
+  const { data: fr, error: e5 } = await chef.from("eingangsrechnungen").update({ freigabe: "freigegeben" }).eq("id", er.id).select("freigabe, freigegeben_von, freigegeben_am").single();
+  ok(!e5 && fr.freigegeben_von === chefId && !!fr.freigegeben_am, "Freigabe merkt sich wer und wann" + (e5 ? abgelehnt(e5) : ""));
+  const { data: ge } = await chef.from("eingangsrechnungen").update({ brutto: 250, ust: 50, netto: 200 }).eq("id", er.id).select("freigabe").single();
+  ok(ge?.freigabe === "offen", "Betrag nach der Freigabe geändert → wieder zu prüfen");
+  const { data: ab, error: e6 } = await chef.from("eingangsrechnungen").update({ freigabe: "abgelehnt", abgelehnt_grund: "RLS-Test falsch" }).eq("id", er.id).select("freigabe").single();
+  ok(!e6 && ab.freigabe === "abgelehnt", "Chef lehnt ab" + (e6 ? abgelehnt(e6) : ""));
+  const { error: e7 } = await chef.from("eingangsrechnungen").update({ bezahlt_am: "2030-01-05" }).eq("id", er.id);
+  ok(!!e7, "Abgelehnte Rechnung wird nicht überwiesen" + abgelehnt(e7));
+  const { data: wi, error: e8 } = await chef.from("eingangsrechnungen").update({ freigabe: "offen" }).eq("id", er.id).select("abgelehnt_grund").single();
+  ok(!e8 && wi.abgelehnt_grund === null, "Zurück auf prüfen löscht den Grund" + (e8 ? abgelehnt(e8) : ""));
+  const { data: bz, error: e9 } = await chef.from("eingangsrechnungen").update({ bezahlt_am: "2030-01-05" }).eq("id", er.id).select("freigabe").single();
+  ok(!e9 && bz.freigabe === "freigegeben", "Schon bezahlt (Karte, bar) gilt als geprüft" + (e9 ? abgelehnt(e9) : ""));
+
+  // Lieferscheine: Monteur fotografiert, sieht nur die eigenen; zugeordnet bleibt er
+  const { error: e10 } = await monteur.from("lieferscheine").insert({ datei_pfad: `${chefId}/rls.jpg`, lieferant: "RLS-Test Großhandel", erstellt_von: chefId });
+  ok(!!e10, "Lieferschein nur auf den eigenen Namen" + abgelehnt(e10));
+  const { data: ls, error: e11 } = await monteur.from("lieferscheine").insert({ datei_pfad: `${monteurId}/rls.jpg`, lieferant: "RLS-Test Großhandel", nummer: "RLS-LS-1", projekt_id: projekt.id, erstellt_von: monteurId }).select("id").single();
+  ok(!e11, "Monteur legt einen Lieferschein an" + (e11 ? abgelehnt(e11) : ""));
+  const { data: lsC } = await chef.from("lieferscheine").select("id").eq("id", ls.id);
+  ok(lsC?.length === 1, "Chef sieht den Lieferschein");
+  const { data: lsN } = await neu.from("lieferscheine").select("id").eq("id", ls.id);
+  ok(!lsN?.length, "Nicht freigeschaltet sieht ihn nicht");
+  const { error: e12 } = await chef.from("lieferscheine").update({ eingangsrechnung_id: er.id }).eq("id", ls.id);
+  ok(!e12, "Chef ordnet ihn der Rechnung zu" + (e12 ? abgelehnt(e12) : ""));
+  const { data: lsD } = await monteur.from("lieferscheine").delete().eq("id", ls.id).select("id");
+  ok(!lsD?.length, "Zugeordnet löscht der Monteur ihn nicht mehr");
+  const { error: e13 } = await monteur.storage.from("lieferscheine").upload(`${chefId}/rls-test.txt`, new Blob(["x"]), { contentType: "text/plain" });
+  ok(!!e13, "Foto nur in den eigenen Ordner" + abgelehnt(e13));
+
+  await chef.from("lieferscheine").delete().eq("id", ls.id);
+  await chef.from("eingangsrechnungen").delete().eq("id", er.id);
+  const { data: rest } = await chef.from("eingang_positionen").select("id").eq("eingangsrechnung_id", er.id);
+  ok(!rest?.length, "Positionen gehen mit der Rechnung");
+}
+
+// Rabatte beim Großhandel: nur der Chef
+{
+  const { error: e1 } = await monteur.from("rabatte").insert({ lieferant: "RLS-Test", rabatt: 30 });
+  ok(!!e1, "Monteur trägt keine Rabatte ein" + abgelehnt(e1));
+  const { data: r, error: e2 } = await chef.from("rabatte").insert({ lieferant: "RLS-Test", rabatt: 30 }).select("id").single();
+  ok(!e2, "Chef trägt einen Rabatt ein" + (e2 ? abgelehnt(e2) : ""));
+  const { data: rM } = await monteur.from("rabatte").select("id");
+  ok(!rM?.length, "Monteur sieht keine Einkaufskonditionen");
+  const { error: e3 } = await monteur.rpc("rabatte_anwenden", { p_lieferant: "RLS-Test", p_max: 10 });
+  ok(!!e3, "Rabatte anwenden nur der Chef" + abgelehnt(e3));
+  const { data: n, error: e4 } = await chef.rpc("rabatte_anwenden", { p_lieferant: "RLS-Test", p_max: 10 });
+  ok(!e4 && n === 0, "Chef wendet an (ohne Artikel: 0)" + (e4 ? abgelehnt(e4) : ""));
+  await chef.from("rabatte").delete().eq("id", r.id);
+}
+
 console.log(fehlgeschlagen ? `\n✗ ${fehlgeschlagen} Prüfung(en) fehlgeschlagen` : "\n✓ Alle Prüfungen bestanden");
 console.log("Jetzt tests/rls-aufraeumen.sql ausführen.");
 process.exit(fehlgeschlagen ? 1 : 0);

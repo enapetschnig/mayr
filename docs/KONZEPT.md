@@ -154,6 +154,24 @@ Rechnungen von Großhändlern und Subunternehmern, nur der Chef
   verteilt noch Betrieb ist (`eingangLogik.zuordnung`) — steht auf der
   Startseite unter „Zu erledigen“.
 - Im Projekt → Belege und in der Nachkalkulation als Einkauf.
+- **Ablauf** (Migration `20261110110000_eingang_freigabe_lieferscheine.sql`):
+  `freigabe` offen → freigegeben (wer, wann) oder abgelehnt (mit Grund) →
+  `bezahlt_am`. Überweisen geht erst nach der Freigabe (Trigger
+  `eingang_freigabe`); wer Lieferant, Betrag, IBAN oder Nummer nach der
+  Freigabe ändert, schickt sie zurück auf „zu prüfen“. Schon bezahlt erfasst
+  (Karte, bar) gilt als geprüft. Seite `/eingang`: Zu prüfen → Zu überweisen
+  (Häkchen, Skonto bis zum Skonto-Tag, `sepa.ts` erzeugt pain.001 fürs
+  Banking) → Überwiesen.
+- **Positionen** (`eingang_positionen`): die Zeilen der Rechnung, je Zeile ein
+  Projekt; „Aufteilung aus den Positionen übernehmen“ macht daraus die
+  Anteile (`anteileAusPositionen`, in Cent). „Mit KI ausfüllen“ liest Kopf,
+  IBAN, Skonto, Lieferscheinnummern und Positionen aus Foto oder PDF.
+- **Lieferscheine** (Seite `/lieferscheine`): Monteur fotografiert am Handy,
+  die KI liest Nummer und Zeilen; der Monteur sieht nur die eigenen. In der
+  Eingangsrechnung schlägt die App passende Lieferscheine vor (Nummer,
+  Lieferant) und gleicht Zeile für Zeile ab (`eingangLogik.abgleich`: passt /
+  andere Menge / nicht geliefert / nicht verrechnet; Fracht und Zuschläge
+  zählen nicht). Zugeordnet kann der Monteur ihn nicht mehr löschen.
 - **Weiterverrechnen**: „Aus dem Projekt übernehmen“ zeigt freie Anteile,
   nie vorgewählt (Material daraus ist oft schon ausgefasst). Je Anteil eine
   Zeile: Einkauf + Aufschlag (Vorgabe Materialaufschlag), Material als
@@ -318,8 +336,20 @@ Bewusst einfach, kein eigenes Kalkulationsblatt:
   Position (`ek_preis`, `minuten`), nie auf dem PDF.
 - **Kalkulationskasten** unter den Summen (nur am Bildschirm): Stunden,
   Material-Einkauf, was nach Material bleibt und je Arbeitsstunde
-  (`rohertrag`). „Alle Preise ändern“ ± % für Aufschlag oder Rabatt
+  (`rohertrag`). „Alle Preise ± %“ für Nachlass oder Zuschlag
   (`umProzent`).
+- **Aufschlag überall sichtbar**: unter jedem Preis „EK 12,34 · +35 %“; im
+  Positionsdialog Aufschlag ±5 und der Preis rechnet live mit (und umgekehrt).
+  „Aufschläge“ im Summenblock setzt Material-Aufschlag und Stundensatz für den
+  ganzen Beleg (`aufschlaegeSetzen`; Arbeit nur, wo noch der alte Satz steht).
+- **Material per KI** (`KiMaterialDialog`): „PV-Anlage 9 kW mit Speicher“
+  sagen oder tippen → die KI schlägt Komponenten mit Menge vor, je Zeile ein
+  Artikel aus dem eigenen Stamm samt Alternativen oder „Ohne Artikel“; nichts
+  ist übernommen, bevor man es abhakt. Erfindet keine Artikelnummern.
+- **Rabatte beim Großhandel** (`rabatte`, Artikel → Rabatte, nur Chef): je
+  Lieferant, optional Hersteller oder Rabattgruppe; das genaueste gewinnt.
+  `rabatte_anwenden` rechnet EK = Liste − Rabatt neu (in Häppchen wegen des
+  Timeouts). Artikelsuche filtert nach Hersteller (serverseitig).
 
 ### Angebote und Rechnungen (`components/belege/`)
 
@@ -377,6 +407,40 @@ Bewusst einfach, kein eigenes Kalkulationsblatt:
 - Bekannte Grenze: eine einzeln gelöschte Materialzeile eines übernommenen
   Berichts kommt nur über einen neuen Import zurück.
 
+### Plantafel, Teams und Fuhrpark (Seiten `/plantafel`, `/fuhrpark`)
+
+Migration `20261110100000_fuhrpark_teams_plantafel.sql`, Logik in
+`lib/plantafel.ts` und `lib/fuhrpark.ts` (getestet):
+- `fahrzeuge`: Busse, PKW, Steiger, Anhänger, Maschinen, Messgeräte —
+  Kennzeichen, Pickerl/Service/Prüfung bis, gemietet, stillgelegt.
+  `fahrzeug_eintraege` = Bordbuch (Service, Reparatur, Prüfung, Schaden,
+  Tanken); Monteure melden Schäden und Tanken, alles andere der Chef.
+- `teams`: Name, Farbe, Leitung, Mitglieder, Stamm-Bus. Ein Einsatz
+  (`termine`) hat `team_id`, `mitarbeiter[]` und `fahrzeuge[]`.
+- Plantafel: Zeilen nach Team, Person oder Fahrzeug, Spalten Tage; Einsätze
+  ziehen (`ablegen`: anderes Team → Leute und Bus wechseln mit, Person auf
+  Person tauscht), Leute und Steiger aus der Seitenleiste auf einen Einsatz
+  ziehen (`zuweisen`). Konflikte (doppelt, abwesend) rot. Der Monteur sieht
+  seine Einsätze wie gehabt am Handy.
+- Fällig (Pickerl, Service, Prüfung in 30 Tagen) und offene Schäden stehen
+  im Fuhrpark und auf der Startseite.
+
+### Stundenauswertung (Auswertung → Stunden)
+
+`lib/stundenAuswertung.ts`: Zeitraum (Woche, Monat, Jahr, frei), Filter nach
+Mitarbeiter oder Team, Projekt (auch „ohne“), Art und verrechnet; gruppiert
+nach Mitarbeiter, Projekt, Woche, Tag oder Art, jede Gruppe aufklappbar bis
+zur einzelnen Buchung. CSV und Stundennachweis-PDF der Auswahl.
+
+### Startseite und Menü
+
+PC: oben „Laufende Projekte“, darunter „Zu erledigen“ (Anträge, überfällig,
+mahnen, Rechnungen prüfen/überweisen, Skonto läuft ab, Fuhrpark fällig,
+Schäden, zuzuordnen …), dann Einsatz und Schnell festhalten. Das Seitenmenü
+lässt sich ganz auf Symbole einklappen (Cookie `sidebar:state`), jede Gruppe
+einzeln zuklappen (die der offenen Seite bleibt offen); oben die
+Schnellaktionen Neues Projekt, Neue Rechnung, Termin eintragen.
+
 ### Betrieb (Einstellungen)
 
 - Stundensatz über 0 €, weitere Stundensätze mit Namen (ohne doppelte),
@@ -431,15 +495,15 @@ Bewusst einfach, kein eigenes Kalkulationsblatt:
   EK = Listenpreis − Rabatt, Preise immer **je 1 Einheit**. Vorhandene Artikel
   erkennt der Import an Lieferant + Artikelnummer (`unique`, Upsert) — ein
   zweiter Import aktualisiert die Preise, statt doppelt anzulegen.
-  Echte Sonepar-Daten gibt es in der Demo nicht; eine Sonepar-Lieferung
-  (Datanorm oder CSV aus dem Webshop) geht über denselben Import.
+  Eine Sonepar-Lieferung (Datanorm oder CSV aus dem Webshop) geht über
+  denselben Import.
 - Was der Import nicht lesen kann, steht in einer Problemliste (Datei, Zeile,
   Grund, Auszug; höchstens 200 plus Gesamtzahl); eine Datanorm-Datei mit
   einzelnen fremden Zeilen bleibt Datanorm. Bild, PDF oder Excel statt einer
   Artikelliste → ein verständlicher Satz. EANs werden einheitlich gespeichert,
   eine EAN, die schon ein anderer Artikel hat, meldet der Import.
-- Nicht gebaut: Zuschläge (Datanorm-Z-Sätze, z. B. Kupferzuschlag) — der
-  Import liest sie nicht, Preise sind ohne Metallzuschlag.
+- Die Demo hat ~72.000 echte Sonepar-Artikel aus der Datanorm
+  (`scripts/datanorm-einspielen.ts`, `quelle = 'datanorm'`).
 
 ### Nummern
 
