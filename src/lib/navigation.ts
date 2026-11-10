@@ -1,5 +1,5 @@
 import {
-  BarChart3, BookOpenCheck, Bus, LayoutGrid, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
+  BarChart3, BookOpenCheck, Bus, FileCheck2, LayoutGrid, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
   Receipt, ScanBarcode, Settings, ShieldCheck, ShoppingCart, Smartphone, Users, Warehouse, type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +32,7 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Stunden", text: "Meine Woche, Stunden buchen", pfad: "/zeiten", icon: Clock, gruppe: "baustelle" },
   { titel: "Scannen", text: "Material ausfassen und zurückgeben", pfad: "/scan", icon: ScanBarcode, gruppe: "baustelle" },
   { titel: "Regieberichte", text: "Mit Unterschrift des Kunden", pfad: "/regie", icon: ClipboardSignature, gruppe: "baustelle" },
+  { titel: "Lieferscheine", text: "Fotografieren — die KI liest mit", pfad: "/lieferscheine", icon: FileCheck2, gruppe: "baustelle" },
   { titel: "Lager", text: "Bestand, Busse, was nachbestellen", pfad: "/lager", icon: Warehouse, gruppe: "baustelle" },
   { titel: "Fuhrpark", text: "Busse, Steiger, Maschinen — Pickerl, Service, Schäden", pfad: "/fuhrpark", icon: Bus, gruppe: "baustelle" },
   { titel: "Anlagen & Prüfungen", text: "E-Check, Verteiler, Blitzschutz — was fällig ist", pfad: "/anlagen", icon: ShieldCheck, gruppe: "baustelle" },

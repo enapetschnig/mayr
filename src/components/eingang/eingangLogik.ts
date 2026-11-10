@@ -78,3 +78,109 @@ export function aufteilungFehler(netto: number, anteile: AnteilEntwurf[], lesen:
   }
   return null;
 }
+
+// ── Ablauf: prüfen → freigeben → überweisen ──────────────────────────────
+
+export type Ablauf = "pruefen" | "freigegeben" | "ueberwiesen" | "abgelehnt";
+
+export function ablauf(r: Pick<Eingangsrechnung, "freigabe" | "bezahlt_am">): Ablauf {
+  if (r.bezahlt_am) return "ueberwiesen";
+  if (r.freigabe === "abgelehnt") return "abgelehnt";
+  if (r.freigabe === "freigegeben") return "freigegeben";
+  return "pruefen";
+}
+
+/**
+ * Was zu überweisen ist: brutto, mit Skonto solange die Frist läuft
+ * (bis einschließlich Skontotag).
+ */
+export function zuZahlen(r: Pick<Eingangsrechnung, "brutto" | "skonto_prozent" | "skonto_bis">, heute: string) {
+  const brutto = Number(r.brutto);
+  const p = Number(r.skonto_prozent ?? 0);
+  if (p > 0 && r.skonto_bis && r.skonto_bis >= heute) {
+    const betrag = runden2(brutto * (1 - p / 100));
+    return { betrag, skonto: runden2(brutto - betrag), bis: r.skonto_bis };
+  }
+  return { betrag: runden2(brutto), skonto: 0, bis: null as string | null };
+}
+
+// ── Positionen ───────────────────────────────────────────────────────────
+
+export type PositionEntwurf = {
+  schluessel: string;
+  artikelnummer: string;
+  bezeichnung: string;
+  menge: string;
+  einheit: string;
+  einzelpreis: string;
+  gesamt: string;
+  lieferschein_nr: string;
+  projekt_id: string;
+};
+
+/**
+ * Projekt-Anteile aus den Positionen: je Projekt die Summe der Zeilen (netto).
+ * Zeilen ohne Projekt bleiben übrig (Lager/Betrieb). Gerechnet in Cent.
+ */
+export function anteileAusPositionen(positionen: { gesamt: number; projekt_id: string | null }[]): { projekt_id: string; betrag: number }[] {
+  const je = new Map<string, number>();
+  positionen.forEach((p) => {
+    if (!p.projekt_id) return;
+    je.set(p.projekt_id, (je.get(p.projekt_id) ?? 0) + Math.round(p.gesamt * 100));
+  });
+  return [...je.entries()].map(([projekt_id, cent]) => ({ projekt_id, betrag: cent / 100 })).filter((a) => a.betrag !== 0);
+}
+
+// ── Abgleich Lieferschein ↔ Rechnung ─────────────────────────────────────
+
+type Zeile = { artikelnummer?: string | null; bezeichnung: string; menge: number | null };
+export type AbgleichZeile = {
+  bezeichnung: string;
+  artikelnummer: string | null;
+  verrechnet: number | null;
+  geliefert: number | null;
+  status: "passt" | "menge" | "nicht_geliefert" | "nicht_verrechnet";
+};
+
+const nummer = (s: string | null | undefined) => (s ?? "").replace(/[\s.\-/]/g, "").replace(/^0+/, "").toLowerCase();
+const woerter = (s: string) => new Set(s.toLowerCase().replace(/[^\p{L}\p{N},]+/gu, " ").split(" ").filter((w) => w.length > 1));
+/** Anteil gemeinsamer Wörter (0–1), bezogen auf den kürzeren Text */
+export function textAehnlich(a: string, b: string): number {
+  const wa = woerter(a);
+  const wb = woerter(b);
+  if (!wa.size || !wb.size) return 0;
+  let gleich = 0;
+  wa.forEach((w) => { if (wb.has(w)) gleich += 1; });
+  return gleich / Math.min(wa.size, wb.size);
+}
+
+/**
+ * Rechnungszeilen gegen die gelieferten Zeilen (ein oder mehrere Lieferscheine):
+ * zuerst über die Artikelnummer, sonst über den Text (≥ 60 % gleiche Wörter).
+ * Mengen gleicher Artikel werden zusammengezählt. Zeilen ohne Gegenstück
+ * auf der Rechnung: „nicht geliefert“; auf dem Lieferschein: „nicht verrechnet“.
+ */
+export function abgleich(rechnung: Zeile[], geliefert: Zeile[]): AbgleichZeile[] {
+  const frei = geliefert.map((g, i) => ({ ...g, i }));
+  const benutzt = new Set<number>();
+  const ergebnis: AbgleichZeile[] = rechnung.map((r) => {
+    const nr = nummer(r.artikelnummer);
+    let treffer = nr ? frei.filter((g) => !benutzt.has(g.i) && nummer(g.artikelnummer) === nr) : [];
+    if (!treffer.length) {
+      const beste = frei.filter((g) => !benutzt.has(g.i))
+        .map((g) => ({ g, w: textAehnlich(r.bezeichnung, g.bezeichnung) }))
+        .filter((x) => x.w >= 0.6)
+        .sort((a, b) => b.w - a.w)[0];
+      treffer = beste ? [beste.g] : [];
+    }
+    treffer.forEach((g) => benutzt.add(g.i));
+    const menge = treffer.length ? treffer.reduce((s, g) => s + Number(g.menge ?? 0), 0) : null;
+    const status: AbgleichZeile["status"] = !treffer.length ? "nicht_geliefert"
+      : r.menge != null && menge != null && Math.abs(Number(r.menge) - menge) > 0.0005 ? "menge" : "passt";
+    return { bezeichnung: r.bezeichnung, artikelnummer: r.artikelnummer ?? null, verrechnet: r.menge, geliefert: menge, status };
+  });
+  frei.filter((g) => !benutzt.has(g.i)).forEach((g) => ergebnis.push({
+    bezeichnung: g.bezeichnung, artikelnummer: g.artikelnummer ?? null, verrechnet: null, geliefert: g.menge, status: "nicht_verrechnet",
+  }));
+  return ergebnis;
+}

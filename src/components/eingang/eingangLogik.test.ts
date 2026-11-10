@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { dezimalLesen } from "@/lib/format";
-import { aufteilungFehler, bruttoAusNetto, nettoAusBrutto, rest, zahlung, zuordnung, type AnteilEntwurf } from "./eingangLogik";
+import {
+  ablauf, abgleich, anteileAusPositionen, aufteilungFehler, bruttoAusNetto, nettoAusBrutto, rest, textAehnlich, zahlung, zuordnung, zuZahlen,
+  type AnteilEntwurf,
+} from "./eingangLogik";
 
 const anteil = (projekt_id: string, betrag: string): AnteilEntwurf => ({ id: null, schluessel: projekt_id + betrag, projekt_id, betrag, text: "", rechnung_id: null });
 
@@ -39,5 +42,55 @@ describe("Eingangsrechnungen", () => {
     expect(aufteilungFehler(100, [anteil("p1", "-5")], dezimalLesen)).toMatch(/negativ/);
     // Gutschrift: alles negativ
     expect(aufteilungFehler(-50, [anteil("p1", "-50")], dezimalLesen)).toBeNull();
+  });
+});
+
+describe("Freigabe und Zahlung", () => {
+  it("Ablauf", () => {
+    expect(ablauf({ freigabe: "offen", bezahlt_am: null })).toBe("pruefen");
+    expect(ablauf({ freigabe: "freigegeben", bezahlt_am: null })).toBe("freigegeben");
+    expect(ablauf({ freigabe: "freigegeben", bezahlt_am: "2026-11-02" })).toBe("ueberwiesen");
+    expect(ablauf({ freigabe: "abgelehnt", bezahlt_am: null })).toBe("abgelehnt");
+  });
+  it("Skonto bis einschließlich Skontotag", () => {
+    const r = { brutto: 1200, skonto_prozent: 3, skonto_bis: "2026-11-10" };
+    expect(zuZahlen(r, "2026-11-10")).toEqual({ betrag: 1164, skonto: 36, bis: "2026-11-10" });
+    expect(zuZahlen(r, "2026-11-11")).toEqual({ betrag: 1200, skonto: 0, bis: null });
+    expect(zuZahlen({ brutto: 99.99, skonto_prozent: null, skonto_bis: null }, "2026-11-10").betrag).toBe(99.99);
+  });
+});
+
+describe("Positionen", () => {
+  it("Anteile je Projekt, ohne Projekt bleibt Rest, in Cent", () => {
+    expect(anteileAusPositionen([
+      { gesamt: 0.1, projekt_id: "p1" }, { gesamt: 0.2, projekt_id: "p1" },
+      { gesamt: 50, projekt_id: "p2" }, { gesamt: 99, projekt_id: null },
+    ])).toEqual([{ projekt_id: "p1", betrag: 0.3 }, { projekt_id: "p2", betrag: 50 }]);
+  });
+});
+
+describe("Abgleich Lieferschein", () => {
+  it("Textähnlichkeit", () => {
+    expect(textAehnlich("Hebelklemme 221-413 3-polig", "WAGO Hebelklemme 3-polig 221-413")).toBe(1);
+    expect(textAehnlich("NYM-J 3x1,5", "Abzweigdose")).toBe(0);
+  });
+  it("Nummer, Text, Menge, fehlend und zu viel", () => {
+    const rechnung = [
+      { artikelnummer: "0001234", bezeichnung: "NYM-J 3x1,5 Ring 100", menge: 200 },
+      { artikelnummer: null, bezeichnung: "WAGO Hebelklemme 221-413", menge: 100 },
+      { artikelnummer: "999", bezeichnung: "Fracht", menge: 1 },
+    ];
+    const geliefert = [
+      { artikelnummer: "1234", bezeichnung: "Mantelleitung", menge: 100 },
+      { artikelnummer: "1234", bezeichnung: "Mantelleitung", menge: 100 },
+      { artikelnummer: "", bezeichnung: "Hebelklemme 221-413", menge: 50 },
+      { artikelnummer: "777", bezeichnung: "Abzweigdose AP", menge: 10 },
+    ];
+    expect(abgleich(rechnung, geliefert).map((z) => [z.bezeichnung, z.status, z.verrechnet, z.geliefert])).toEqual([
+      ["NYM-J 3x1,5 Ring 100", "passt", 200, 200],
+      ["WAGO Hebelklemme 221-413", "menge", 100, 50],
+      ["Fracht", "nicht_geliefert", 1, null],
+      ["Abzweigdose AP", "nicht_verrechnet", null, 10],
+    ]);
   });
 });
