@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  CalendarOff, CheckCircle2,
+  CalendarOff, CalendarPlus, CheckCircle2, FilePlus2, FolderPlus,
   BellRing, AlertTriangle, Banknote, Bus, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
   ScanBarcode, ShieldCheck, ShoppingCart, UserCheck, Wrench,
 } from "lucide-react";
@@ -13,6 +13,7 @@ import { useAntraege } from "@/components/zeiten/personalDaten";
 import { FotoDialog } from "@/components/dialoge/FotoDialog";
 import { ZeitDialog } from "@/components/dialoge/ZeitDialog";
 import { ProjektDialog } from "@/components/dialoge/ProjektDialog";
+import { TerminDialog } from "@/components/dialoge/TerminDialog";
 import { Gruppentitel, Karte, ListenZeile, ProjektStatusBadge } from "@/components/Bausteine";
 import { useIstPc } from "@/components/AppLayout";
 import { useProjekte, useProjektZahlen } from "@/hooks/useDaten";
@@ -71,6 +72,7 @@ export default function Index() {
   const [zeitOffen, setZeitOffen] = useState(false);
   const [zeitProjekt, setZeitProjekt] = useState<string | undefined>();
   const [projektOffen, setProjektOffen] = useState(false);
+  const [terminOffen, setTerminOffen] = useState(false);
 
   const heute = isoTag();
   const montag = wochenbeginn(heute);
@@ -243,6 +245,15 @@ export default function Index() {
             Woche <span className="zahl font-semibold text-foreground">{stunden(dieseWoche)}</span>
           </p>
         </div>
+
+        {/* PC: was man am häufigsten neu anlegt, gleich unter dem Gruß */}
+        {pc && (
+          <div className={cn("grid gap-3", istChef ? "grid-cols-3" : "grid-cols-2")}>
+            <SchnellAktion icon={FolderPlus} titel="Neues Projekt" onClick={() => setProjektOffen(true)} />
+            {istChef && <SchnellAktion icon={FilePlus2} titel="Neue Rechnung" onClick={() => navigate("/belege/neu?typ=rechnung")} />}
+            <SchnellAktion icon={CalendarPlus} titel="Termin eintragen" onClick={() => setTerminOffen(true)} />
+          </div>
+        )}
 
         {/* Handy: erst der Einsatz und die Handgriffe. PC: oben laufende Projekte, darunter Zu erledigen */}
         {!pc && (
@@ -424,7 +435,17 @@ export default function Index() {
       <FotoDialog open={fotoOffen} onOpenChange={setFotoOffen} />
       <ZeitDialog open={zeitOffen} onOpenChange={setZeitOffen} projektId={zeitProjekt} />
       <ProjektDialog open={projektOffen} onOpenChange={setProjektOffen} />
+      <TerminDialog open={terminOffen} onOpenChange={setTerminOffen} />
     </div>
+  );
+}
+
+function SchnellAktion({ icon: I, titel, onClick }: { icon: typeof Camera; titel: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="flex min-h-12 items-center gap-2.5 rounded-lg border bg-card px-4 text-left font-medium transition-colors hover:border-primary/50">
+      <I className="h-5 w-5 text-primary" /> {titel}
+    </button>
   );
 }
 

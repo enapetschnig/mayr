@@ -434,12 +434,12 @@ zur einzelnen Buchung. CSV und Stundennachweis-PDF der Auswahl.
 
 ### Startseite und Menü
 
-PC: oben „Laufende Projekte“, darunter „Zu erledigen“ (Anträge, überfällig,
+PC: unter dem Gruß die Schnellaktionen Neues Projekt, Neue Rechnung, Termin
+eintragen; dann „Laufende Projekte“, darunter „Zu erledigen“ (Anträge, überfällig,
 mahnen, Rechnungen prüfen/überweisen, Skonto läuft ab, Fuhrpark fällig,
 Schäden, zuzuordnen …), dann Einsatz und Schnell festhalten. Das Seitenmenü
 lässt sich ganz auf Symbole einklappen (Cookie `sidebar:state`), jede Gruppe
-einzeln zuklappen (die der offenen Seite bleibt offen); oben die
-Schnellaktionen Neues Projekt, Neue Rechnung, Termin eintragen.
+einzeln zuklappen (die der offenen Seite bleibt offen).
 
 ### Betrieb (Einstellungen)
 

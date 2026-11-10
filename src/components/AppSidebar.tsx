@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar,
 } from "@/components/ui/sidebar";
-import { CalendarPlus, ChevronDown, FilePlus2, FolderPlus, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { TerminDialog } from "@/components/dialoge/TerminDialog";
+import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -22,7 +21,6 @@ const zuLesen = (): string[] => {
 
 export function AppSidebar() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const { profil, firma, istChef } = useSitzung();
   const { state, toggleSidebar } = useSidebar();
   const eingeklappt = state === "collapsed";
@@ -33,12 +31,6 @@ export function AppSidebar() {
     try { localStorage.setItem(ZU_SCHLUESSEL, JSON.stringify(neu)); } catch { /* privat: egal */ }
     return neu;
   });
-  const [termin, setTermin] = useState(false);
-  const schnell = [
-    { titel: "Neues Projekt", icon: FolderPlus, onClick: () => navigate("/projekte?neu=1") },
-    ...(istChef ? [{ titel: "Neue Rechnung", icon: FilePlus2, onClick: () => navigate("/belege/neu?typ=rechnung") }] : []),
-    { titel: "Termin eintragen", icon: CalendarPlus, onClick: () => setTermin(true) },
-  ];
 
   const gruppen = (Object.keys(GRUPPEN_TITEL) as NavEintrag["gruppe"][])
     .map((g) => ({ g, eintraege: sichtbareNavigation(istChef, true).filter((n) => n.gruppe === g) }))
@@ -62,21 +54,6 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {/* Schnell: was man am häufigsten neu anlegt */}
-        <SidebarGroup className="pb-0">
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
-              {schnell.map((x) => (
-                <SidebarMenuItem key={x.titel}>
-                  <SidebarMenuButton tooltip={x.titel} onClick={x.onClick}
-                    className="border border-sidebar-border bg-sidebar-accent/40 font-medium hover:bg-sidebar-accent">
-                    <x.icon className="h-4 w-4 text-sidebar-primary" /><span>{x.titel}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
         {gruppen.map(({ g, eintraege }) => {
           const aktivDrin = eintraege.some((i) => istAktiv(i.pfad, pathname));
           const offen = eingeklappt || aktivDrin || !zu.includes(g);
@@ -121,7 +98,6 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
       <SidebarRail />
-      <TerminDialog open={termin} onOpenChange={setTermin} />
     </Sidebar>
   );
 }
