@@ -28,8 +28,11 @@ export function AppLayout() {
 
   if (!pc) return <Outlet />;
 
+  // eingeklappt bleibt eingeklappt (die Sidebar merkt sich den Zustand im Cookie)
+  const offen = !document.cookie.split("; ").includes("sidebar:state=false");
+
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={offen}>
       <AppSidebar />
       {/* min-w-0: breite Tabellen scrollen in sich, statt die Seite neben dem Menü aufzuschieben */}
       <SidebarInset className="min-w-0 bg-background">

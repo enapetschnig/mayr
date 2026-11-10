@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Clock, Download, FileDown, FolderKanban, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
+import { Stundenauswertung } from "@/components/auswertung/Stundenauswertung";
 import { Button } from "@/components/ui/button";
 import { Avatar, Karte, Kennzahl, Leer, ProjektStatusBadge } from "@/components/Bausteine";
 import { useIstPc } from "@/components/AppLayout";
@@ -23,7 +24,7 @@ import { cn } from "@/lib/utils";
 const MONATE_KURZ = ["Jän", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 const MONAT_LANG = new Intl.DateTimeFormat("de-AT", { month: "long" });
 
-type Ansicht = "ueberblick" | "nachkalkulation";
+type Ansicht = "ueberblick" | "stunden" | "nachkalkulation";
 /** monat 0–11, null = ganzes Jahr */
 type Zeitraum = { jahr: number; monat: number | null };
 
@@ -52,7 +53,8 @@ function useBelegeKurz() {
 
 export default function Auswertung() {
   const [params, setParams] = useSearchParams();
-  const ansicht: Ansicht = params.get("ansicht") === "nachkalkulation" ? "nachkalkulation" : "ueberblick";
+  const a = params.get("ansicht");
+  const ansicht: Ansicht = a === "nachkalkulation" || a === "stunden" ? a : "ueberblick";
   const zeitraum = zeitraumAus(params);
 
   const setzen = (a: Ansicht, z: Zeitraum) => {
@@ -69,7 +71,7 @@ export default function Auswertung() {
   return (
     <Seite titel="Auswertung" zurueckPfad="/" breit>
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-        {([["ueberblick", "Überblick"], ["nachkalkulation", "Nachkalkulation"]] as [Ansicht, string][]).map(([wert, text]) => (
+        {([["ueberblick", "Überblick"], ["stunden", "Stunden"], ["nachkalkulation", "Nachkalkulation"]] as [Ansicht, string][]).map(([wert, text]) => (
           <button key={wert} type="button" onClick={() => setzen(wert, zeitraum)} aria-pressed={ansicht === wert}
             className={cn("flex h-11 shrink-0 items-center rounded-full border px-3.5 text-sm font-medium transition-colors",
               ansicht === wert ? "border-primary bg-primary-soft text-primary" : "bg-card text-muted-foreground hover:bg-muted")}>
@@ -77,9 +79,9 @@ export default function Auswertung() {
           </button>
         ))}
       </div>
-      {ansicht === "ueberblick"
-        ? <Ueberblick zeitraum={zeitraum} setZeitraum={(z) => setzen("ueberblick", z)} />
-        : <Nachkalkulation />}
+      {ansicht === "ueberblick" && <Ueberblick zeitraum={zeitraum} setZeitraum={(z) => setzen("ueberblick", z)} />}
+      {ansicht === "stunden" && <Stundenauswertung />}
+      {ansicht === "nachkalkulation" && <Nachkalkulation />}
     </Seite>
   );
 }

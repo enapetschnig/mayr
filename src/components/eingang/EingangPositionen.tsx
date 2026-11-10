@@ -7,7 +7,7 @@ import { dezimalLesen, euro } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { PositionEntwurf } from "./eingangLogik";
 
-export const leerePosition = (): PositionEntwurf => ({
+const leerePosition = (): PositionEntwurf => ({
   schluessel: crypto.randomUUID(), artikelnummer: "", bezeichnung: "", menge: "", einheit: "", einzelpreis: "", gesamt: "", lieferschein_nr: "", projekt_id: "",
 });
 

@@ -3,8 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   CalendarOff, CheckCircle2,
-  BellRing, AlertTriangle, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
-  ScanBarcode, ShieldCheck, ShoppingCart, UserCheck,
+  BellRing, AlertTriangle, Banknote, Bus, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
+  ScanBarcode, ShieldCheck, ShoppingCart, UserCheck, Wrench,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KontoMenue } from "@/components/KontoMenue";
@@ -20,7 +20,10 @@ import { useSitzung } from "@/hooks/useSitzung";
 import { datumKurz, euro, isoTag, stunden, tageDazu } from "@/lib/format";
 import { sichtbareNavigation, type NavEintrag } from "@/lib/navigation";
 import { useEingangsrechnungen } from "@/components/eingang/eingangDaten";
-import { zuordnung } from "@/components/eingang/eingangLogik";
+import { ablauf, zuordnung, zuZahlen } from "@/components/eingang/eingangLogik";
+import { useOffeneSchaeden } from "@/components/fuhrpark/fuhrparkDaten";
+import { useFahrzeuge } from "@/hooks/useDaten";
+import { faelligkeiten } from "@/lib/fuhrpark";
 import { useOffenePosten } from "@/components/op/opDaten";
 import { useAnlagen } from "@/components/anlagen/anlagenDaten";
 import { useBestellungen } from "@/components/bestellung/bestellDaten";
@@ -131,6 +134,17 @@ export default function Index() {
   // Eingangsrechnungen: noch keinem Projekt (oder dem Betrieb) zugeordnet
   const { data: eingang = [] } = useEingangsrechnungen(istChef);
   const eingangZuordnen = eingang.filter((r) => zuordnung(r, r.eingang_anteile) !== "zugeordnet").length;
+  const eingangPruefen = eingang.filter((r) => ablauf(r) === "pruefen").length;
+  const zuUeberweisen = eingang.filter((r) => ablauf(r) === "freigegeben");
+  const ueberweisenSumme = zuUeberweisen.reduce((s, r) => s + zuZahlen(r, isoTag()).betrag, 0);
+  // Skonto läuft in den nächsten 3 Tagen ab (auch noch ungeprüfte)
+  const skontoBald = eingang.filter((r) => !r.bezahlt_am && r.freigabe !== "abgelehnt" && r.skonto_bis && r.skonto_bis >= isoTag() && r.skonto_bis <= tageDazu(isoTag(), 3)).length;
+  // Fuhrpark: Pickerl, Service, Prüfung fällig — und gemeldete Schäden
+  const { data: fahrzeuge = [] } = useFahrzeuge();
+  const { data: schaeden = {} } = useOffeneSchaeden();
+  const fuhrparkFaellig = fahrzeuge.flatMap((f) => faelligkeiten(f, isoTag()));
+  const fuhrparkUeber = fuhrparkFaellig.filter((x) => x.ueberfaellig).length;
+  const schaedenOffen = Object.values(schaeden).reduce((s, n) => s + n, 0);
   // Offene Posten: überfällig, und die Frist der letzten Mahnung ist vorbei
   const { data: op = [] } = useOffenePosten(istChef);
   const heuteIso = isoTag();
@@ -186,6 +200,16 @@ export default function Index() {
       warn: spaet > 0,
     },
     regieOffen > 0 && { icon: ClipboardSignature, text: `${regieOffen} ${regieOffen === 1 ? "Regiebericht" : "Regieberichte"} unterschrieben, nicht verrechnet`, to: "/regie?filter=offen" },
+    skontoBald > 0 && { icon: Banknote, text: `${skontoBald} ${skontoBald === 1 ? "Rechnung" : "Rechnungen"}: Skonto läuft in 3 Tagen ab`, to: "/eingang?filter=freigegeben", warn: true },
+    eingangPruefen > 0 && { icon: Inbox, text: `${eingangPruefen} ${eingangPruefen === 1 ? "Eingangsrechnung" : "Eingangsrechnungen"} prüfen und freigeben`, to: "/eingang" },
+    zuUeberweisen.length > 0 && { icon: Banknote, text: `${zuUeberweisen.length} ${zuUeberweisen.length === 1 ? "Rechnung" : "Rechnungen"} überweisen · ${euro(ueberweisenSumme)}`, to: "/eingang?filter=freigegeben" },
+    fuhrparkFaellig.length > 0 && {
+      icon: Bus,
+      text: `Fuhrpark: ${fuhrparkFaellig.length} ${fuhrparkFaellig.length === 1 ? "Termin" : "Termine"} fällig (Pickerl, Service, Prüfung)${fuhrparkUeber ? ` · ${fuhrparkUeber} überfällig` : ""}`,
+      to: "/fuhrpark",
+      warn: fuhrparkUeber > 0,
+    },
+    schaedenOffen > 0 && { icon: Wrench, text: `${schaedenOffen} ${schaedenOffen === 1 ? "Schaden" : "Schäden"} an Fahrzeugen gemeldet`, to: "/fuhrpark", warn: true },
     eingangZuordnen > 0 && { icon: Inbox, text: `${eingangZuordnen} ${eingangZuordnen === 1 ? "Eingangsrechnung" : "Eingangsrechnungen"} zuordnen`, to: "/eingang?filter=zuzuordnen" },
     zuVerrechnen > 0 && { icon: FolderKanban, text: `${zuVerrechnen} ${zuVerrechnen === 1 ? "Projekt hat" : "Projekte haben"} offene Stunden oder Material`, to: "/projekte?filter=offen" },
     buero.angebote > 0 && { icon: FileText, text: `${buero.angebote} ${buero.angebote === 1 ? "Angebot wartet" : "Angebote warten"} auf Antwort`, to: "/belege?filter=angebote" },
@@ -220,37 +244,43 @@ export default function Index() {
           </p>
         </div>
 
-        <EinsatzBereich onStunden={(id) => { setZeitProjekt(id); setZeitOffen(true); }} />
+        {/* Handy: erst der Einsatz und die Handgriffe. PC: oben laufende Projekte, darunter Zu erledigen */}
+        {!pc && (
+          <>
+            <EinsatzBereich onStunden={(id) => { setZeitProjekt(id); setZeitOffen(true); }} />
 
-        {/* Die häufigsten Handgriffe — groß, mit dem Daumen erreichbar */}
-        <section>
-          <Gruppentitel>Schnell festhalten</Gruppentitel>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <SchnellKnopf icon={Camera} titel="Foto" unter="zum Projekt" primaer onClick={() => setFotoOffen(true)} />
-            <SchnellKnopf icon={Clock} titel="Stunden" unter="buchen" onClick={() => { setZeitProjekt(undefined); setZeitOffen(true); }} />
-            <SchnellKnopf icon={ScanBarcode} titel="Material" unter="scannen" onClick={() => navigate("/scan")} />
-            <SchnellKnopf icon={ClipboardSignature} titel="Regiebericht" unter="mit Unterschrift" onClick={() => navigate("/regie/neu")} />
-          </div>
-          {istChef && (
-            <Link to="/belege/neu?typ=angebot&sprache=1"
-              className="mt-2.5 flex min-h-16 items-center gap-3 rounded-lg border border-primary/30 bg-primary-soft p-3 transition-colors hover:border-primary active:scale-[0.99]">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <Mic className="h-5 w-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold leading-tight">Angebot vor Ort</span>
-                <span className="block truncate text-xs text-muted-foreground">„3 Steckdosen, 2 Schalter, 1 FI“ — sprechen, fertig</span>
-              </span>
-              <ChevronRight className="h-5 w-5 shrink-0 text-primary" />
-            </Link>
-          )}
-        </section>
+            {/* Die häufigsten Handgriffe — groß, mit dem Daumen erreichbar */}
+            <section>
+              <Gruppentitel>Schnell festhalten</Gruppentitel>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <SchnellKnopf icon={Camera} titel="Foto" unter="zum Projekt" primaer onClick={() => setFotoOffen(true)} />
+                <SchnellKnopf icon={Clock} titel="Stunden" unter="buchen" onClick={() => { setZeitProjekt(undefined); setZeitOffen(true); }} />
+                <SchnellKnopf icon={ScanBarcode} titel="Material" unter="scannen" onClick={() => navigate("/scan")} />
+                <SchnellKnopf icon={ClipboardSignature} titel="Regiebericht" unter="mit Unterschrift" onClick={() => navigate("/regie/neu")} />
+              </div>
+              {istChef && (
+                <Link to="/belege/neu?typ=angebot&sprache=1"
+                  className="mt-2.5 flex min-h-16 items-center gap-3 rounded-lg border border-primary/30 bg-primary-soft p-3 transition-colors hover:border-primary active:scale-[0.99]">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                    <Mic className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold leading-tight">Angebot vor Ort</span>
+                    <span className="block truncate text-xs text-muted-foreground">„3 Steckdosen, 2 Schalter, 1 FI“ — sprechen, fertig</span>
+                  </span>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-primary" />
+                </Link>
+              )}
+            </section>
+
+          </>
+        )}
 
         {/* minmax(0,…): sonst macht eine lange, abgeschnittene Zeile die Spalte breiter als das Handy */}
         {/* Am Handy nur „Zu erledigen“ (Chef) — laufende Projekte und zuletzt
             Gebuchtes stehen in Projekte und Stunden, die Startseite bleibt das Menü */}
         {(pc || istChef) && (
-        <div className={cn("grid gap-6", pc ? "grid-cols-[minmax(0,1fr)_22rem] items-start" : "grid-cols-1")}>
+        <div className="grid grid-cols-1 gap-6">
           {pc && (
           <Karte titel="Laufende Projekte" alle={{ to: "/projekte", text: "Alle Projekte" }} ohnePolster>
             {zuletzt.length === 0 ? (
@@ -259,7 +289,7 @@ export default function Index() {
                 <button type="button" className="min-h-11 font-medium text-primary hover:underline" onClick={() => setProjektOffen(true)}>Projekt anlegen</button>
               </div>
             ) : (
-              <ul className="divide-y">
+              <ul className="grid grid-cols-1 divide-y xl:grid-cols-2 xl:divide-y-0">
                 {zuletzt.map((p) => {
                   const z = zahlen[p.id];
                   return (
@@ -292,11 +322,11 @@ export default function Index() {
               {offenePunkte.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Alles erledigt — nichts offen.</p>
               ) : (
-                <ul className="space-y-2">
+                <ul className={cn("gap-2", pc ? "grid grid-cols-2 xl:grid-cols-3" : "space-y-2")}>
                   {offenePunkte.map((o) => (
                     <li key={o.text}>
                       <Link to={o.to} className={cn(
-                        "flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors hover:border-primary/50",
+                        "flex h-full items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors hover:border-primary/50",
                         o.warn && "border-status-rot bg-status-rot/40",
                       )}>
                         <o.icon className={cn("h-4 w-4 shrink-0", o.warn ? "text-status-rot-fg" : "text-primary")} />
@@ -326,6 +356,37 @@ export default function Index() {
             </Karte>
           )}
         </div>
+        )}
+
+        {pc && (
+          <>
+            <EinsatzBereich onStunden={(id) => { setZeitProjekt(id); setZeitOffen(true); }} />
+
+            {/* Die häufigsten Handgriffe — groß, mit dem Daumen erreichbar */}
+            <section>
+              <Gruppentitel>Schnell festhalten</Gruppentitel>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <SchnellKnopf icon={Camera} titel="Foto" unter="zum Projekt" primaer onClick={() => setFotoOffen(true)} />
+                <SchnellKnopf icon={Clock} titel="Stunden" unter="buchen" onClick={() => { setZeitProjekt(undefined); setZeitOffen(true); }} />
+                <SchnellKnopf icon={ScanBarcode} titel="Material" unter="scannen" onClick={() => navigate("/scan")} />
+                <SchnellKnopf icon={ClipboardSignature} titel="Regiebericht" unter="mit Unterschrift" onClick={() => navigate("/regie/neu")} />
+              </div>
+              {istChef && (
+                <Link to="/belege/neu?typ=angebot&sprache=1"
+                  className="mt-2.5 flex min-h-16 items-center gap-3 rounded-lg border border-primary/30 bg-primary-soft p-3 transition-colors hover:border-primary active:scale-[0.99]">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                    <Mic className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold leading-tight">Angebot vor Ort</span>
+                    <span className="block truncate text-xs text-muted-foreground">„3 Steckdosen, 2 Schalter, 1 FI“ — sprechen, fertig</span>
+                  </span>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-primary" />
+                </Link>
+              )}
+            </section>
+
+          </>
         )}
 
         {/* Am Handy und Tablet ist die Startseite das Menü — große Karten */}
@@ -358,13 +419,6 @@ export default function Index() {
           );
         })}
 
-        {pc && (
-          <div className="grid grid-cols-3 gap-3">
-            <ListenZeile to="/projekte?neu=1"><span className="flex items-center gap-2 font-medium"><Plus className="h-4 w-4 text-primary" /> Neues Projekt</span></ListenZeile>
-            {istChef && <ListenZeile to="/belege/neu?typ=rechnung"><span className="flex items-center gap-2 font-medium"><Plus className="h-4 w-4 text-primary" /> Neue Rechnung</span></ListenZeile>}
-            <ListenZeile to="/kalender"><span className="flex items-center gap-2 font-medium"><Plus className="h-4 w-4 text-primary" /> Termin eintragen</span></ListenZeile>
-          </div>
-        )}
       </main>
 
       <FotoDialog open={fotoOffen} onOpenChange={setFotoOffen} />
