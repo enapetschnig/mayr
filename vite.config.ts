@@ -4,13 +4,17 @@ import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 import { KUNDE } from "./src/kunde.config";
 
+// Build-Kennung: dieselbe steckt in der App (__APP_BUILD__) und in /version.json —
+// weicht sie ab, zeigt die App „Neue Version — Jetzt aktualisieren“ (UpdateHinweis).
+const BUILD = new Date().toISOString().slice(0, 19).replace("T", " ");
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   // Build-Zeitstempel als App-Version.
   // Wird u. a. bei Änderungswünschen mitgeschickt, damit nachvollziehbar ist,
   // welcher Stand beim Melder lief.
   define: {
-    __APP_BUILD__: JSON.stringify(new Date().toISOString().slice(0, 16).replace("T", " ")),
+    __APP_BUILD__: JSON.stringify(BUILD),
   },
   server: {
     host: "::",
@@ -33,8 +37,16 @@ export default defineConfig(({ mode }) => ({
           .replaceAll("%KUNDE_FARBE%", KUNDE.farben.primaryHex);
       },
     }, 
+    {
+      name: "version-json",
+      generateBundle() {
+        this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ build: BUILD }) });
+      },
+    },
     VitePWA({
-      registerType: 'autoUpdate',
+      // prompt: der neue Stand wartet, bis man „Jetzt aktualisieren“ tippt (UpdateHinweis)
+      registerType: 'prompt',
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         // Alles aus src/kunde.config.ts — hier nichts hart eintragen.

@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes, useParams } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { UpdateHinweis } from "@/components/UpdateHinweis";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import { SitzungProvider } from "@/hooks/useSitzung";
@@ -32,6 +33,7 @@ const ArtikelSeite = lazy(() => import("./pages/Artikel"));
 const Leistungen = lazy(() => import("./pages/Leistungen"));
 const Auswertung = lazy(() => import("./pages/Auswertung"));
 const Einstellungen = lazy(() => import("./pages/Einstellungen"));
+const Wuensche = lazy(() => import("./pages/Wuensche"));
 const Handyansicht = lazy(() => import("./pages/Handyansicht"));
 const Eingang = lazy(() => import("./pages/Eingang"));
 const OffenePosten = lazy(() => import("./pages/OffenePosten"));
@@ -102,11 +104,13 @@ const App = () => (
                 <Route path="/leistungen" element={<S chef><Leistungen /></S>} />
                 <Route path="/auswertung" element={<S chef><Auswertung /></S>} />
                 <Route path="/einstellungen" element={<S><Einstellungen /></S>} />
+                <Route path="/wuensche" element={<S><Wuensche /></S>} />
                 <Route path="/handyansicht" element={<S><Handyansicht /></S>} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
             <InstallHinweis />
+            <UpdateHinweis />
           </SitzungProvider>
         </BrowserRouter>
       </TooltipProvider>

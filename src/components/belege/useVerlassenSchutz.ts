@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ungespeichertMelden } from "@/lib/ungespeichert";
 
 export type Ziel = { art: "link"; pfad: string } | { art: "zurueck" };
 
@@ -15,6 +16,9 @@ export function useVerlassenSchutz(aktiv: boolean, zurueckPfad?: string) {
   const [ziel, setZiel] = useState<Ziel | null>(null);
   const aktivRef = useRef(aktiv);
   aktivRef.current = aktiv;
+
+  // „Jetzt aktualisieren“ fragt dann erst nach
+  useEffect(() => (aktiv ? ungespeichertMelden("der offene Beleg") : undefined), [aktiv]);
 
   useEffect(() => {
     const vorEntladen = (e: BeforeUnloadEvent) => {

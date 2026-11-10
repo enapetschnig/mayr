@@ -115,6 +115,23 @@ ohne Unscharf, höchstens 4 parallel — sonst Statement-Timeout 8 s) und
 `beleg_lesen` (Eingangsrechnung oder Lieferschein aus Foto/PDF). Aufrufer:
 `src/lib/ki.ts`. Deploy: `supabase functions deploy ki --project-ref xcsbbaiwzdivmaodltxm --use-api`.
 
+## Änderungswünsche und Roboter
+
+„Änderung melden“ in jedem Seitenkopf (`components/wunsch/WunschMelden.tsx`): erst
+Bildschirmfoto (html2canvas), dann Dialog mit Sprachnachricht oder Text. Tabelle und
+Ablage `aenderungswuensche` (Migration `20261111100000_aenderungswuensche.sql`),
+Abschrift im Hintergrund per Edge Function `sprache-zu-text` (Secret `OPENAI_API_KEY`).
+Ein Trigger schickt jeden Wunsch per pg_net ans ePower-Cockpit
+(`cockpit_verbindung`, Zeile mit Geheimnis nur in der DB, App-Schlüssel `mayr`); Bilder
+holt das Cockpit über `wunsch-datei` (ohne JWT, Secret `COCKPIT_SECRET`). Der
+Änderungswunsch-Roboter (`_baukasten/werkzeuge/roboter`, YOLO an) setzt um, pusht nach
+`main` und schreibt Status/Antwort zurück; Liste unter `/wuensche`. Neuer Stand →
+unten links „Jetzt aktualisieren“ (`UpdateHinweis.tsx`, PWA im Modus `prompt`,
+`/version.json` mit der Build-Kennung). Testwünsche mit `ZZTEST` beginnen lassen
+(kein Telegram) und sofort in mayr **und** in `crm.app_wuensche` löschen.
+Hier arbeitet der Zweig `elektriker` und wird nach `main` gepusht — vor eigener Arbeit
+`git pull origin main`, der Roboter pusht ebenfalls nach `main`.
+
 ## Stolpersteine
 
 - PostgREST-Sammel-Inserts mit **unterschiedlichen Feldern** je Zeile setzen

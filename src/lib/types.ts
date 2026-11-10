@@ -115,6 +115,14 @@ export const REGIE_STATUS: Record<string, StatusEintrag> = {
   verrechnet: { ton: "lila", text: "Verrechnet" },
 };
 
+// ── Änderungswünsche ───────────────────────────────────────────────────
+export const WUNSCH_STATUS: Record<string, StatusEintrag> = {
+  neu: { ton: "cyan", text: "Neu" },
+  gesehen: { ton: "blau", text: "In Arbeit" },
+  umgesetzt: { ton: "gruen", text: "Umgesetzt" },
+  abgelehnt: { ton: "rosa", text: "Nicht umgesetzt" },
+};
+
 // ── Eingangsrechnungen ────────────────────────────────────────────────
 export const EINGANG_STATUS: Record<string, StatusEintrag> = {
   zuzuordnen: { ton: "gelb", text: "Zuzuordnen" },

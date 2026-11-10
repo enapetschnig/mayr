@@ -1,5 +1,5 @@
 import {
-  BarChart3, BookOpenCheck, Bus, FileCheck2, FileText, LayoutGrid, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
+  BarChart3, BookOpenCheck, MessageSquarePlus, Bus, FileCheck2, FileText, LayoutGrid, CalendarDays, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
   Receipt, ScanBarcode, Settings, ShieldCheck, ShoppingCart, Smartphone, Users, Warehouse, type LucideIcon,
 } from "lucide-react";
 
@@ -49,6 +49,7 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Auswertung", text: "Stunden, Umsatz, Nachkalkulation", pfad: "/auswertung", icon: BarChart3, gruppe: "buero", nurChef: true },
 
   { titel: "Einstellungen", text: "Betrieb, Mitarbeiter, Konto, App", textMonteur: "Mein Konto, Passwort, App aufs Handy", pfad: "/einstellungen", icon: Settings, gruppe: "system" },
+  { titel: "Änderungswünsche", text: "Sagen, was anders sein soll — und was schon umgesetzt ist", textMonteur: "Was ich gemeldet habe und was umgesetzt ist", pfad: "/wuensche", icon: MessageSquarePlus, gruppe: "system" },
   { titel: "Handyansicht", text: "So sieht die App am Handy aus", pfad: "/handyansicht", icon: Smartphone, gruppe: "system", nurPc: true },
 ];
 

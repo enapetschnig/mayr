@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { KUNDE } from "@/kunde.config";
+import { WunschKnopf } from "@/components/wunsch/WunschMelden";
 
 interface PageHeaderProps {
   title?: string;
@@ -40,7 +41,10 @@ export function PageHeader({ title, untertitel, showBackButton = true, backPath,
           {title && <h1 className="truncate text-base font-semibold leading-tight sm:text-lg">{title}</h1>}
           {untertitel && <div className="truncate text-xs text-muted-foreground">{untertitel}</div>}
         </div>
-        {aktionen && <div className="flex shrink-0 items-center gap-1.5">{aktionen}</div>}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {aktionen}
+          <WunschKnopf />
+        </div>
       </div>
     </header>
   );

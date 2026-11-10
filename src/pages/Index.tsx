@@ -8,6 +8,7 @@ import {
   PhoneCall,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { WunschKnopf } from "@/components/wunsch/WunschMelden";
 import { KontoMenue } from "@/components/KontoMenue";
 import { EinsatzBereich } from "@/components/einsatz/EinsatzBereich";
 import { useAntraege } from "@/components/zeiten/personalDaten";
@@ -237,6 +238,7 @@ export default function Index() {
               {new Date().toLocaleDateString("de-AT", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}
             </p>
           </div>
+          <WunschKnopf />
           <KontoMenue />
         </div>
       </header>
