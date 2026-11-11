@@ -92,8 +92,8 @@ Listenpreis samt Kupferzuschlag) plus ~72.000 aus der Sonepar-Datanorm
 EK = Liste − Rabatt aus der Tabelle `rabatte` (je Lieferant, Hersteller,
 Rabattgruppe; Demo: Sonepar 32 %, Hager 36 %, AI25 40 %), angewandt in Häppchen
 per `rabatte_anwenden` — echte Netto-Konditionen nie ins Repo (öffentlich).
-Demo-Konten: chef/max/lisa plus tom, eva, stefan, sarah, jonas (Passwort
-`demo123`, anlegen mit `SUPABASE_SERVICE_KEY=… node scripts/demo-konten.mjs`). Unterschriften
+Demo-Konten: chef/max/lisa (Passwort `chef123`/`max123`/`lisa123`) plus tom, eva,
+stefan, sarah, jonas (Passwort `demo123`, anlegen mit `SUPABASE_SERVICE_KEY=… node scripts/demo-konten.mjs`). Unterschriften
 im Speicher lassen sich nicht löschen (Policy `unterschriften_bleiben`) — alte
 bleiben nach dem Zurücksetzen als verwaiste Dateien liegen, wenige KB.
 
