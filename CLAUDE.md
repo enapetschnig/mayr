@@ -117,8 +117,13 @@ ohne Unscharf, höchstens 4 parallel — sonst Statement-Timeout 8 s) und
 
 ## Änderungswünsche und Roboter
 
-„Änderung melden“ in jedem Seitenkopf (`components/wunsch/WunschMelden.tsx`): erst
-Bildschirmfoto (html2canvas), dann Dialog mit Sprachnachricht oder Text. Tabelle und
+„Änderung melden“ in jedem Seitenkopf (`components/wunsch/WunschMelden.tsx`, wie Lengauer
+Stockner; Dialog und Aufnahmeleiste einmal in `App.tsx`): erst Bildschirmfoto (html2canvas),
+dann Dialog — Bild groß **einkreisen** (`BildMarkieren.tsx`), Sprachnachricht, **„Bildschirm
+aufnehmen & erklären“** (rrweb zeichnet die Seite auf, Ton läuft mit, Seitenwechsel in der App
+überlebt sie, unten „Fertig“; `lib/bildschirmAufnahme.ts`, Spalten `aufnahme_pfad`/
+`aufnahme_ablauf`), Text, Dateien. Bei einer Vorführung macht `sprache-zu-text` aus
+Zeitmarken-Abschrift (whisper-1) und Ablauf eine Zeitleiste und Claude die einzelnen Wünsche. Tabelle und
 Ablage `aenderungswuensche` (Migration `20261111100000_aenderungswuensche.sql`),
 Abschrift im Hintergrund per Edge Function `sprache-zu-text` (Secret `OPENAI_API_KEY`).
 Ein Trigger schickt jeden Wunsch per pg_net ans ePower-Cockpit

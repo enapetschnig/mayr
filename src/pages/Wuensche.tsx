@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bug, HelpCircle, Image, Lightbulb, Loader2, MessageSquarePlus, Mic } from "lucide-react";
+import { Bug, FileText, HelpCircle, Image, Lightbulb, Loader2, MessageSquarePlus, Mic, MonitorPlay } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
 import { Leer, StatusPille } from "@/components/Bausteine";
 import { Button } from "@/components/ui/button";
 import { useSitzung } from "@/hooks/useSitzung";
 import { WUNSCH_STATUS } from "@/lib/types";
+import { anhangName } from "@/lib/wunschAnhaenge";
 import { cn } from "@/lib/utils";
 
 type Wunsch = {
   id: string; art: string; status: string; text: string; antwort: string | null; seite: string | null;
-  bild_pfad: string | null; audio_pfad: string | null; abschrift: string; abschrift_fehler: string | null;
+  bild_pfad: string | null; audio_pfad: string | null; aufnahme_pfad: string | null; anhaenge: string[] | null;
+  abschrift: string; abschrift_fehler: string | null;
   created_at: string; erstellt_von: string | null;
 };
 
@@ -34,7 +36,7 @@ export default function Wuensche() {
     queryKey: ["aenderungswuensche"],
     queryFn: async () => {
       const { data, error } = await (supabase.from("aenderungswuensche" as never) as any)
-        .select("id, art, status, text, antwort, seite, bild_pfad, audio_pfad, abschrift, abschrift_fehler, created_at, erstellt_von")
+        .select("id, art, status, text, antwort, seite, bild_pfad, audio_pfad, aufnahme_pfad, anhaenge, abschrift, abschrift_fehler, created_at, erstellt_von")
         .order("created_at", { ascending: false }).limit(300);
       if (error) throw error;
       return data as Wunsch[];
@@ -100,7 +102,7 @@ function WunschKarte({ w, melder }: { w: Wunsch; melder?: string }) {
       </div>
       {w.text ? <p className="whitespace-pre-line text-sm">{w.text}</p> : null}
       {w.abschrift === "offen" || w.abschrift === "laeuft" ? (
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Sprachnachricht wird abgeschrieben …</p>
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {w.aufnahme_pfad ? "Aufnahme wird ausgewertet …" : "Sprachnachricht wird abgeschrieben …"}</p>
       ) : w.abschrift === "fehler" ? (
         <p className="text-xs text-status-gelb-fg">Abschrift ging nicht ({w.abschrift_fehler}) — die Aufnahme ist trotzdem angekommen.</p>
       ) : null}
@@ -110,7 +112,7 @@ function WunschKarte({ w, melder }: { w: Wunsch; melder?: string }) {
           <p className="whitespace-pre-line">{w.antwort}</p>
         </div>
       )}
-      {(w.bild_pfad || w.audio_pfad) && (
+      {(w.bild_pfad || w.audio_pfad || w.aufnahme_pfad || !!w.anhaenge?.length) && (
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
           {w.bild_pfad && !url.bild && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void laden("bild", w.bild_pfad!)}><Image className="h-4 w-4" /> Bild</Button>
@@ -118,6 +120,19 @@ function WunschKarte({ w, melder }: { w: Wunsch; melder?: string }) {
           {w.audio_pfad && !url.ton && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void laden("ton", w.audio_pfad!)}><Mic className="h-4 w-4" /> Anhören</Button>
           )}
+          {w.aufnahme_pfad && (
+            <span className="flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground" title="Die Bildschirmaufnahme wird im Cockpit abgespielt">
+              <MonitorPlay className="h-3.5 w-3.5" /> Bildschirmaufnahme dabei
+            </span>
+          )}
+          {(w.anhaenge ?? []).map((pfad) => (
+            <Button key={pfad} variant="outline" size="sm" className="max-w-full gap-1.5" onClick={async () => {
+              const { data } = await supabase.storage.from("aenderungswuensche").createSignedUrl(pfad, 600);
+              if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener");
+            }}>
+              <FileText className="h-4 w-4 shrink-0" /><span className="truncate">{anhangName(pfad)}</span>
+            </Button>
+          ))}
           {url.ton && <audio controls autoPlay src={url.ton} className="h-9 w-full" />}
           {url.bild && <a href={url.bild} target="_blank" rel="noreferrer" className="w-full"><img src={url.bild} alt="Bildschirm beim Melden" className="max-h-56 w-full rounded border object-contain" /></a>}
         </div>
