@@ -1,0 +1,3 @@
+# Fehlerprotokolle Supabase
+
+- 2026-11-11 · Nachtschicht-Prüfung: 185× statement timeout = 184× 500 `artikel_suchen` + 6× 500 `ki` + 1× 500 `rabatte_anwenden` stammten alle aus dem 10.11. 10:15–10:45 UTC (Entwicklung Material per KI, damals noch unscharfe Suche, viele Aufrufe auf einmal, Rabatte ohne Häppchen) – behoben durch `20261110141000` (p_unscharf=false, höchstens 4 parallel, ~20 ms) und `rabatte_anwenden(p_max)`; die RLS-/Trigger-Meldungen („nur der Chef“, „festgeschrieben“, objects-RLS …) sind gewollte Fehlschläge aus `tests/rls-test.mjs` bzw. `durchlauf.mjs` (Policy `unterschriften_bleiben`) – harmlos, nichts ändern.
