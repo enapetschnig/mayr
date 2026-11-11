@@ -21,10 +21,13 @@ Schema samt RLS und Triggern: `supabase/migrations/20261025100000_elektriker_gru
 
 ## Design „Werkbank“
 
-- Handy/Tablet: **die Startseite ist das Menü** (große Karten),
-  kein Seitenmenü, keine Leiste unten; jede Unterseite hat Zurück + Logo im
-  Kopf (`<Seite>` aus `components/PageHeader.tsx`). PC ab 1024 px: Seitenmenü.
-- Neutrale Flächen, weiße Karten mit 1-px-Rand, keine Schatten.
+- Menü wie Lengauer Stockner (`components/rahmen/`, Details KONZEPT „Startseite
+  und Menü“): Handy **die Startseite ist das Menü** (große Karten mit „… öffnen“,
+  Seltenes unter „Mehr“), keine Leiste unten; jede Unterseite hat Zurück + Logo
+  im Kopf (`<Seite>` aus `components/PageHeader.tsx`). Tablet ab 768 px schmale
+  Symbol-Leiste, PC ab 1024 px helle Seitenleiste mit Suche (Strg+K) und „+ Neu“.
+- Neutrale Flächen, weiße Karten mit 1-px-Rand, keine Schatten (Ausnahme: die
+  Menü-Karten der Startseite, leicht).
   **Blau ist die einzige Aktionsfarbe.** Status nur als Pille aus einer
   Tabelle (`lib/types.ts`): Entwurf cyan, verrechnet lila, grün = erledigt.
 - Formulare als Vollbild (`FormularDialog`), Eingaben 16 px am Handy.

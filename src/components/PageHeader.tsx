@@ -36,7 +36,7 @@ export function PageHeader({ title, untertitel, showBackButton = true, backPath,
             <ArrowLeft className="h-5 w-5" />
           </Button>
         )}
-        <Link to="/" className="flex h-11 w-11 shrink-0 items-center justify-center lg:hidden" aria-label="Zur Startseite">
+        <Link to="/" className="flex h-11 w-11 shrink-0 items-center justify-center md:hidden" aria-label="Zur Startseite">
           <img src={KUNDE.logo} alt="" className="h-8 w-8 rounded-md" />
         </Link>
         <div className={cn("min-w-0 flex-1", !showBackButton && "pl-1")}>

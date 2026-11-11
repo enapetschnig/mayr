@@ -12,10 +12,14 @@ import { InstallAnleitung } from "@/components/Installieren";
 import { Avatar } from "@/components/Bausteine";
 import { useSitzung } from "@/hooks/useSitzung";
 import { name } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { KUNDE } from "@/kunde.config";
 
-/** Rundes Kürzel oben rechts: Konto, App installieren, Passwort, Abmelden. */
-export function KontoMenue() {
+/**
+ * Rundes Kürzel oben rechts (Handy) bzw. im Fuß der Seitenleiste mit Namen:
+ * Konto, App installieren, Passwort, Abmelden.
+ */
+export function KontoMenue({ mitName, leiste }: { mitName?: boolean; leiste?: boolean } = {}) {
   const navigate = useNavigate();
   const { profil, istChef } = useSitzung();
   const [installOffen, setInstallOffen] = useState(false);
@@ -29,11 +33,25 @@ export function KontoMenue() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" aria-label="Konto-Menü">
-            <Avatar profil={profil} className="h-9 w-9 text-sm" />
-          </Button>
+          {leiste ? (
+            <button type="button" aria-label="Konto-Menü" title={name(profil)} data-konto-leiste
+              className={cn("flex min-w-0 items-center gap-2 rounded-md text-left outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                mitName ? "w-full px-1.5 py-1" : "p-0.5")}>
+              <Avatar profil={profil} className="h-8 w-8 text-xs" />
+              {mitName && (
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-sidebar-foreground">{name(profil)}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{istChef ? "Chef" : "Monteur"}</span>
+                </span>
+              )}
+            </button>
+          ) : (
+            <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" aria-label="Konto-Menü">
+              <Avatar profil={profil} className="h-9 w-9 text-sm" />
+            </Button>
+          )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuContent align={leiste ? "start" : "end"} side={leiste ? "top" : "bottom"} className="w-64">
           <DropdownMenuLabel className="font-normal">
             <span className="block font-semibold">{name(profil)}</span>
             <span className="block text-xs text-muted-foreground">{istChef ? "Chef" : "Monteur"}</span>
@@ -47,7 +65,7 @@ export function KontoMenue() {
           </DropdownMenuItem>
           <ChangePasswordDialog />
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={abmelden}>
+          <DropdownMenuItem onClick={abmelden} className="text-destructive focus:text-destructive">
             <LogOut className="mr-2 h-4 w-4" /> Abmelden
           </DropdownMenuItem>
         </DropdownMenuContent>

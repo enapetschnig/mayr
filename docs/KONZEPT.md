@@ -514,10 +514,29 @@ Ende nach 19, über 10 h, Überschneidung, Lücke über 1 h. Auch als CSV.
 PC: unter dem Gruß die Schnellaktionen Neues Projekt, Neue Rechnung, Termin
 eintragen; dann „Laufende Projekte“, darunter „Zu erledigen“ (Anträge, überfällig,
 mahnen, Rechnungen prüfen/überweisen, Skonto läuft ab, Fuhrpark fällig,
-Schäden, zuzuordnen …), dann Einsatz und Schnell festhalten. Das Seitenmenü
-lässt sich ganz auf Symbole einklappen (Cookie `sidebar:state`), jede Gruppe
-einzeln zuklappen (die der offenen Seite bleibt offen). Im Menü stehen Angebote
-und Rechnungen direkt unter Projekte.
+Schäden, zuzuordnen …), dann Einsatz und Schnell festhalten.
+
+Menü nach dem Vorbild Lengauer Stockner (`components/rahmen/`):
+- **Seitenleiste** (`Seitenleiste.tsx`): hell, 240 px, ab 1024 px einklappbar auf
+  56 px (gemerkt in `localStorage` `mayr.seitenleiste`); Tablet 768–1023 px immer
+  schmal. Oben Logo auf weißer Plakette, „Suchen … Strg K“ und das blaue „+ Neu“.
+  Gruppen ohne Etikett (Start, Projekte, Angebote, Rechnungen, Plantafel), dann
+  BAUSTELLE und BÜRO, einzeln zuklappbar (`menue.zu`; die Gruppe der offenen Seite
+  ist offen, zugeklappt nur bis zum Seitenwechsel). Aktiv: hellere Fläche und
+  blauer Strich links. „+“ beim Überfahren an Projekte, Angebote, Rechnungen,
+  Plantafel, Stunden, Regieberichte legt gleich an. Im Fuß Einstellungen,
+  Änderungswünsche, Handyansicht und das Konto mit Namen (`KontoMenue leiste`).
+- **„+ Neu“** (`NeuMenue.tsx`, `NeuRahmen` einmal im Rahmen): Projekt, Angebot,
+  Angebot vor Ort, Rechnung, Termin, Stunden, Regiebericht, Foto (Monteur ohne
+  Angebot/Rechnung) — jeder Eintrag öffnet den vorhandenen Dialog oder die Seite.
+  `neuStarten(art)` startet eine Aktion von überall.
+- **Suche** (`Suchpalette.tsx`): Strg+K, am Handy die Lupe im Kopf der Startseite
+  (Vollbild). Projekte, Kunden, Belege (nur Chef), Seiten, Neu anlegen; Pfeile +
+  Enter.
+- **Startseite am Handy/Tablet** (`StartListe.tsx`): Kopf mit Logo, Datum und
+  Gruß, Lupe, Melden, Konto. Menü als große Karten mit blauem „… öffnen“ und
+  leichtem Schatten; ab 7 Einträgen wandern die seltenen (`selten` in
+  `lib/navigation.ts`) unter „Mehr in …“ (aufgeklappt gemerkt: `start.mehr`).
 
 Projekte (`pages/Projekte.tsx`) als Kacheln: Nummer, Name, Status, Kunde,
 Adresse, Stunden und was noch nicht verrechnet ist; am Handy eine Spalte,

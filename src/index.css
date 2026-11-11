@@ -65,15 +65,15 @@
     --success: 152 62% 31%;
     --success-foreground: 0 0% 100%;
 
-    /* Seitenleiste am PC — fast schwarz */
-    --sidebar-background: 0 0% 9%;
-    --sidebar-foreground: 0 0% 80%;
+    /* Seitenleiste — hell wie bei Lengauer Stockner, aktiv = Fläche + blauer Strich */
+    --sidebar-background: 60 6% 98.5%;
+    --sidebar-foreground: 0 0% 28%;
     --sidebar-primary: 224 76% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 16%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 18%;
-    --sidebar-ring: 224 76% 60%;
+    --sidebar-accent: 60 5% 91.5%;
+    --sidebar-accent-foreground: 224 76% 40%;
+    --sidebar-border: 0 0% 87%;
+    --sidebar-ring: 224 76% 48%;
 
     /* Status-Pillen: Fläche / Schrift */
     --status-grau: 0 0% 93%;     --status-grau-fg: 0 0% 27%;
@@ -115,11 +115,13 @@
     --destructive: 4 70% 58%;
     --destructive-foreground: 0 0% 100%;
     --success: 152 50% 42%;
-    --sidebar-background: 0 0% 4%;
-    --sidebar-foreground: 0 0% 78%;
-    --sidebar-accent: 0 0% 13%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 14%;
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-primary: 221 83% 60%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 221 83% 72%;
+    --sidebar-border: 0 0% 16%;
+    --sidebar-ring: 221 83% 60%;
     --status-grau: 0 0% 20%;     --status-grau-fg: 0 0% 82%;
     --status-blau: 216 50% 20%;  --status-blau-fg: 214 90% 78%;
     --status-gelb: 44 50% 18%;   --status-gelb-fg: 46 85% 70%;

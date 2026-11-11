@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/AppSidebar";
+import { Seitenleiste, gemerktOffen, merkeOffen } from "@/components/rahmen/Seitenleiste";
+import { Suchpalette } from "@/components/rahmen/Suchpalette";
+import { NeuRahmen } from "@/components/rahmen/NeuMenue";
 
 const PC_AB = 1024;
 
@@ -18,22 +20,42 @@ export function useIstPc() {
   return pc;
 }
 
+/** Ab 768 px (Tablet) gibt es die Seitenleiste — dort immer schmal, nur Symbole. */
+export function useHatSeitenleiste() {
+  const [ja, setJa] = useState(() => typeof window !== "undefined" && window.innerWidth >= 768);
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 768px)");
+    const aendern = () => setJa(mql.matches);
+    mql.addEventListener("change", aendern);
+    aendern();
+    return () => mql.removeEventListener("change", aendern);
+  }, []);
+  return ja;
+}
+
+const BREITEN = { "--sidebar-width": "15rem", "--sidebar-width-icon": "3.5rem" } as CSSProperties;
+
 /**
- * Handy und Tablet: kein Seitenmenü, keine Leiste unten.
- * Die Startseite IST das Menü, jede Unterseite hat Zurück und Logo im Kopf.
- * PC: Seitenmenü links (Büro).
+ * Rahmen nach dem Vorbild Lengauer Stockner:
+ *  - Handy (unter 768 px): kein Seitenmenü, keine Leiste unten. Die Startseite
+ *    IST das Menü, jede Unterseite hat Zurück und Logo im Kopf.
+ *  - Tablet (768–1023 px): schmale Leiste mit Symbolen.
+ *  - PC (ab 1024 px): helle Seitenleiste, 240 px, einklappbar (gemerkt).
+ * Suche (Strg+K, am Handy die Lupe) und „+ Neu“ gibt es auf jeder Breite.
+ * Der Baum bleibt beim Drehen gleich — die Leiste wird nur ein- oder
+ * ausgehängt, ein offenes Formular bleibt erhalten.
  */
 export function AppLayout() {
   const pc = useIstPc();
-
-  if (!pc) return <Outlet />;
-
-  // eingeklappt bleibt eingeklappt (die Sidebar merkt sich den Zustand im Cookie)
-  const offen = !document.cookie.split("; ").includes("sidebar:state=false");
+  const leiste = useHatSeitenleiste();
+  const [offen, setOffen] = useState(gemerktOffen);
 
   return (
-    <SidebarProvider defaultOpen={offen}>
-      <AppSidebar />
+    <SidebarProvider style={BREITEN} open={pc ? offen : false}
+      onOpenChange={(o) => { if (pc) { setOffen(o); merkeOffen(o); } }}>
+      {leiste ? <Seitenleiste festSchmal={!pc} /> : null}
+      <Suchpalette />
+      <NeuRahmen />
       {/* min-w-0: breite Tabellen scrollen in sich, statt die Seite neben dem Menü aufzuschieben */}
       <SidebarInset className="min-w-0 bg-background">
         <Outlet />

@@ -4,12 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import {
   CalendarOff, CalendarPlus, CheckCircle2, FilePlus2, FolderPlus,
   BellRing, AlertTriangle, Banknote, Bus, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
-  ScanBarcode, ShieldCheck, ShoppingCart, UserCheck, Wrench,
+  ScanBarcode, Search, ShieldCheck, ShoppingCart, UserCheck, Wrench,
   PhoneCall,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { WunschKnopf } from "@/components/wunsch/WunschMelden";
 import { KontoMenue } from "@/components/KontoMenue";
+import { StartListe } from "@/components/rahmen/StartListe";
+import { sucheOeffnen } from "@/components/rahmen/Suchpalette";
 import { EinsatzBereich } from "@/components/einsatz/EinsatzBereich";
 import { useAntraege } from "@/components/zeiten/personalDaten";
 import { FotoDialog } from "@/components/dialoge/FotoDialog";
@@ -36,6 +38,11 @@ import { mahnFristAbgelaufen, mahnVorschlag } from "@/components/op/opLogik";
 import { belegStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { KUNDE } from "@/kunde.config";
+
+/** „Mittwoch, 11.11.2026“ */
+function datumLang(jetzt = new Date()): string {
+  return jetzt.toLocaleDateString("de-AT", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 /** „Guten Morgen“ / „Guten Tag“ / „Guten Abend“ nach der Uhrzeit. */
 function gruss(jetzt = new Date()): string {
@@ -229,30 +236,43 @@ export default function Index() {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-30 border-b bg-card" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-        <div className="mx-auto flex min-h-14 max-w-6xl items-center gap-2.5 px-3 py-1.5 sm:px-4 lg:px-6">
-          <img src={KUNDE.logo} alt="" className="h-9 w-9 shrink-0 rounded-md lg:hidden" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[0.9375rem] font-semibold leading-tight">{firma?.name || KUNDE.kurzname}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {new Date().toLocaleDateString("de-AT", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}
-            </p>
+      {/* Kopf am Handy: Logo, Datum und Gruß, Suche, Melden, Konto. Ab Tablet trägt die Seitenleiste Logo und Konto. */}
+      <header className="sticky top-0 z-30 border-b bg-card md:hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+        <div className="flex min-h-14 items-center gap-2 px-3 py-1.5 sm:px-4">
+          <img src={KUNDE.logo} alt="" className="h-9 w-9 shrink-0 rounded-md" />
+          <div className="min-w-0 flex-1 pl-0.5">
+            <p className="truncate text-xs text-muted-foreground">{datumLang()}</p>
+            <h1 className="truncate text-base font-semibold leading-tight" data-gruss>{gruss()}, {profil?.vorname || "willkommen"}</h1>
           </div>
+          <button type="button" onClick={sucheOeffnen} aria-label="Suchen" data-handy-suche
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
+            <Search className="h-5 w-5" />
+          </button>
           <WunschKnopf />
           <KontoMenue />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl space-y-6 px-3 py-4 sm:px-4 lg:px-6 lg:py-6"
+      <main className="mx-auto w-full max-w-6xl space-y-6 px-3 py-4 sm:px-4 md:pt-6 lg:px-6"
         style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 px-1">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{gruss()}, {profil?.vorname || "willkommen"}</h1>
-          <p className="text-sm text-muted-foreground">
-            Heute <span className="zahl font-semibold text-foreground">{stunden(heuteStunden)}</span>
-            <span className="mx-1.5">·</span>
-            Woche <span className="zahl font-semibold text-foreground">{stunden(dieseWoche)}</span>
-          </p>
+        {/* Gruß ab Tablet auf dem grauen Grund (am Handy steht er im Kopf) */}
+        <div className="hidden items-start justify-between gap-3 md:flex">
+          <div className="min-w-0">
+            <p className="text-sm text-muted-foreground">{datumLang()}</p>
+            <h1 className="text-2xl font-semibold tracking-tight" data-gruss>{gruss()}, {profil?.vorname || "willkommen"}</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Heute <span className="zahl font-semibold text-foreground">{stunden(heuteStunden)}</span>
+              <span className="mx-1.5">·</span>
+              Woche <span className="zahl font-semibold text-foreground">{stunden(dieseWoche)}</span>
+            </p>
+          </div>
+          <WunschKnopf />
         </div>
+        <p className="-mb-2 px-1 text-sm text-muted-foreground md:hidden">
+          Heute <span className="zahl font-semibold text-foreground">{stunden(heuteStunden)}</span>
+          <span className="mx-1.5">·</span>
+          Woche <span className="zahl font-semibold text-foreground">{stunden(dieseWoche)}</span>
+        </p>
 
         {/* PC: was man am häufigsten neu anlegt, gleich unter dem Gruß */}
         {pc && (
@@ -409,34 +429,11 @@ export default function Index() {
         )}
 
         {/* Am Handy und Tablet ist die Startseite das Menü — große Karten */}
-        {!pc && START_GRUPPEN.map((g) => {
-          const eintraege = menue.filter((n) => g.gruppen.includes(n.gruppe));
-          if (!eintraege.length) return null;
-          return (
-            <section key={g.titel}>
-              <Gruppentitel>{g.titel}</Gruppentitel>
-              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {eintraege.map((e) => (
-                  <li key={e.pfad}>
-                    <Link to={e.pfad} data-kachel={e.titel}
-                      className="group flex min-h-20 w-full flex-col justify-center rounded-lg border bg-card p-3 text-left transition-colors hover:border-primary/50 active:scale-[0.99]">
-                      <span className="flex items-center gap-3">
-                        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
-                          <e.icon className="h-6 w-6" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-lg font-semibold leading-tight">{e.titel}</span>
-                          <span className="block text-sm text-muted-foreground">{(!istChef && e.textMonteur) || e.text}</span>
-                        </span>
-                        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground group-hover:text-primary" />
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
+        {!pc && (
+          <StartListe monteur={!istChef} gruppen={START_GRUPPEN.map((g) => ({
+            titel: g.titel, eintraege: menue.filter((n) => g.gruppen.includes(n.gruppe)),
+          }))} />
+        )}
 
       </main>
 
