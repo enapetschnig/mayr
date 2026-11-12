@@ -19,7 +19,7 @@ import { useMitarbeiter, useNeuLaden, useProjekte } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datum as datumText, isoTag, stunden as stundenText, stundenAusVonBis, ueberMitternacht, zahlLesen } from "@/lib/format";
 import { ersteUeberschneidung, naechsterBlock, ueberschneiden } from "@/lib/zeitBloecke";
-import { name, type Zeit } from "@/lib/types";
+import { name, PROJEKT_STATUS, type ProjektStatus, type Zeit } from "@/lib/types";
 import { STUNDEN_ART, type StundenArt } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { fehlerText } from "@/components/stamm/stammDaten";
@@ -115,10 +115,18 @@ export function ZeitDialog({
     setWeitere([]);
   }, [open, eintrag, vorProjekt, vorDatum, profil?.id]);
 
-  // Ohne Vorgabe: zuletzt benutztes Projekt vorbelegen
+  // Buchbar ist nur „In Arbeit“; Garantie auch danach, aber nie auf ein Angebot (wie der DB-Trigger)
+  const buchbar = (id: string) => {
+    const p = projekte.find((x) => x.id === id);
+    return !!p && (p.status === "aktiv" || (art === "garantie" && p.status !== "angebot"));
+  };
+  const letzteBuchbar = letzte.filter((id) => projekte.some((p) => p.id === id && p.status !== "abgeschlossen"))
+    .filter((id) => buchbar(id));
+
+  // Ohne Vorgabe: zuletzt benutztes Projekt vorbelegen — nur eines, auf das man noch buchen kann
   useEffect(() => {
-    if (open && !eintrag && !vorProjekt && !projektId && letzte[0]) setProjektId(letzte[0]);
-  }, [open, eintrag, vorProjekt, projektId, letzte]);
+    if (open && !eintrag && !vorProjekt && !projektId && letzteBuchbar[0]) setProjektId(letzteBuchbar[0]);
+  }, [open, eintrag, vorProjekt, projektId, letzteBuchbar[0]]);
 
   const gesperrt = !!eintrag?.rechnung_id;
   // Fremde Stunden: nur ansehen (die Datenbank lehnt Ändern ab — still)
@@ -164,6 +172,16 @@ export function ZeitDialog({
   const speichern = async () => {
     if (!projektId) return toast.error("Bitte ein Projekt wählen.");
     if (!datum) return toast.error("Bitte ein Datum eintragen.");
+    // Neue Buchung oder anderes Projekt: vorher sagen, warum es nicht geht (die Datenbank lehnt sonst ab)
+    const nichtBuchbar = [eintrag?.projekt_id === projektId ? "" : projektId, ...(vonBis ? weitere.map((w) => w.projektId) : [])]
+      .find((id) => id && !buchbar(id));
+    if (nichtBuchbar) {
+      const p = projekte.find((x) => x.id === nichtBuchbar);
+      const stand = p ? PROJEKT_STATUS[p.status as ProjektStatus]?.text ?? p.status : "unbekannt";
+      return toast.error(`Auf ${p ? `${p.nummer} ${p.name}` : "dieses Projekt"} kann nicht gebucht werden — es ist nicht „In Arbeit“ (${stand}).`, {
+        description: istChef ? "Im Projekt den Status auf „In Arbeit“ stellen, dann buchen." : "Der Chef stellt es auf „In Arbeit“ — oder ein anderes Projekt wählen.",
+      });
+    }
     if (datum > isoTag()) return toast.error("Das Datum liegt in der Zukunft — Stunden erst buchen, wenn gearbeitet ist.");
     if (vonBis) {
       for (const [i, b] of bloecke.entries()) {
@@ -291,11 +309,11 @@ export function ZeitDialog({
 
         <div className="space-y-2">
           <Label htmlFor="z-projekt">Projekt</Label>
-          {!eintrag && letzte.length > 0 && (
+          {!eintrag && letzteBuchbar.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {letzte.map((id) => {
+              {letzteBuchbar.map((id) => {
                 const p = projekte.find((x) => x.id === id);
-                if (!p || p.status === "abgeschlossen") return null;
+                if (!p) return null;
                 return (
                   <button key={id} type="button" onClick={() => setProjektId(id)}
                     className={cn("max-w-full truncate rounded-full border px-3 py-1.5 text-sm",

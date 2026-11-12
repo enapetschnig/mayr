@@ -36,5 +36,9 @@ begin
       union all select nummer from public.belege where n.typ = 'angebot' and nummer like 'AN-' || n.jahr || '-%'
       union all select nummer from public.belege where n.typ = 'rechnung' and nummer like 'RE-' || n.jahr || '-%'
       union all select nummer from public.regieberichte where n.typ = 'regie' and nummer like 'RB-' || n.jahr || '-%'
-    ) x), 0);
+      union all select nummer from public.pruefungen where n.typ = 'pruefung' and nummer like 'PR-' || n.jahr || '-%'
+      union all select nummer from public.bestellungen where n.typ = 'bestellung' and nummer like 'BE-' || n.jahr || '-%'
+    ) x), 0)
+  -- nur Kreise, die hier oben gezählt werden — sonst fiele ein fremder Kreis auf 0 (doppelte Nummern)
+  where n.typ in ('projekt', 'angebot', 'rechnung', 'regie', 'pruefung', 'bestellung');
 end $$;
