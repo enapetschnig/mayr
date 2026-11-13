@@ -1250,26 +1250,6 @@ export type Database = {
           },
         ]
       }
-      einladungen: {
-        Row: {
-          created_at: string
-          eingeloest_am: string | null
-          eingeloest_von: string | null
-          erstellt_von: string | null
-          gueltig_bis: string
-          id: string
-          nachname: string
-          profil_id: string | null
-          rolle: string
-          team_id: string | null
-          token_hash: string
-          vorname: string
-          zurueckgezogen_am: string | null
-        }
-        Insert: { id?: string }
-        Update: { id?: string }
-        Relationships: []
-      }
       eingang_anteile: {
         Row: {
           betrag: number
@@ -1510,6 +1490,83 @@ export type Database = {
             columns: ["kategorie_id"]
             isOneToOne: false
             referencedRelation: "rechnung_kategorien"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      einladungen: {
+        Row: {
+          created_at: string
+          eingeloest_am: string | null
+          eingeloest_von: string | null
+          erstellt_von: string | null
+          gueltig_bis: string
+          id: string
+          nachname: string
+          profil_id: string | null
+          rolle: string
+          team_id: string | null
+          token_hash: string
+          vorname: string
+          zurueckgezogen_am: string | null
+        }
+        Insert: {
+          created_at?: string
+          eingeloest_am?: string | null
+          eingeloest_von?: string | null
+          erstellt_von?: string | null
+          gueltig_bis?: string
+          id?: string
+          nachname?: string
+          profil_id?: string | null
+          rolle?: string
+          team_id?: string | null
+          token_hash: string
+          vorname?: string
+          zurueckgezogen_am?: string | null
+        }
+        Update: {
+          created_at?: string
+          eingeloest_am?: string | null
+          eingeloest_von?: string | null
+          erstellt_von?: string | null
+          gueltig_bis?: string
+          id?: string
+          nachname?: string
+          profil_id?: string | null
+          rolle?: string
+          team_id?: string | null
+          token_hash?: string
+          vorname?: string
+          zurueckgezogen_am?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "einladungen_eingeloest_von_fkey"
+            columns: ["eingeloest_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "einladungen_erstellt_von_fkey"
+            columns: ["erstellt_von"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "einladungen_profil_id_fkey"
+            columns: ["profil_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "einladungen_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -3377,13 +3434,6 @@ export type Database = {
       }
     }
     Functions: {
-      einladung_erstellen: {
-        Args: { p_nachname: string; p_profil?: string | null; p_rolle?: string; p_team?: string | null; p_vorname: string }
-        Returns: Json
-      }
-      einladung_lesen: { Args: { p_token: string }; Returns: Json }
-      einladung_neu: { Args: { p_id: string }; Returns: string }
-      einladung_zurueckziehen: { Args: { p_id: string }; Returns: undefined }
       altrechnung_pruefen: {
         Args: { b: Database["public"]["Tables"]["belege"]["Row"] }
         Returns: undefined
@@ -3515,7 +3565,27 @@ export type Database = {
       }
       beleg_fertigstellen: { Args: { p_id: string }; Returns: string }
       beleg_stornieren: { Args: { p_id: string }; Returns: string }
+      benutzer_aus_name: { Args: { p_text: string }; Returns: string }
       datenblatt_oeffentlich: { Args: { p_name: string }; Returns: boolean }
+      einladung_benutzervorschlag: {
+        Args: { p_domain: string; p_nachname: string; p_vorname: string }
+        Returns: string
+      }
+      einladung_erstellen: {
+        Args: {
+          p_nachname: string
+          p_profil?: string
+          p_rolle?: string
+          p_team?: string
+          p_vorname: string
+        }
+        Returns: Json
+      }
+      einladung_hash: { Args: { p_token: string }; Returns: string }
+      einladung_lesen: { Args: { p_token: string }; Returns: Json }
+      einladung_neu: { Args: { p_id: string }; Returns: string }
+      einladung_token: { Args: never; Returns: string }
+      einladung_zurueckziehen: { Args: { p_id: string }; Returns: undefined }
       fibu_uebergeben: {
         Args: {
           p_belege: string[]
@@ -3548,6 +3618,7 @@ export type Database = {
           schluessel: string
         }[]
       }
+      lagerplatz_darf: { Args: { p_lagerort: string }; Returns: boolean }
       leitet_team_von: { Args: { p_user: string }; Returns: boolean }
       lieferant_schluessel: { Args: { p: string }; Returns: string }
       lieferschein_einbuchen: {
