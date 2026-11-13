@@ -13,13 +13,15 @@ import { useProjekte, useProjektZahlen } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { alleZeilen, csvHerunterladen } from "@/lib/abfrage";
 import { abwesenheitStunden, abwesenheitsTage, lohnSumme } from "@/lib/zeitkonto";
-import { ABWESENHEIT_ART, STUNDEN_ART, type AbwesenheitArt, type StundenArt } from "@/lib/types";
+import { ABWESENHEIT_ART, STUNDEN_ART, TON_KLASSE, type AbwesenheitArt, type StundenArt } from "@/lib/types";
 import { datum, euro, isoTag, stunden, tageDazu, uhrzeit, zahl } from "@/lib/format";
 import { buchungVk, runden2, stundensatzFuer } from "@/lib/preise";
 import { pdfDateiname, pdfTeilenOderLaden } from "@/lib/pdfBasis";
 import { stundenPdf } from "@/lib/stundenPdf";
 import { name } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useMitarbeiterSaetze } from "@/components/projekt/nachkalkulationDaten";
+import { angeboteneStunden, kalkulationsAngebote, nachkalkulieren, stundenAmpel, type NkMaterial, type NkZeit } from "@/lib/nachkalkulation";
 
 const MONATE_KURZ = ["Jän", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 const MONAT_LANG = new Intl.DateTimeFormat("de-AT", { month: "long" });
@@ -451,42 +453,79 @@ function Nachkalkulation() {
   const { data: projekte = [] } = useProjekte();
   const { data: zahlen = {} } = useProjektZahlen();
   const { data: belege = [] } = useBelegeKurz();
+  const { saetzeFuer } = useMitarbeiterSaetze();
   const { data: material = [] } = useQuery({
     queryKey: ["material", "auswertung-projekte"],
     queryFn: () => alleZeilen((a, b) => supabase.from("material_buchungen")
-      .select("id, projekt_id, art, menge, ek_preis, rechnung_id, artikel(ek_preis, vk_preis, listenpreis), regieberichte(rechnung_id)")
+      .select("id, projekt_id, art, menge, ek_preis, rechnung_id, regiebericht_id, artikel(ek_preis, vk_preis, listenpreis), regieberichte(rechnung_id)")
       .not("projekt_id", "is", null).in("art", ["ausfassung", "rueckgabe", "direkt"]).order("id").range(a, b)),
   });
+  // Stunden je Person und Tag — für Sätze und Lohnkosten je Mitarbeiter, Regie getrennt
+  const { data: zeiten = [] } = useQuery({
+    queryKey: ["zeiten", "auswertung-projekte"],
+    queryFn: () => alleZeilen((a, b) => supabase.from("zeiten")
+      .select("id, projekt_id, user_id, datum, stunden, art, regiebericht_id")
+      .not("projekt_id", "is", null).order("id").range(a, b)),
+  });
+  // Angebotene Stunden aus den Positionen der zählenden Angebote
+  const angebotIds = useMemo(() => {
+    const je = new Map<string, typeof belege>();
+    belege.forEach((b) => { if (b.projekt_id) je.set(b.projekt_id, [...(je.get(b.projekt_id) ?? []), b]); });
+    return [...je.values()].flatMap((bs) => kalkulationsAngebote(bs).angebote.map((x) => x.id)).sort();
+  }, [belege]);
+  const { data: positionen = [] } = useQuery({
+    queryKey: ["belege", "auswertung-positionen", angebotIds],
+    enabled: angebotIds.length > 0,
+    queryFn: () => alleZeilen((a, b) => supabase.from("beleg_positionen")
+      .select("id, beleg_id, art, menge, einheit, minuten").in("beleg_id", angebotIds).order("id").range(a, b)),
+  });
+  const saetze = saetzeFuer(0);
 
   const zeilen = useMemo(() => {
-    const mat = new Map<string, { vk: number; offen: number }>();
+    const mat = new Map<string, { offen: number; liste: NkMaterial[] }>();
     material.forEach((m) => {
       if (!m.projekt_id) return;
-      const e = mat.get(m.projekt_id) ?? { vk: 0, offen: 0 };
-      const wert = vorzeichen(m.art) * Number(m.menge) * buchungVk(m, firma);
-      e.vk += wert;
-      if (!m.rechnung_id && !m.regieberichte?.rechnung_id) e.offen += wert;
+      const e = mat.get(m.projekt_id) ?? { offen: 0, liste: [] };
+      const menge = vorzeichen(m.art) * Number(m.menge);
+      const vk = buchungVk(m, firma);
+      e.liste.push({ menge, vk, ek: Number(m.ek_preis ?? m.artikel?.ek_preis ?? 0), regiebericht_id: m.regiebericht_id });
+      if (!m.rechnung_id && !m.regieberichte?.rechnung_id) e.offen += menge * vk;
       mat.set(m.projekt_id, e);
     });
+    const zt = new Map<string, NkZeit[]>();
+    zeiten.forEach((z) => { if (z.projekt_id) zt.set(z.projekt_id, [...(zt.get(z.projekt_id) ?? []), { ...z, stunden: Number(z.stunden) }]); });
+    const posJe = new Map<string, typeof positionen>();
+    positionen.forEach((x) => posJe.set(x.beleg_id, [...(posJe.get(x.beleg_id) ?? []), x]));
     return projekte
       .filter((p) => alle || p.status !== "abgeschlossen")
       .map((p) => {
         const z = zahlen[p.id];
         const satz = stundensatzFuer(p, firma);
-        const m = mat.get(p.id) ?? { vk: 0, offen: 0 };
+        const m = mat.get(p.id) ?? { offen: 0, liste: [] };
         const eigene = belege.filter((b) => b.projekt_id === p.id);
+        // Projekt-/Betriebssatz als Standard, Lohnarten mit diesem Standard
+        const nk = nachkalkulieren(zt.get(p.id) ?? [], m.liste, {
+          ...saetze, standardSatz: satz, lohnarten: saetze.lohnarten.map((l) => (l.standard ? { ...l, satz } : l)),
+        });
+        const zaehlende = kalkulationsAngebote(eigene).angebote;
         return {
           projekt: p,
           h: Number(z?.stunden ?? 0),
-          geleistet: runden2(Number(z?.stunden ?? 0) * satz + m.vk),
+          hPauschal: nk.pauschal.stunden,
+          hAngebot: angeboteneStunden(zaehlende.flatMap((x) => posJe.get(x.id) ?? [])),
+          // ohne Regie — nur das zählt gegen das Angebot
+          pauschal: nk.pauschal.wert,
+          regie: nk.regie.wert,
+          geleistet: runden2(nk.pauschal.wert + nk.regie.wert),
           offen: Math.max(0, runden2(Number(z?.stunden_offen ?? 0) * satz + m.offen)),
-          angebot: summe(eigene.filter((b) => b.typ === "angebot" && (b.status === "offen" || b.status === "angenommen")).map((b) => b.netto)),
+          angebot: summe(zaehlende.map((b) => b.netto)),
           verrechnet: summe(eigene.filter((b) => b.typ === "rechnung" && (b.status === "offen" || b.status === "bezahlt")).map((b) => b.netto)),
         };
       })
       .filter((r) => r.geleistet > 0 || r.angebot > 0 || r.verrechnet > 0)
       .sort((a, b) => b.offen - a.offen || b.geleistet - a.geleistet);
-  }, [material, projekte, zahlen, belege, firma, alle]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [material, zeiten, positionen, projekte, zahlen, belege, firma, alle, saetze.saetze, saetze.lohnartVon]);
 
   const gesamt = {
     geleistet: summe(zeilen.map((r) => r.geleistet)),
@@ -506,13 +545,13 @@ function Nachkalkulation() {
             </button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">Geleistet = Stunden × Stundensatz + Material zum Verkaufspreis</p>
+        <p className="text-xs text-muted-foreground">Geleistet = Stunden × Satz der Person + Material zum Verkaufspreis. Regie zählt nicht gegen das Angebot.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Kennzahl titel="Noch nicht verrechnet" wert={euro(gesamt.offen)} unter="Stunden und Material ohne Rechnung" />
         <Kennzahl titel="Geleistet" wert={euro(gesamt.geleistet)} />
-        <Kennzahl titel="Angebote" wert={euro(gesamt.angebot)} unter="offen oder angenommen" />
+        <Kennzahl titel="Angebote" wert={euro(gesamt.angebot)} unter="angenommen, sonst offen" />
         <Kennzahl titel="Verrechnet" wert={euro(gesamt.verrechnet)} unter="Rechnungen netto" />
       </div>
 
@@ -526,6 +565,7 @@ function Nachkalkulation() {
                 <th className="px-4 py-2.5 text-left font-medium">Projekt</th>
                 <th className="px-4 py-2.5 text-right font-medium">Stunden</th>
                 <th className="px-4 py-2.5 text-right font-medium">Geleistet</th>
+                <th className="px-4 py-2.5 text-right font-medium">davon Regie</th>
                 <th className="px-4 py-2.5 text-right font-medium">Angebot</th>
                 <th className="px-4 py-2.5 text-left font-medium">Vom Angebot</th>
                 <th className="px-4 py-2.5 text-right font-medium">Verrechnet</th>
@@ -543,10 +583,11 @@ function Nachkalkulation() {
                     </div>
                     {r.projekt.kunden?.name && <p className="text-xs text-muted-foreground">{r.projekt.kunden.name}</p>}
                   </td>
-                  <td className="px-4 py-3 text-right">{stunden(r.h)}</td>
+                  <td className="px-4 py-3 text-right"><StundenZelle h={r.h} hPauschal={r.hPauschal} hAngebot={r.hAngebot} /></td>
                   <td className="px-4 py-3 text-right">{euro(r.geleistet)}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">{r.regie > 0 ? euro(r.regie) : "—"}</td>
                   <td className="px-4 py-3 text-right">{r.angebot > 0 ? euro(r.angebot) : "—"}</td>
-                  <td className="px-4 py-3"><AngebotMeter geleistet={r.geleistet} angebot={r.angebot} /></td>
+                  <td className="px-4 py-3"><AngebotMeter geleistet={r.pauschal} angebot={r.angebot} /></td>
                   <td className="px-4 py-3 text-right">{r.verrechnet > 0 ? euro(r.verrechnet) : "—"}</td>
                   <td className={cn("px-4 py-3 text-right", r.offen > 0 && "font-semibold")}>{r.offen > 0 ? euro(r.offen) : "—"}</td>
                 </tr>
@@ -557,6 +598,7 @@ function Nachkalkulation() {
                 <td className="px-4 py-2.5">Summe</td>
                 <td className="px-4 py-2.5 text-right">{stunden(summe(zeilen.map((r) => r.h)))}</td>
                 <td className="px-4 py-2.5 text-right">{euro(gesamt.geleistet)}</td>
+                <td className="px-4 py-2.5 text-right">{euro(summe(zeilen.map((r) => r.regie)))}</td>
                 <td className="px-4 py-2.5 text-right">{euro(gesamt.angebot)}</td>
                 <td />
                 <td className="px-4 py-2.5 text-right">{euro(gesamt.verrechnet)}</td>
@@ -580,13 +622,29 @@ function Nachkalkulation() {
                 <div><dt className="text-xs text-muted-foreground">Nicht verrechnet</dt><dd className={cn("zahl", r.offen > 0 ? "font-semibold" : "text-muted-foreground")}>{r.offen > 0 ? euro(r.offen) : "—"}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Angebot</dt><dd className="zahl">{r.angebot > 0 ? euro(r.angebot) : "—"}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Verrechnet</dt><dd className="zahl">{r.verrechnet > 0 ? euro(r.verrechnet) : "—"}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Stunden</dt><dd><StundenZelle h={r.h} hPauschal={r.hPauschal} hAngebot={r.hAngebot} links /></dd></div>
+                {r.regie > 0 && <div><dt className="text-xs text-muted-foreground">davon Regie</dt><dd className="zahl">{euro(r.regie)}</dd></div>}
               </dl>
-              {r.angebot > 0 && <div className="mt-3"><AngebotMeter geleistet={r.geleistet} angebot={r.angebot} /></div>}
+              {r.angebot > 0 && <div className="mt-3"><AngebotMeter geleistet={r.pauschal} angebot={r.angebot} /></div>}
             </button>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+/** Gebuchte Stunden; mit Angebot darunter „ohne Regie / angeboten“ in Ampelfarbe */
+function StundenZelle({ h, hPauschal, hAngebot, links }: { h: number; hPauschal: number; hAngebot: number; links?: boolean }) {
+  const ampel = stundenAmpel(hPauschal, hAngebot);
+  if (!ampel) return <span className="zahl">{stunden(h)}</span>;
+  return (
+    <span className={cn("inline-flex flex-col gap-0.5", links ? "items-start" : "items-end")}>
+      <span className="zahl">{stunden(h)}</span>
+      <span className={cn("zahl rounded-full px-1.5 text-[11px] font-semibold", TON_KLASSE[ampel.ton])} title={ampel.text}>
+        {zahl(hPauschal)} / {zahl(hAngebot)} h
+      </span>
+    </span>
   );
 }
 

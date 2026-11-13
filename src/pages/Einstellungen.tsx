@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, Karte, StatusPille } from "@/components/Bausteine";
 import { InstallAnleitung } from "@/components/Installieren";
+import { LohnSaetze, WhatsAppVorlagenKarte } from "@/components/projekt/ProjektEinstellungen";
 import { useNeuLaden } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { useQuery } from "@tanstack/react-query";
@@ -355,6 +356,8 @@ function Betrieb() {
         </div>
       </Karte>
 
+      <WhatsAppVorlagenKarte />
+
       <div className="sticky bottom-3 z-10 flex justify-end">
         <Button onClick={speichern} disabled={speichert} className="h-12 min-w-44 gap-2 shadow-schwebend">
           {speichert && <Loader2 className="h-4 w-4 animate-spin" />} Betrieb speichern
@@ -475,6 +478,7 @@ function Mitarbeiter() {
                   </div>
                 )}
                 <PersonalFelder p={p} onAendern={(daten) => aendern(p, daten)} />
+                <LohnSaetze p={p} />
                 <div className="flex flex-wrap gap-1.5" aria-label="Farbe">
                   {PERSONENFARBEN.map((c) => (
                     <button key={c} type="button" onClick={() => aendern(p, { farbe: c })} aria-label={`Farbe ${c}`}

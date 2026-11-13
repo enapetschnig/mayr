@@ -96,6 +96,18 @@ export const PROJEKT_STATUS: Record<ProjektStatus, StatusEintrag> = {
   abgeschlossen: { ton: "gruen", text: "Abgeschlossen" },
 };
 
+/** Förderung (PV): Schritte in der Reihenfolge des Ablaufs, „abgelehnt“ zuletzt */
+export type FoerderStatus = "keine" | "vorbereitet" | "eingereicht" | "zugesagt" | "fertig_gemeldet" | "ausbezahlt" | "abgelehnt";
+export const FOERDER_STATUS: Record<FoerderStatus, StatusEintrag> = {
+  keine: { ton: "grau", text: "Keine Förderung" },
+  vorbereitet: { ton: "cyan", text: "Antrag vorbereitet" },
+  eingereicht: { ton: "blau", text: "Eingereicht" },
+  zugesagt: { ton: "gelb", text: "Zugesagt" },
+  fertig_gemeldet: { ton: "lila", text: "Fertigstellung gemeldet" },
+  ausbezahlt: { ton: "gruen", text: "Ausbezahlt" },
+  abgelehnt: { ton: "rosa", text: "Abgelehnt" },
+};
+
 // ── Belege und Regieberichte ───────────────────────────────────────────
 export const BELEG_STATUS: Record<string, StatusEintrag> = {
   entwurf: { ton: "cyan", text: "Entwurf" },

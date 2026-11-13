@@ -4,19 +4,20 @@ import { Clock, FolderKanban, FolderPlus, LayoutGrid, List, MapPin, Search, User
 import { Seite } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leer } from "@/components/Bausteine";
+import { Leer, StatusPille } from "@/components/Bausteine";
 import { ProjektStatusWahl } from "@/components/ProjektStatusWahl";
 import { ProjektDialog } from "@/components/dialoge/ProjektDialog";
 import { useIstPc } from "@/components/AppLayout";
 import { useProjekte, useProjektZahlen, type ProjektMitKunde } from "@/hooks/useDaten";
 import { stunden } from "@/lib/format";
-import type { ProjektZahlen } from "@/lib/types";
+import { foerderPille } from "@/lib/foerderung";
+import { FOERDER_STATUS, type FoerderStatus, type ProjektZahlen } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Ansicht = "kacheln" | "liste";
 const ANSICHT_KEY = "elektro.projekte.ansicht";
 
-type Filter = "laufend" | "aktiv" | "angebot" | "verrechnen" | "offen" | "abgeschlossen";
+type Filter = "laufend" | "aktiv" | "angebot" | "verrechnen" | "offen" | "foerderung" | "abgeschlossen";
 
 const FILTER: { wert: Filter; text: string }[] = [
   { wert: "laufend", text: "Laufend" },
@@ -24,6 +25,7 @@ const FILTER: { wert: Filter; text: string }[] = [
   { wert: "angebot", text: "Angebot" },
   { wert: "verrechnen", text: "Zu verrechnen" },
   { wert: "offen", text: "Nicht verrechnet" },
+  { wert: "foerderung", text: "Förderung" },
   { wert: "abgeschlossen", text: "Abgeschlossen" },
 ];
 
@@ -33,6 +35,8 @@ const hatOffenes = (z: ProjektZahlen | undefined) =>
 function passt(p: ProjektMitKunde, f: Filter, z: ProjektZahlen | undefined): boolean {
   if (f === "laufend") return p.status !== "abgeschlossen";
   if (f === "offen") return p.status !== "abgeschlossen" && hatOffenes(z);
+  // alle mit erfasster Förderung, auch abgeschlossene (die Auszahlung kommt oft später)
+  if (f === "foerderung") return !!p.foerder_status && p.foerder_status !== "keine";
   return p.status === f;
 }
 
@@ -53,6 +57,8 @@ export default function Projekte() {
     try { localStorage.setItem(ANSICHT_KEY, a); } catch { /* privat: egal */ }
   };
   const filter = (FILTER.some((f) => f.wert === params.get("filter")) ? params.get("filter") : "laufend") as Filter;
+  // Unterfilter Förderstatus (?filter=foerderung&foerder=zugesagt)
+  const foerder = filter === "foerderung" && params.get("foerder") && params.get("foerder")! in FOERDER_STATUS ? params.get("foerder") as FoerderStatus : null;
 
   // ?neu=1 (z. B. von der Startseite am PC) öffnet gleich „Neues Projekt“
   useEffect(() => {
@@ -67,10 +73,11 @@ export default function Projekte() {
     const s = suche.trim().toLowerCase();
     return projekte.filter((p) => {
       if (!passt(p, filter, zahlen[p.id])) return false;
+      if (foerder && p.foerder_status !== foerder) return false;
       if (!s) return true;
       return [p.nummer, p.name, p.kunden?.name, p.ort, p.strasse].some((x) => x?.toLowerCase().includes(s));
     });
-  }, [projekte, zahlen, filter, suche]);
+  }, [projekte, zahlen, filter, foerder, suche]);
 
   const anzahl = (f: Filter) => projekte.filter((p) => passt(p, f, zahlen[p.id])).length;
   const filterSetzen = (f: Filter) => setParams(f === "laufend" ? {} : { filter: f }, { replace: true });
@@ -81,7 +88,7 @@ export default function Projekte() {
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {FILTER.map((f) => {
           const n = anzahl(f.wert);
-          if (f.wert === "offen" && n === 0 && filter !== "offen") return null;
+          if ((f.wert === "offen" || f.wert === "foerderung") && n === 0 && filter !== f.wert) return null;
           return (
             <button key={f.wert} type="button" onClick={() => filterSetzen(f.wert)} aria-pressed={filter === f.wert}
               className={cn("flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors",
@@ -91,6 +98,23 @@ export default function Projekte() {
           );
         })}
       </div>
+
+      {filter === "foerderung" && (
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" aria-label="Förderstatus">
+          {(Object.keys(FOERDER_STATUS) as FoerderStatus[]).filter((s) => s !== "keine").map((s) => {
+            const n = projekte.filter((p) => p.foerder_status === s).length;
+            if (!n && foerder !== s) return null;
+            return (
+              <button key={s} type="button" aria-pressed={foerder === s}
+                onClick={() => setParams(foerder === s ? { filter: "foerderung" } : { filter: "foerderung", foerder: s }, { replace: true })}
+                className={cn("flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium",
+                  foerder === s ? "border-primary bg-primary-soft text-primary" : "bg-card text-muted-foreground hover:bg-muted")}>
+                {FOERDER_STATUS[s].text} <span className="zahl opacity-70">{n}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -142,7 +166,9 @@ export default function Projekte() {
                     <td className="px-4 py-3 font-medium">{p.name}</td>
                     <td className="px-4 py-3">{p.kunden?.name ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{p.ort ?? "—"}</td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}><ProjektStatusWahl projekt={p} /></td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-wrap items-center gap-1.5"><ProjektStatusWahl projekt={p} /><StatusPille eintrag={foerderPille(p.foerder_status) ?? undefined} /></div>
+                    </td>
                     <td className="zahl px-4 py-3 text-right">{z ? stunden(Number(z.stunden)) : "—"}</td>
                     <td className="px-4 py-3 text-right text-xs text-muted-foreground"><OffenText z={z} /></td>
                   </tr>
@@ -182,6 +208,7 @@ function ProjektKachel({ p, z }: { p: ProjektMitKunde; z: ProjektZahlen | undefi
       <span className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-0.5 pt-1.5 text-xs text-muted-foreground">
         {z && Number(z.stunden) > 0 && <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /><span className="zahl">{stunden(Number(z.stunden))}</span></span>}
         {offen && <span className="font-medium text-status-gelb-fg">Nicht verrechnet: <OffenText z={z} /></span>}
+        {foerderPille(p.foerder_status) && <StatusPille eintrag={foerderPille(p.foerder_status)!} />}
       </span>
     </div>
   );

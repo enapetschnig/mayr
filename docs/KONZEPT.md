@@ -73,7 +73,9 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
 | `material_buchungen` | **eine** Tabelle für Lager und Projekt (siehe unten) |
 | `regieberichte` | Datum, Arbeiten, Unterschrift (Bild im Storage), `rechnung_id` |
 | `belege` + `beleg_positionen` | Angebot/Rechnung; Positionen mit `art` titel/leistung/artikel/arbeit/material/pauschale/text |
-| `dateien` | Fotos/Dokumente je Projekt (Bucket `projekt-dateien`) |
+| `dateien` | Fotos/Dokumente je Projekt (Bucket `projekt-dateien`); `planung` = steht oben unter „Planung“ |
+| `projekt_verlauf` | je Projekt: WhatsApp an den Kunden (Text, Nummer), Förderschritte (Trigger), Notizen |
+| `mitarbeiter_saetze` | Lohnkosten und Verrechnungssatz je Person mit `gueltig_ab` — nur der Chef (RLS) |
 | `termine` | Kalender und Einsätze; `mitarbeiter uuid[]`, `status` geplant/begonnen/erledigt, `dringend`, `geaendert_am` (Trigger, nur bei Zeit, Ort, Personen) |
 | `abwesenheiten` | Urlaub, Krank, Arzt, Berufsschule, Zeitausgleich, Sonstiges je Person; `status` beantragt/genehmigt/abgelehnt |
 | `fibu_uebergaben` + `fibu_uebergabe_belege` | Was an die Kanzlei ging, je Beleg einmal; zurücknehmen löscht die Übergabe |
@@ -538,10 +540,43 @@ Menü nach dem Vorbild Lengauer Stockner (`components/rahmen/`):
   leichtem Schatten; ab 7 Einträgen wandern die seltenen (`selten` in
   `lib/navigation.ts`) unter „Mehr in …“ (aufgeklappt gemerkt: `start.mehr`).
 
-Projekte (`pages/Projekte.tsx`) als Kacheln: Nummer, Name, Status, Kunde,
-Adresse, Stunden und was noch nicht verrechnet ist; am Handy eine Spalte,
+Projekte (`pages/Projekte.tsx`) als Kacheln: Nummer, Name, Status, Förderung, Kunde,
+Adresse, Stunden und was noch nicht verrechnet ist; Filter „Förderung“ mit Unterfilter je Schritt; am Handy eine Spalte,
 ab 480 px zwei, PC drei bis vier. Am PC umschaltbar auf die Liste
 (`elektro.projekte.ansicht`).
+
+### Projektseite: Planung, Fotos, Förderung, WhatsApp, Nachkalkulation
+
+Migration `20261113114000_projekte_foerderung_planung_saetze.sql`, Bausteine in `components/projekt/`:
+- **Fotos** (`BildBetrachter`, ohne Bibliothek): Vollbild, zwei Finger zoomen, Doppeltipp/-klick 2,5×,
+  gezoomt verschieben, sonst wischen = nächstes Bild; PC Mausrad zur Maus, Pfeiltasten, + − 0, Esc.
+- **Planung** (`PlanungBereich`, oben in der Übersicht): Dokumente mit `dateien.planung` (PV-Plan,
+  Stringplan, Dachbelegung) — „Plan ablegen“ oder im Ordner Dokumente „Als Planung oben zeigen“.
+  PDFs zeichnet `PdfAnsicht` mit pdf.js (lazy geladen): am PC eingebettet, am Handy Vollbild; Seiten
+  blättern, Zoom, Herunterladen bzw. am Handy Teilen. Bilder öffnen im Betrachter.
+- **Förderung** (`projekte.foerder_*`): keine / Antrag vorbereitet / eingereicht / zugesagt /
+  Fertigstellung gemeldet / ausbezahlt / abgelehnt, mit Förderstelle (Vorschläge OeMAG, Klimafonds,
+  Land, Gemeinde), Betrag, Datum, Frist, Notiz. Pille im Kopf und auf der Kachel (`foerderPille`).
+  Jede Änderung schreibt der Trigger `foerderung_verlauf` in den Verlauf. Startseite (Chef): Frist
+  offener Schritte in ≤ 30 Tagen oder vorbei (`lib/foerderung.ts`).
+- **WhatsApp an Kunde** (`WhatsAppDialog`, ohne API): Vorlage wählen (Termin = nächster Einsatz mit
+  Datum, Uhrzeit, Team; Montage fertig; Förderung; frei), Text prüfen, „In WhatsApp öffnen“ →
+  `wa.me/<nummer>?text=…` (`waNummer`: 0664… → 43664…). Gesendet wird in WhatsApp; vermerkt wird die
+  Absicht mit Text und Nummer im Verlauf. Vorlagen mit Platzhaltern `{kunde}` … in Einstellungen →
+  Betrieb (`firma.whatsapp_vorlagen`, leer = Vorgaben in `lib/whatsapp.ts`).
+- **Nachkalkulation** (`NachkalkulationKarte`, `lib/nachkalkulation.ts`, nur Chef): zählendes Angebot =
+  die angenommenen, sonst die offenen. **Angebotene Stunden** = Arbeitszeit-Positionen in h + Menge ×
+  Montageminuten jeder Position; gegen die gebuchten Stunden **ohne Regie**, Ampel bis 85 % grün, bis
+  100 % gelb, darüber rot. **Regie getrennt**: Stunden und Material mit `regiebericht_id` sind ein
+  eigener Block (Wert, Material-EK, Lohnkosten, Ertrag) und zählen nie gegen das Angebot; die
+  Pauschale rechnet Angebot − Lohnkosten − Material-EK − Fremdleistung. Garantie kostet, bringt nichts;
+  Überstunden ×1,5/×2 auf beiden Seiten. Auswertung → Nachkalkulation zeigt dieselbe Rechnung je Projekt
+  (Spalte „davon Regie“, Stunden „ohne Regie / angeboten“).
+- **Lohnkosten und Stundensatz je Mitarbeiter** (Einstellungen → Mitarbeiter, Knopf „€“): Zeilen mit
+  „gültig ab“; jede Stunde rechnet mit dem Satz ihres Tages (`satzAm`). Lohnkosten: Person, sonst
+  `firma.kostensatz`. Verrechnungssatz: Person, sonst Lohnart, sonst Projekt-/Betriebssatz — so auch in
+  „Aus dem Projekt übernehmen“ (Rechnung, Regie); wer einen eigenen Satz hat, bekommt eine eigene Zeile
+  „Arbeitszeit <Name>“. Monteure lesen die Tabelle nicht (RLS `saetze_chef`).
 
 ### Betrieb (Einstellungen)
 
@@ -647,7 +682,7 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
    Klick (`lib/stundenPdf.ts`: Summen je Mitarbeiter, dann je Mitarbeiter eine
    Seite mit allen Tagen und Unterschriftszeilen) für die Lohnverrechnung,
    daneben dieselben Zeilen als CSV. Nachkalkulation
-   je Projekt: geleistet (Stunden × Satz + Material-VK) gegen Angebot und
+   je Projekt: geleistet (Stunden × Satz der Person + Material-VK, Regie getrennt) gegen Angebot und
    Verrechnetes, sortiert nach „noch nicht verrechnet“.
 7. **Neuer Mitarbeiter**: registriert sich selbst unter `/auth` → Chef schaltet
    ihn unter Einstellungen → Mitarbeiter frei (Rolle, Farbe).

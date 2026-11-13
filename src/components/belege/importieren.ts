@@ -1,6 +1,7 @@
 import { arbeitszeitText, type Lohnart } from "@/lib/kalkulation";
 import { supabase } from "@/integrations/supabase/client";
 import { datum as datumText } from "@/lib/format";
+import { satzAm, type MitarbeiterSatz } from "@/lib/nachkalkulation";
 import { buchungVk, runden2 } from "@/lib/preise";
 import type { Artikel, Firma, Position } from "@/lib/types";
 import {
@@ -24,6 +25,8 @@ export type ImportZeit = {
   name: string;
   /** Lohnart des Mitarbeiters (Name aus firma.stundensaetze), leer = normaler Stundensatz */
   lohnart?: string | null;
+  /** Eigener Verrechnungssatz der Person am Tag der Stunde (`mitarbeiter_saetze`) — geht vor der Lohnart */
+  satz?: number | null;
   /** Stundenart: Fahrzeit und Überstunden bekommen eine eigene Zeile */
   art?: string | null;
   regiebericht_id: string | null;
@@ -142,7 +145,7 @@ export async function importDatenLaden(projektId: string, belegId: string | null
   // frei = noch nicht verrechnet, oder an genau diesem Entwurf
   const frei = belegId ? `rechnung_id.is.null,rechnung_id.eq.${belegId}` : "rechnung_id.is.null";
 
-  const [rb, zt, mt, an, ea, tr] = await Promise.all([
+  const [rb, zt, mt, an, ea, tr, ms] = await Promise.all([
     supabase.from("regieberichte").select("id, nummer, datum, arbeiten, status, rechnung_id").eq("projekt_id", projektId).order("datum"),
     supabase.from("zeiten")
       .select("id, datum, stunden, taetigkeit, user_id, regiebericht_id, art, profiles(vorname, nachname, lohnart)")
@@ -158,8 +161,10 @@ export async function importDatenLaden(projektId: string, belegId: string | null
     supabase.from("belege").select("id, teil_nr, nummer, datum, netto, ust, brutto")
       .eq("projekt_id", projektId).eq("typ", "rechnung").not("teil_nr", "is", null).in("status", ["offen", "bezahlt"])
       .or(belegId ? `abgezogen_in.is.null,abgezogen_in.eq.${belegId}` : "abgezogen_in.is.null").order("teil_nr"),
+    supabase.from("mitarbeiter_saetze").select("user_id, gueltig_ab, lohnkosten, verrechnungssatz").not("verrechnungssatz", "is", null),
   ]);
-  for (const r of [rb, zt, mt, an, ea, tr]) if (r.error) throw new Error(r.error.message);
+  for (const r of [rb, zt, mt, an, ea, tr, ms]) if (r.error) throw new Error(r.error.message);
+  const saetze = (ms.data ?? []) as MitarbeiterSatz[];
   const zeitZeilen = (zt.data ?? []) as unknown as ZeitZeile[];
   const materialZeilen = (mt.data ?? []) as unknown as MaterialZeile[];
 
@@ -192,6 +197,7 @@ export async function importDatenLaden(projektId: string, belegId: string | null
       user_id: z.user_id,
       name: z.profiles ? `${z.profiles.vorname} ${z.profiles.nachname}`.trim() : "Mitarbeiter",
       lohnart: z.profiles?.lohnart ?? null,
+      satz: Number(satzAm(saetze, z.user_id, z.datum)?.verrechnungssatz) || null,
       art: z.art,
       regiebericht_id: z.regiebericht_id,
     }));
@@ -334,16 +340,18 @@ export function arbeitszeitPositionen(zeiten: ImportZeit[], opt: ImportOptionen,
     langtext: mitDatum ? zeitraumText(z.map((x) => x.datum)) : "",
     menge: zahlText(runden2(z.reduce((s, x) => s + x.stunden, 0))),
     einheit: "h",
-    einzelpreis: preisText(runden2((lohnart(z[0])?.satz ?? opt.stundensatz) * (ZUSCHLAG[z[0].art ?? "arbeit"] ?? 1))),
+    einzelpreis: preisText(runden2((z[0].satz || lohnart(z[0])?.satz || opt.stundensatz) * (ZUSCHLAG[z[0].art ?? "arbeit"] ?? 1))),
     quelle: q({ zeiten: z.map((x) => x.id) }),
   });
   const je = new Map<string, ImportZeit[]>();
-  // Eine Zeile je Mitarbeiter — sonst eine je Stundensatz
-  const schluessel = (z: ImportZeit) => `${opt.stundenJeMitarbeiter ? z.user_id : lohnart(z)?.name ?? ""}|${z.art ?? "arbeit"}`;
+  // Eine Zeile je Mitarbeiter — sonst eine je Stundensatz; wer einen eigenen
+  // Satz hat, bekommt eine eigene Zeile (je Satz, falls er sich geändert hat)
+  const schluessel = (z: ImportZeit) =>
+    `${opt.stundenJeMitarbeiter ? z.user_id : z.satz ? `${z.user_id}@${z.satz}` : lohnart(z)?.name ?? ""}|${opt.stundenJeMitarbeiter && z.satz ? z.satz : ""}|${z.art ?? "arbeit"}`;
   zeiten.forEach((z) => je.set(schluessel(z), [...(je.get(schluessel(z)) ?? []), z]));
   return [...je.values()].map((z) => {
     const l = lohnart(z[0]);
-    const text = opt.stundenJeMitarbeiter ? `Arbeitszeit ${z[0].name}` : l ? arbeitszeitText(l) : "Arbeitszeit";
+    const text = opt.stundenJeMitarbeiter || z[0].satz ? `Arbeitszeit ${z[0].name}` : l ? arbeitszeitText(l) : "Arbeitszeit";
     const art = z[0].art ?? "arbeit";
     return zeile(art === "fahrt" ? text.replace("Arbeitszeit", "Fahrzeit") : art === "ue50" ? `${text}, Überstunden 50 %` : art === "ue100" ? `${text}, Überstunden 100 %` : text, z);
   });

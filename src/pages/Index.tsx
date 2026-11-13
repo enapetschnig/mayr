@@ -5,7 +5,7 @@ import {
   CalendarOff, CalendarPlus, CheckCircle2, FilePlus2, FolderPlus,
   BellRing, AlertTriangle, Banknote, Bus, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
   ScanBarcode, Search, ShieldCheck, ShoppingCart, UserCheck, Wrench,
-  PhoneCall,
+  Landmark, PhoneCall,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { WunschKnopf } from "@/components/wunsch/WunschMelden";
@@ -34,6 +34,7 @@ import { useAnlagen } from "@/components/anlagen/anlagenDaten";
 import { useBestellungen } from "@/components/bestellung/bestellDaten";
 import { istOffen } from "@/components/bestellung/bestellLogik";
 import { faelligkeit } from "@/components/anlagen/pruefLogik";
+import { foerderFrist, fristText } from "@/lib/foerderung";
 import { mahnFristAbgelaufen, mahnVorschlag } from "@/components/op/opLogik";
 import { belegStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -169,6 +170,10 @@ export default function Index() {
   const pruefFaellig = anlagen.filter((a) => a.aktiv && ["ueberfaellig", "bald"].includes(faelligkeit(a.naechste_pruefung, heuteIso).stufe));
   const pruefUeber = pruefFaellig.filter((a) => faelligkeit(a.naechste_pruefung, heuteIso).stufe === "ueberfaellig").length;
 
+  // Förderung: Frist (z. B. Fertigstellungsmeldung) in den nächsten 30 Tagen oder vorbei
+  const foerderFristen = projekte.flatMap((p) => { const f = foerderFrist(p, heuteIso); return f ? [{ p, ...f }] : []; })
+    .sort((a, b) => a.inTagen - b.inTagen);
+
   // Bestellungen: unterwegs, davon Liefertermin vorbei
   const { data: bestellungen = [] } = useBestellungen(istChef);
   const unterwegs = bestellungen.filter((b) => istOffen(b.status));
@@ -201,6 +206,14 @@ export default function Index() {
     buero.ueberfaellig > 0 && { icon: AlertTriangle, text: `${buero.ueberfaellig} ${buero.ueberfaellig === 1 ? "Rechnung ist" : "Rechnungen sind"} überfällig`, to: "/offene-posten?filter=ueberfaellig", warn: true },
     zuMahnen > 0 && { icon: BellRing, text: `${zuMahnen} ${zuMahnen === 1 ? "Rechnung" : "Rechnungen"} zu mahnen`, to: "/offene-posten", warn: true },
     buero.offen > 0 && { icon: Receipt, text: `${buero.offen} offene ${buero.offen === 1 ? "Rechnung" : "Rechnungen"} · ${euro(buero.offenSumme)}`, to: "/offene-posten?filter=alle" },
+    foerderFristen.length > 0 && {
+      icon: Landmark,
+      text: foerderFristen.length === 1
+        ? `Förderfrist ${foerderFristen[0].p.name}: ${fristText(foerderFristen[0].inTagen)}`
+        : `${foerderFristen.length} Förderfristen in 30 Tagen${foerderFristen.some((f) => f.ueberfaellig) ? " · vorbei" : ""}`,
+      to: foerderFristen.length === 1 ? `/projekte/${foerderFristen[0].p.id}` : "/projekte?filter=foerderung",
+      warn: foerderFristen.some((f) => f.ueberfaellig || f.inTagen <= 7),
+    },
     pruefFaellig.length > 0 && {
       icon: ShieldCheck,
       text: `${pruefFaellig.length} ${pruefFaellig.length === 1 ? "Anlage" : "Anlagen"} zu prüfen${pruefUeber ? ` · ${pruefUeber} überfällig` : ""}`,
