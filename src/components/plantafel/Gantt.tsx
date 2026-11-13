@@ -754,7 +754,7 @@ function Balken({
 }
 
 /** Kleines Fenster direkt am Balken — erst „Bearbeiten“ öffnet das große Formular */
-function BalkenInfo({
+export function BalkenInfo({
   t, x, y, projekt, team, mitarbeiter, fahrzeuge, darf, konflikt, onZu, onBearbeiten, onErledigt, onGeraet, onPersonWeg, onLoeschen,
 }: {
   t: Termin; x: number; y: number; projekt?: Projekt; team?: Team; mitarbeiter: Profil[]; fahrzeuge: Fahrzeug[]; darf: boolean; konflikt: boolean;

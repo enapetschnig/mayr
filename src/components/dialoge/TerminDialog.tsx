@@ -57,7 +57,7 @@ export function terminFehler(w: Pick<TerminWerte, "titel" | "datum" | "bisDatum"
  * Titel und Ort vor, solange dort noch nichts steht.
  */
 export function TerminDialog({
-  open, onOpenChange, termin, datum: vorDatum, bisDatum: vorBis, projektId: vorProjekt, mitarbeiterId, teamId, fahrzeugId,
+  open, onOpenChange, termin, datum: vorDatum, bisDatum: vorBis, projektId: vorProjekt, mitarbeiterId, teamId, fahrzeugId, von: vorVon, bis: vorBisZeit,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -71,6 +71,9 @@ export function TerminDialog({
   /** Aus der Plantafel: dieses Team / Fahrzeug ist vorausgewählt */
   teamId?: string;
   fahrzeugId?: string;
+  /** Aus dem Terminplaner: Uhrzeit der angetippten Zelle */
+  von?: string;
+  bis?: string;
 }) {
   const neuLaden = useNeuLaden();
   const { profil, istChef } = useSitzung();
@@ -85,7 +88,7 @@ export function TerminDialog({
   const setze = (teil: Partial<TerminWerte>) => setW((x) => ({ ...x, ...teil }));
 
   // Nur beim Öffnen füllen: Nachladen (Projekte, Profil) setzt keine Eingabe zurück
-  useBeimOeffnen(open ? termin?.id ?? `neu|${vorDatum ?? ""}|${vorBis ?? ""}|${vorProjekt ?? ""}|${mitarbeiterId ?? ""}|${teamId ?? ""}|${fahrzeugId ?? ""}` : null, () => {
+  useBeimOeffnen(open ? termin?.id ?? `neu|${vorDatum ?? ""}|${vorBis ?? ""}|${vorProjekt ?? ""}|${mitarbeiterId ?? ""}|${teamId ?? ""}|${fahrzeugId ?? ""}|${vorVon ?? ""}` : null, () => {
     let v: TerminWerte;
     if (termin) {
       v = {
@@ -113,6 +116,7 @@ export function TerminDialog({
         ort: p ? [p.strasse, [p.plz, p.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "",
         dabei: mitarbeiterId ? [mitarbeiterId] : profil && !teamId && !fahrzeugId ? [profil.id] : [],
         fahrzeuge: fahrzeugId ? [fahrzeugId] : [],
+        ...(vorVon ? { von: vorVon, bis: vorBisZeit && vorBisZeit > vorVon ? vorBisZeit : vorVon } : {}),
       };
       const team = teams.find((x) => x.id === teamId);
       if (team) {

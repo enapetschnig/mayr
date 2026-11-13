@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useBeimOeffnen } from "@/components/stamm/Felder";
 import { fehlerText } from "@/components/stamm/stammDaten";
 import { useFahrzeuge, useMitarbeiter, useNeuLaden, useTeams } from "@/hooks/useDaten";
-import { TEAM_FARBEN, type Team } from "@/lib/types";
+import { GESCHAEFTSFUEHRUNG, gruppeVon } from "@/lib/terminplaner";
+import { TEAM_FARBEN, name, type Team } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Entwurf = Pick<Team, "name" | "farbe" | "leiter_id" | "mitglieder" | "fahrzeug_id"> & { id: string | null; schluessel: string };
@@ -28,12 +29,18 @@ export function TeamsDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const [liste, setListe] = useState<Entwurf[]>([]);
   const [basis, setBasis] = useState("");
   const [speichert, setSpeichert] = useState(false);
+  /** Gruppe im Terminplaner je Person (für Leute ohne Team: Büro, Geschäftsführung …) */
+  const [gruppen, setGruppen] = useState<Record<string, string>>({});
+  const [gruppenBasis, setGruppenBasis] = useState("");
   const busse = fahrzeuge.filter((f) => f.art === "bus" || f.art === "pkw");
 
   useBeimOeffnen(open ? "offen" : null, () => {
     const l = teams.map((t) => ({ id: t.id, schluessel: t.id, name: t.name, farbe: t.farbe, leiter_id: t.leiter_id, mitglieder: t.mitglieder, fahrzeug_id: t.fahrzeug_id }));
     setListe(l);
     setBasis(JSON.stringify(l));
+    const g = Object.fromEntries(mitarbeiter.map((m) => [m.id, m.gruppe ?? ""]));
+    setGruppen(g);
+    setGruppenBasis(JSON.stringify(g));
   });
 
   const aendern = (k: string, teil: Partial<Entwurf>) => setListe((l) => l.map((t) => (t.schluessel === k ? { ...t, ...teil } : t)));
@@ -57,7 +64,13 @@ export function TeamsDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         })), { onConflict: "id" });
         if (error) throw error;
       }
-      await neuLaden("teams");
+      for (const m of mitarbeiter) {
+        const neu = gruppen[m.id]?.trim() || null;
+        if (neu === (m.gruppe ?? null)) continue;
+        const { error } = await supabase.from("profiles").update({ gruppe: neu }).eq("id", m.id);
+        if (error) throw error;
+      }
+      await neuLaden("teams", "mitarbeiter");
       toast.success("Teams gespeichert");
       onOpenChange(false);
     } catch (e) {
@@ -69,7 +82,7 @@ export function TeamsDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
   return (
     <FormularDialog open={open} onOpenChange={onOpenChange} titel="Teams" beschreibung="Wer arbeitet meistens zusammen, mit welchem Bus? Auf der Plantafel zieht ein Team seine Leute und seinen Bus mit."
-      gesperrt={speichert} ungespeichert={JSON.stringify(liste) !== basis}
+      gesperrt={speichert} ungespeichert={JSON.stringify(liste) !== basis || JSON.stringify(gruppen) !== gruppenBasis}
       fuss={(
         <>
           <Button variant="outline" className="h-12" onClick={() => onOpenChange(false)} disabled={speichert}>Abbrechen</Button>
@@ -137,6 +150,28 @@ export function TeamsDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         }])}>
           <Plus className="h-4 w-4" /> Team dazu
         </Button>
+
+        <section className="space-y-2 rounded-lg border bg-card p-3" aria-label="Gruppen im Terminplaner">
+          <div>
+            <p className="font-semibold">Gruppen im Terminplaner</p>
+            <p className="text-sm text-muted-foreground">Spalten der Ansicht „Mitarbeiter“. Ohne Eintrag zählt das Team; wer in keinem steht, kommt als Chef in „{GESCHAEFTSFUEHRUNG}“, sonst in „Ohne Team“.</p>
+          </div>
+          <datalist id="tp-gruppen"><option value={GESCHAEFTSFUEHRUNG} /><option value="Büro" /><option value="Lager" /></datalist>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {mitarbeiter.map((m) => {
+              const teamsJetzt = liste.filter((t) => t.id).map((t) => ({ id: t.id!, name: t.name, mitglieder: t.mitglieder }));
+              const auto = gruppeVon({ ...m, gruppe: null }, teamsJetzt).titel;
+              return (
+                <label key={m.id} className="flex items-center gap-2">
+                  <Avatar profil={m} className="h-7 w-7 shrink-0 text-[10px]" />
+                  <span className="w-28 shrink-0 truncate text-sm">{name(m)}</span>
+                  <Input list="tp-gruppen" className="h-11 min-w-0 flex-1" value={gruppen[m.id] ?? ""} placeholder={auto} aria-label={`Gruppe von ${name(m)}`}
+                    onChange={(e) => setGruppen((g) => ({ ...g, [m.id]: e.target.value }))} />
+                </label>
+              );
+            })}
+          </div>
+        </section>
       </div>
     </FormularDialog>
   );
