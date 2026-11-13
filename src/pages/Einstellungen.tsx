@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, Karte, StatusPille } from "@/components/Bausteine";
 import { InstallAnleitung } from "@/components/Installieren";
 import { LohnSaetze, WhatsAppVorlagenKarte } from "@/components/projekt/ProjektEinstellungen";
+import { InterneArten } from "@/components/zeiten/InterneArten";
 import { useNeuLaden } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { useQuery } from "@tanstack/react-query";
@@ -329,6 +330,8 @@ function Betrieb() {
           </Label>
         </div>
       </Karte>
+
+      <InterneArten />
 
       <Karte titel="Mahnen">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">

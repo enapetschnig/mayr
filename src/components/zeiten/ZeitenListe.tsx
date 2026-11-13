@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, ClipboardSignature, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, StatusPille } from "@/components/Bausteine";
+import { useMitarbeiter } from "@/hooks/useDaten";
 import { datumKurz, isoTag, stunden, uhrzeit } from "@/lib/format";
 import { name, STUNDEN_ART, type Profil, type StundenArt, type Zeit } from "@/lib/types";
 
@@ -44,6 +45,10 @@ export function ZeitenListe({
   mitProjekt?: boolean;
 }) {
   const heute = isoTag();
+  const { data: mitarbeiter = [] } = useMitarbeiter();
+  // Für jemand anderen gebucht (Chef, Teamleitung) — das soll man sehen
+  const gebuchtVon = (z: ZeitMitInfo) => (z.erstellt_von && z.erstellt_von !== z.user_id && !z.regiebericht_id
+    ? mitarbeiter.find((m) => m.id === z.erstellt_von)?.vorname ?? null : null);
   const tage: { datum: string; eintraege: ZeitMitInfo[] }[] = [];
   zeiten.forEach((z) => {
     const tag = tage.find((t) => t.datum === z.datum);
@@ -70,12 +75,13 @@ export function ZeitenListe({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
                         {mitPerson && <span>{name(z.profiles)}{mitProjekt && " · "}</span>}
-                        {mitProjekt && (z.projekte ? <><span className="font-mono text-xs text-muted-foreground">{z.projekte.nummer}</span> {z.projekte.name}</> : "Ohne Projekt")}
+                        {mitProjekt && (z.projekte ? <><span className="font-mono text-xs text-muted-foreground">{z.projekte.nummer}</span> {z.projekte.name}</> : z.intern ? <span className="text-muted-foreground">Intern · <span className="text-foreground">{z.intern}</span></span> : "Ohne Projekt")}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
                         {z.von && z.bis ? `${uhrzeit(z.von)}–${uhrzeit(z.bis)}${z.pause_minuten ? ` · ${z.pause_minuten} min Pause` : ""}` : ""}
                         {z.von && z.bis && z.taetigkeit ? " · " : ""}
                         {z.taetigkeit}
+                        {gebuchtVon(z) && <>{(z.von && z.bis) || z.taetigkeit ? " · " : ""}gebucht von {gebuchtVon(z)}</>}
                       </p>
                       {(z.regieberichte || z.rechnung_id || (z.art && z.art !== "arbeit")) && (
                         <div className="mt-1 flex flex-wrap gap-1.5">

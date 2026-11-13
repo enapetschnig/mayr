@@ -12,7 +12,7 @@ import { useIstPc } from "@/components/AppLayout";
 import { useProjekte, useProjektZahlen } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { alleZeilen, csvHerunterladen } from "@/lib/abfrage";
-import { abwesenheitStunden, abwesenheitsTage, lohnSumme } from "@/lib/zeitkonto";
+import { abwesenheitStunden, abwesenheitsTage, lohnSumme, produktivProzent } from "@/lib/zeitkonto";
 import { ABWESENHEIT_ART, STUNDEN_ART, TON_KLASSE, type AbwesenheitArt, type StundenArt } from "@/lib/types";
 import { datum, euro, isoTag, stunden, tageDazu, uhrzeit, zahl } from "@/lib/format";
 import { buchungVk, runden2, stundensatzFuer } from "@/lib/preise";
@@ -107,7 +107,7 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
     queryKey: ["zeiten", "auswertung", vonIso, bisIso],
     placeholderData: keepPreviousData,
     queryFn: () => alleZeilen((a, b) => supabase.from("zeiten")
-      .select("id, user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, rechnung_id, art, km, projekte(nummer, name), profiles(vorname, nachname, farbe), regieberichte(nummer, rechnung_id)")
+      .select("id, user_id, projekt_id, intern, datum, stunden, von, bis, pause_minuten, taetigkeit, rechnung_id, art, km, projekte(nummer, name), profiles(vorname, nachname, farbe), regieberichte(nummer, rechnung_id)")
       .gte("datum", vonIso).lt("datum", bisIso).order("id").range(a, b)),
   });
   const materialQ = useQuery({
@@ -227,9 +227,9 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
   const lohnlisteLaden = () => {
     const artenAb = Object.keys(ABWESENHEIT_ART).filter((a) => a !== "abwesend") as AbwesenheitArt[];
     csvHerunterladen(`lohnliste-${monat == null ? jahr : `${jahr}-${String(monat + 1).padStart(2, "0")}`}.csv`, [
-      ["Mitarbeiter", "Soll", "Ist", "Differenz", "Arbeit", "Fahrzeit", "Überstunden 50 %", "Überstunden 100 %", "Garantie",
+      ["Mitarbeiter", "Soll", "Ist", "Differenz", "Arbeit", "Fahrzeit", "Überstunden 50 %", "Überstunden 100 %", "Garantie", "Produktiv", "Unproduktiv", "Produktiv %",
         ...artenAb.map((a) => `${ABWESENHEIT_ART[a].text} (Tage)`), "Taggeld (Tage)", "Taggeld €", "km", "Kilometergeld €"],
-      ...lohn.map(({ name: n, summe: s }) => [n, s.soll, s.ist, s.differenz, s.arbeit, s.fahrt, s.ue50, s.ue100, s.garantie,
+      ...lohn.map(({ name: n, summe: s }) => [n, s.soll, s.ist, s.differenz, s.arbeit, s.fahrt, s.ue50, s.ue100, s.garantie, s.produktiv, s.unproduktiv, produktivProzent(s),
         ...artenAb.map((a) => s.abwesend[a]?.tage ?? 0), s.taggeldTage, s.taggeld, s.km, s.kmGeld]),
     ]);
   };
@@ -250,7 +250,7 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
         if (!e) return;
         e.zeilen.push({
           datum: z.datum, von: z.von, bis: z.bis, pause_minuten: z.pause_minuten, stunden: Number(z.stunden), taetigkeit: z.taetigkeit, art: z.art,
-          projekt: z.projekte ? `${z.projekte.nummer} ${z.projekte.name}` : "", regiebericht: z.regieberichte?.nummer ?? "",
+          projekt: z.projekte ? `${z.projekte.nummer} ${z.projekte.name}` : z.intern ? `Intern · ${z.intern}` : "", regiebericht: z.regieberichte?.nummer ?? "",
         });
         je.set(z.user_id, e);
       });

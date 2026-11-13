@@ -143,11 +143,13 @@ export function taggeld(stundenAmTag: number, satz: number): number {
   return runden2((Math.min(12, Math.ceil(stundenAmTag)) / 12) * satz);
 }
 
-export type LohnZeit = { datum: string; stunden: number | string; art?: string | null; projekt_id: string | null; km?: number | string | null };
+export type LohnZeit = { datum: string; stunden: number | string; art?: string | null; projekt_id: string | null; km?: number | string | null; intern?: string | null };
 
 export type LohnSumme = {
   soll: number; ist: number; differenz: number;
   arbeit: number; fahrt: number; ue50: number; ue100: number; garantie: number;
+  /** auf Projekte gebucht / ohne Projekt (Büro, Lager … — je Art in jeIntern) */
+  produktiv: number; unproduktiv: number; jeIntern: Record<string, number>;
   /** Abwesend je Art: Arbeitstage und Stunden */
   abwesend: Record<string, { tage: number; stunden: number }>;
   taggeldTage: number; taggeld: number; km: number; kmGeld: number;
@@ -178,13 +180,23 @@ export function lohnSumme(
   zeiten.filter((z) => z.projekt_id).forEach((z) => jeTag.set(z.datum, (jeTag.get(z.datum) ?? 0) + Number(z.stunden)));
   const tg = [...jeTag.values()].map((h) => taggeld(h, Number(saetze.taggeld ?? 0))).filter((x) => x > 0);
   const km = runden2(zeiten.reduce((s, z) => s + Number(z.km ?? 0), 0));
+  const jeIntern: Record<string, number> = {};
+  zeiten.filter((z) => !z.projekt_id).forEach((z) => { const k = z.intern || "Ohne Projekt"; jeIntern[k] = runden2((jeIntern[k] ?? 0) + Number(z.stunden)); });
+  const unproduktiv = runden2(Object.values(jeIntern).reduce((s, x) => s + x, 0));
   return {
     soll, ist, differenz: runden2(ist - soll),
     arbeit: summe("arbeit"), fahrt: summe("fahrt"), ue50: summe("ue50"), ue100: summe("ue100"), garantie: summe("garantie"),
+    produktiv: runden2(gearbeitet - unproduktiv), unproduktiv, jeIntern,
     abwesend,
     taggeldTage: tg.length,
     taggeld: runden2(tg.reduce((s, x) => s + x, 0)),
     km,
     kmGeld: runden2(km * Number(saetze.km ?? 0)),
   };
+}
+
+/** Anteil produktiver Stunden an den gebuchten in Prozent (ganze Zahl); ohne Stunden null */
+export function produktivProzent(s: Pick<LohnSumme, "produktiv" | "unproduktiv">): number | null {
+  const alle = s.produktiv + s.unproduktiv;
+  return alle > 0 ? Math.round((s.produktiv / alle) * 100) : null;
 }

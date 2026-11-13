@@ -1,6 +1,6 @@
 import {
   BarChart3, BookOpenCheck, MessageSquarePlus, Bus, FileCheck2, FileText, LayoutGrid, HandCoins, ClipboardSignature, Clock, FolderKanban, Home, Inbox, ListChecks, Package,
-  Receipt, ScanBarcode, Settings, ShieldCheck, ShoppingCart, Smartphone, Users, Warehouse, type LucideIcon,
+  FolderArchive, ListTodo, Receipt, ScanBarcode, Settings, ShieldCheck, ShoppingCart, Smartphone, Users, Warehouse, type LucideIcon,
 } from "lucide-react";
 
 /**
@@ -32,7 +32,8 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Rechnungen", text: "Aus dem Projekt, PDF mit Bezahl-QR", pfad: "/rechnungen", icon: Receipt, gruppe: "haupt", nurChef: true },
   { titel: "Plantafel", text: "Einsätze, Teams und Busse — mit Kalender", textMonteur: "Wer fährt wann mit wem wohin", pfad: "/plantafel", icon: LayoutGrid, gruppe: "haupt" },
 
-  { titel: "Stunden", text: "Meine Woche, Stunden buchen", pfad: "/zeiten", icon: Clock, gruppe: "baustelle" },
+  { titel: "Stunden", text: "Meine Woche und mein Monat, Stunden buchen", pfad: "/zeiten", icon: Clock, gruppe: "baustelle" },
+  { titel: "Aufgaben", text: "Wer muss was bis wann erledigen", textMonteur: "Was ich erledigen soll — abhaken", pfad: "/aufgaben", icon: ListTodo, gruppe: "baustelle" },
   { titel: "Scannen", text: "Material ausfassen und zurückgeben", pfad: "/scan", icon: ScanBarcode, gruppe: "baustelle" },
   { titel: "Regieberichte", text: "Mit Unterschrift des Kunden", pfad: "/regie", icon: ClipboardSignature, gruppe: "baustelle" },
   { titel: "Lieferscheine", text: "Fotografieren — die KI liest mit", pfad: "/lieferscheine", icon: FileCheck2, gruppe: "baustelle" },
@@ -45,6 +46,7 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Eingangsrechnungen", text: "Rechnungen vom Großhändler zuordnen", pfad: "/eingang", icon: Inbox, gruppe: "buero", nurChef: true },
   { titel: "Bestellungen", selten: true, text: "Beim Großhändler bestellen, Lieferung einbuchen", pfad: "/bestellungen", icon: ShoppingCart, gruppe: "buero", nurChef: true },
   { titel: "Kontakte", text: "Kunden, Lieferanten, Karte", pfad: "/kunden", icon: Users, gruppe: "buero" },
+  { titel: "Dokumente", text: "Vorlagen, Zertifikate, Lohnzettel, Krankenscheine", textMonteur: "Firmendokumente, meine Lohnzettel", pfad: "/dokumente", icon: FolderArchive, gruppe: "buero" },
   { titel: "Artikel", selten: true, text: "Artikelstamm, Datanorm, Strichcodes", pfad: "/artikel", icon: Package, gruppe: "buero" },
   { titel: "Leistungskatalog", selten: true, text: "Leistungen mit Material und Montagezeit", pfad: "/leistungen", icon: ListChecks, gruppe: "buero", nurChef: true },
   { titel: "Auswertung", selten: true, text: "Stunden, Umsatz, Nachkalkulation", pfad: "/auswertung", icon: BarChart3, gruppe: "buero", nurChef: true },

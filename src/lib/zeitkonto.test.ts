@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abwesenheitsTage, feiertagName, feiertage, istArbeitstag, kontoRechnen, lohnSumme, sollZeitraum, taggeld } from "./zeitkonto";
+import { abwesenheitsTage, feiertagName, feiertage, istArbeitstag, kontoRechnen, lohnSumme, produktivProzent, sollZeitraum, taggeld } from "./zeitkonto";
 
 describe("Feiertage Österreich", () => {
   it("kennt die 13 gesetzlichen Feiertage 2026 samt beweglichen", () => {
@@ -93,5 +93,20 @@ describe("Taggeld und Lohnsumme", () => {
     ], { taggeld: 30, km: 0.5 });
     expect(s).toMatchObject({ soll: 40, ist: 33, differenz: -7, arbeit: 8, ue50: 8, garantie: 1, taggeldTage: 2, taggeld: 40, km: 40, kmGeld: 20 });
     expect(s.abwesend.krank).toEqual({ tage: 2, stunden: 16 });
+  });
+  it("Lohnsumme: produktiv (Projekt) gegen unproduktiv (intern) je Art", () => {
+    const s = lohnSumme(40, "2026-11-02", "2026-11-08", [
+      { datum: "2026-11-02", stunden: 6, projekt_id: "p" },
+      { datum: "2026-11-02", stunden: 2, projekt_id: null, intern: "Büro" },
+      { datum: "2026-11-03", stunden: 1.5, projekt_id: null, intern: "Lager/Werkstatt" },
+      { datum: "2026-11-03", stunden: 0.5, projekt_id: null, intern: "Büro" },
+      { datum: "2026-11-04", stunden: 1, projekt_id: null },
+    ], [], {});
+    expect(s).toMatchObject({ produktiv: 6, unproduktiv: 5 });
+    expect(s.jeIntern).toEqual({ "Büro": 2.5, "Lager/Werkstatt": 1.5, "Ohne Projekt": 1 });
+    expect(produktivProzent(s)).toBe(55);
+    // Taggeld nur für Baustellentage
+    expect(s.taggeldTage).toBe(0);
+    expect(produktivProzent({ produktiv: 0, unproduktiv: 0 })).toBeNull();
   });
 });

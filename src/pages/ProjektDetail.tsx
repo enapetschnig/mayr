@@ -32,6 +32,7 @@ import { ZeitenListe, useZeitenListe, type ZeitMitInfo } from "@/components/zeit
 import { ProjektMaterial } from "@/components/material/ProjektMaterial";
 import { ProjektRegie } from "@/components/regie/ProjektRegie";
 import { ProjektBelege } from "@/components/belege/ProjektBelege";
+import { ProjektAufgaben } from "@/components/aufgaben/ProjektAufgaben";
 import { mailLink, telLink } from "@/components/stamm/KundeDetail";
 import { fehlerText } from "@/components/stamm/stammDaten";
 import { useNeuLaden, useProjekt, useProjektZahlen, type ProjektMitKunde } from "@/hooks/useDaten";
@@ -393,6 +394,8 @@ function Uebersicht({ projekt }: { projekt: ProjektMitKunde }) {
           ? <Kennzahl titel="Verrechnet" wert={euro(angebot?.verrechnet ?? 0)} unter="netto" />
           : <Kennzahl titel="Personen" wert={String(personen.length)} unter="auf dem Projekt" />}
       </div>
+
+      <ProjektAufgaben projektId={projekt.id} />
 
       <FoerderKarte projekt={projekt} />
 

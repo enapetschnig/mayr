@@ -30,6 +30,10 @@ export type FahrzeugEintrag = Tables<"fahrzeug_eintraege">;
 export type Team = Tables<"teams">;
 export type EingangPosition = Tables<"eingang_positionen">;
 export type Lieferschein = Tables<"lieferscheine">;
+export type Aufgabe = Tables<"aufgaben">;
+export type AufgabeVerlauf = Tables<"aufgabe_verlauf">;
+export type PersonalDokument = Tables<"personal_dokumente">;
+export type FirmenDokument = Tables<"firmen_dokumente">;
 
 export type Rolle = "chef" | "monteur";
 
@@ -78,6 +82,14 @@ export const ABWESENHEIT_STATUS: Record<string, StatusEintrag> = {
   beantragt: { ton: "gelb", text: "Beantragt" },
   genehmigt: { ton: "gruen", text: "Genehmigt" },
   abgelehnt: { ton: "rosa", text: "Abgelehnt", durchgestrichen: true },
+};
+
+/** Aufgaben: überfällig ist offen/in Arbeit mit Termin vor heute (lib/aufgaben.ts) */
+export const AUFGABE_STATUS: Record<string, StatusEintrag> = {
+  offen: { ton: "grau", text: "Offen" },
+  in_arbeit: { ton: "blau", text: "In Arbeit" },
+  ueberfaellig: { ton: "rot", text: "Überfällig" },
+  erledigt: { ton: "gruen", text: "Erledigt" },
 };
 
 export const EINSATZ_STATUS: Record<string, StatusEintrag> = {
