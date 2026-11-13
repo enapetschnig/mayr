@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Camera, ChevronDown, ExternalLink, FileCheck2, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { Camera, ChevronDown, ExternalLink, FileCheck2, FileUp, Loader2, PackagePlus, Sparkles, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
 import { Leer, StatusPille } from "@/components/Bausteine";
 import { ProjektWahl } from "@/components/ProjektWahl";
+import { LieferscheinEinbuchen } from "@/components/material/LieferscheinEinbuchen";
 import { Button } from "@/components/ui/button";
 import {
   lieferscheinAnlegen, lieferscheinLoeschen, lsAdresse, lsPositionen, LS_BUCKET, useLieferscheine, type LieferscheinMitProjekt,
@@ -29,6 +30,11 @@ export default function Lieferscheine() {
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [offen, setOffen] = useState<string | null>(null);
   const kamera = useRef<HTMLInputElement>(null);
+  const pdf = useRef<HTMLInputElement>(null);
+  // Einbuchen (Chef): Auswahl bleibt beim Schließen stehen, damit der Dialog nicht mitten in der Animation leer wird
+  const [einbuchen, setEinbuchen] = useState<LieferscheinMitProjekt | null>(null);
+  const [einbuchenOffen, setEinbuchenOffen] = useState(false);
+  const einbuchenStarten = (l: LieferscheinMitProjekt) => { setEinbuchen(l); setEinbuchenOffen(true); };
 
   /** KI liest das Foto und schreibt Kopf und Zeilen in den Lieferschein */
   const lesen = async (l: { id: string; datei_pfad: string }) => {
@@ -50,7 +56,9 @@ export default function Lieferscheine() {
       setLaeuft("Die KI liest den Lieferschein …");
       try {
         const n = await lesen(l);
-        toast.success("Lieferschein gespeichert", { description: `${n} ${n === 1 ? "Position" : "Positionen"} gelesen` });
+        toast.success("Lieferschein gespeichert", {
+          description: `${n} ${n === 1 ? "Position" : "Positionen"} gelesen${istChef ? " — unten „Einbuchen“ bucht die Ware ins Lager" : ""}`,
+        });
         setOffen(l.id);
       } catch (e) {
         toast("Foto gespeichert — lesen hat nicht geklappt", { description: (e as Error).message });
@@ -104,6 +112,15 @@ export default function Lieferscheine() {
         <Button className="h-14 w-full gap-2 text-base" disabled={!!laeuft} onClick={() => kamera.current?.click()}>
           {laeuft ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />} {laeuft ?? "Lieferschein fotografieren"}
         </Button>
+        {istChef && (
+          <>
+            <input ref={pdf} type="file" accept="application/pdf,image/*" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void fotografiert(f); e.target.value = ""; }} />
+            <Button variant="outline" className="h-12 w-full gap-2" disabled={!!laeuft} onClick={() => pdf.current?.click()}>
+              <FileUp className="h-4 w-4" /> PDF vom Großhändler hochladen
+            </Button>
+          </>
+        )}
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Sparkles className="h-3.5 w-3.5 text-primary" /> Die KI liest Lieferant, Nummer und jede Zeile — nichts abtippen.
         </p>
@@ -125,6 +142,7 @@ export default function Lieferscheine() {
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-medium">{l.lieferant || "Lieferschein"}{l.nummer ? ` ${l.nummer}` : ""}</span>
+                      {l.eingebucht_am && <StatusPille eintrag={{ ton: "gruen", text: "eingebucht" }} />}
                       {l.eingangsrechnung_id ? <StatusPille eintrag={{ ton: "gruen", text: "mit Rechnung abgeglichen" }} />
                         : l.gelesen_am ? <StatusPille eintrag={{ ton: "cyan", text: "gelesen" }} />
                           : <StatusPille eintrag={{ ton: "gelb", text: "nicht gelesen" }} />}
@@ -149,13 +167,18 @@ export default function Lieferscheine() {
                       </ul>
                     )}
                     <div className="flex flex-wrap gap-2">
+                      {istChef && !l.eingebucht_am && pos.length > 0 && (
+                        <Button className="h-11 gap-1.5" onClick={() => einbuchenStarten(l)}>
+                          <PackagePlus className="h-4 w-4" /> Einbuchen
+                        </Button>
+                      )}
                       <Button variant="outline" className="h-11 gap-1.5" onClick={() => void ansehen(l)}><ExternalLink className="h-4 w-4" /> Foto</Button>
-                      {!l.eingangsrechnung_id && (
+                      {!l.eingangsrechnung_id && !l.eingebucht_am && (
                         <Button variant="outline" className="h-11 gap-1.5" disabled={!!laeuft} onClick={() => void nochmalLesen(l)}>
                           <Sparkles className="h-4 w-4" /> {l.gelesen_am ? "Nochmal lesen" : "Mit KI lesen"}
                         </Button>
                       )}
-                      {!l.eingangsrechnung_id && (
+                      {!l.eingangsrechnung_id && !l.eingebucht_am && (
                         <Button variant="ghost" className="h-11 gap-1.5 text-destructive hover:text-destructive" onClick={() => void loeschen(l)}>
                           <Trash2 className="h-4 w-4" /> Löschen
                         </Button>
@@ -168,6 +191,7 @@ export default function Lieferscheine() {
           })}
         </ul>
       )}
+      {istChef && <LieferscheinEinbuchen ls={einbuchen} open={einbuchenOffen} onOpenChange={setEinbuchenOffen} />}
     </Seite>
   );
 }

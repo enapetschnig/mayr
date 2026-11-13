@@ -58,7 +58,7 @@ const formAus = (l: Partial<LeistungMitMaterial> | null): Form => ({
 });
 
 const materialAus = (a: Artikel | MaterialArtikel): MaterialArtikel => ({
-  id: a.id, bezeichnung: a.bezeichnung, einheit: a.einheit, ek_preis: a.ek_preis, vk_preis: a.vk_preis,
+  id: a.id, bezeichnung: a.bezeichnung, einheit: a.einheit, ek_preis: a.ek_preis, vk_preis: a.vk_preis, aufschlag: a.aufschlag,
   listenpreis: a.listenpreis, aktiv: a.aktiv, hersteller: a.hersteller, hersteller_nr: a.hersteller_nr, artikelnummer: a.artikelnummer,
 });
 

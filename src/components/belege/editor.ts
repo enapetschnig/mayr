@@ -223,7 +223,7 @@ export function leistungPosition(
 }
 
 export function artikelPosition(
-  a: Pick<Artikel, "id" | "bezeichnung" | "einheit" | "vk_preis" | "ek_preis" | "listenpreis">,
+  a: Pick<Artikel, "id" | "bezeichnung" | "einheit" | "vk_preis" | "ek_preis" | "listenpreis"> & { aufschlag?: number | null },
   firma: Pick<Firma, "material_aufschlag"> | null | undefined,
 ): EditorPosition {
   return leerePosition("artikel", {

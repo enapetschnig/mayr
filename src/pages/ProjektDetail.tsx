@@ -316,7 +316,7 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
     queryKey: ["material", "projekt-wert", projektId],
     queryFn: async () => {
       const { data, error } = await supabase.from("material_buchungen")
-        .select("art, menge, ek_preis, artikel(ek_preis, vk_preis, listenpreis)")
+        .select("art, menge, ek_preis, artikel(ek_preis, vk_preis, listenpreis, aufschlag)")
         .eq("projekt_id", projektId).in("art", ["ausfassung", "rueckgabe", "direkt"]);
       if (error) throw error;
       return data ?? [];

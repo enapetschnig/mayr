@@ -126,7 +126,7 @@ export function useLeistungsKatalog() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("leistungen")
-        .select("*, leistung_material(menge, artikel(id, bezeichnung, einheit, ek_preis, vk_preis, listenpreis))")
+        .select("*, leistung_material(menge, artikel(id, bezeichnung, einheit, ek_preis, vk_preis, listenpreis, aufschlag))")
         .eq("aktiv", true)
         .order("reihenfolge")
         .order("kurztext");

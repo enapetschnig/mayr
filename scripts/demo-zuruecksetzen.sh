@@ -10,8 +10,8 @@ D=$(cd "$(dirname "$0")/.." && pwd)
 
 node "$D/scripts/demo-dateien-loeschen.mjs"
 # Reihenfolge einhalten: 01 löscht alles und legt den Stamm an, 02 die
-# Artikel, 03 den Verlauf (braucht beides)
-for f in 01-stamm 02-artikel 03-verlauf; do
+# Artikel, 03 den Verlauf (braucht beides), 04 Lager, Lieferanten, Lagerplätze
+for f in 01-stamm 02-artikel 03-verlauf 04-artikel; do
   datei="$D/supabase/demo/$f.sql"
   # Der Verlauf steht auf der Woche vom 26.10.2026 — ganze Wochen nach vorn
   # schieben, damit die Demo immer „aktuell“ wirkt und Wochentage stimmen
@@ -27,5 +27,6 @@ for f in 01-stamm 02-artikel 03-verlauf; do
 done
 python3 -I "$D/supabase/demo/unterschriften.py"
 python3 -I "$D/supabase/demo/lieferscheine.py"
+python3 -I "$D/supabase/demo/artikel_dateien.py"
 node "$D/supabase/demo/eingangsrechnungen.mjs"
 echo "Demo zurückgesetzt."

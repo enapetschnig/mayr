@@ -54,7 +54,7 @@ export function useBestandSummen() {
   });
 }
 
-export type MaterialArtikel = Pick<Artikel, "id" | "bezeichnung" | "einheit" | "ek_preis" | "vk_preis" | "listenpreis" | "aktiv" | "hersteller" | "hersteller_nr" | "artikelnummer">;
+export type MaterialArtikel = Pick<Artikel, "id" | "bezeichnung" | "einheit" | "ek_preis" | "vk_preis" | "listenpreis" | "aufschlag" | "aktiv" | "hersteller" | "hersteller_nr" | "artikelnummer">;
 export type LeistungMitMaterial = Leistung & {
   leistung_material: { menge: number; artikel_id: string; artikel: MaterialArtikel | null }[];
 };
@@ -65,7 +65,7 @@ export function useLeistungenKatalog() {
     queryKey: ["leistungen", "katalog"],
     queryFn: async () => {
       const { data, error } = await supabase.from("leistungen")
-        .select("*, leistung_material(menge, artikel_id, artikel(id, bezeichnung, einheit, ek_preis, vk_preis, listenpreis, aktiv, hersteller, hersteller_nr, artikelnummer))")
+        .select("*, leistung_material(menge, artikel_id, artikel(id, bezeichnung, einheit, ek_preis, vk_preis, listenpreis, aufschlag, aktiv, hersteller, hersteller_nr, artikelnummer))")
         .order("reihenfolge").order("nummer").order("kurztext");
       if (error) throw error;
       return (data ?? []) as unknown as LeistungMitMaterial[];

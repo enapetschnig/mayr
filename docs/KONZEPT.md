@@ -66,7 +66,10 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
 | `kunden` | Kundenstamm, `nummer` ab 1001 |
 | `projekte` | `nummer` 2026-0001 (Trigger), `status` angebot/aktiv/verrechnen/abgeschlossen (Pille auf Kachel, Liste und im Projekt antippen = umstellen, `ProjektStatusWahl`), Baustellenadresse, optional eigener Stundensatz. Gebucht (Stunden, Ausfassen/direkt, Regie) wird nur bei „aktiv“ = In Arbeit — Trigger `nur_in_arbeit_buchen`; Garantiestunden gehen auch danach, Rückgaben immer |
 | `zeiten` | Stunden je Mitarbeiter, Projekt optional; `regiebericht_id`, `rechnung_id` |
-| `artikel` | Artikelstamm; Preise **je Einheit**; `ean`; `lagerartikel`, `mindestbestand` |
+| `artikel` | Artikelstamm; Preise **je Einheit**; `ean`; `lagerartikel`, `mindestbestand`; `aufschlag` (eigener Aufschlag %, sonst der des Betriebs) |
+| `artikel_dateien` | Bilder und Datenblätter je Artikel (`art` bild/datenblatt/sonstiges), Bucket `projekt-dateien`, Pfad `artikel/<id>/…`; Hauptbild = ältestes Bild |
+| `artikel_lieferanten` | weitere Lieferanten je Artikel (Name als Text wie `artikel.lieferant`, Nr., Liste, Rabatt, EK, Lieferzeit, `bevorzugt`); nur Chef |
+| `artikel_lagerplaetze` | Lagerplatz („Regal 3, Fach B“) je Artikel und Lagerort; Monteur nur im eigenen Bus |
 | `artikel_codes` | weitere Strichcodes (Karton = `menge` Stück, gelernte Codes) |
 | `leistungen` + `leistung_material` | Leistungskatalog: „Steckdose UP komplett“ = Material + `minuten` |
 | `lagerorte` | Hauptlager, Fahrzeuge (`art` = fahrzeug, `user_id` = wessen Bus) |
@@ -607,6 +610,31 @@ ab 480 px zwei, PC drei bis vier. Am PC umschaltbar auf die Liste
 - Die Demo hat ~72.000 echte Sonepar-Artikel aus der Datanorm
   (`scripts/datanorm-einspielen.ts`, `quelle = 'datanorm'`).
 
+### Artikel und Lager (`components/material/artikel*`, Seite `/artikel/:id`)
+
+- **Artikel-Detail**: Bilder (Foto am Handy), Datenblätter (PDF), Preis,
+  Lieferanten, Bestand und Lagerplatz je Lagerort, alle Bewegungen mit Filter
+  (Zugänge, Abgänge, Umbuchungen, Projekte, Inventur, Lagerort) und „danach X“.
+  Monteur sieht keine Preise und Lieferanten.
+- **VK je Artikel**: Standard (Aufschlag des Betriebs), eigener Aufschlag oder
+  fester VK; die Pille sagt, woher der VK kommt (`vkHerkunft`). Viele auf
+  einmal: Artikelstamm → „Aufschläge“ (je Kategorie/Lieferant/Hersteller,
+  RPC `artikel_aufschlag_setzen` in Häppchen, leer = zurück auf Standard).
+- **Mehrere Lieferanten**: der Hauptlieferant bleibt am Artikel (EK für die
+  Kalkulation); Bestellvorschläge nehmen den bevorzugten, sonst den
+  günstigsten (`besterLieferant`).
+- **Lieferschein einbuchen** (Lieferscheine, Chef): PDF vom Großhändler
+  hochladen oder fotografieren → KI liest → „Einbuchen“ ordnet die Zeilen zu
+  (Lieferanten-Nr., EAN, Hersteller-Nr., Artikelnummer; unsicher = „prüfen“),
+  bucht ins Lager (mit Lagerplatz) oder direkt aufs Projekt und hakt offene
+  Bestellpositionen ab. RPC `lieferschein_einbuchen` bucht einmal —
+  `eingebucht_am` und `material_buchungen.lieferschein_id` verhindern die
+  Doppelbuchung, eingebuchte Lieferscheine sind nicht mehr löschbar.
+- **Ausfassen laut Angebot**: beim Ausfassen zeigt die Scan-Seite das Material
+  aus dem angenommenen (sonst offenen) Angebot des Projekts mit „noch X von Y“
+  (RPC `angebot_material`, auch für Monteure, die keine Belege lesen) —
+  antippen legt die offene Menge in die Liste; Lagerplatz steht an jeder Zeile.
+
 ### Nummern
 
 `naechste_nummer(typ, datum)` (nur intern): Projekt `2026-0001`, Angebot
@@ -616,7 +644,7 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
 
 ### Preise — nur über `src/lib/preise.ts`
 
-- `artikelVk(artikel, firma)` = fester VK, sonst EK × (1 + Aufschlag), sonst Listenpreis
+- `artikelVk(artikel, firma)` = fester VK, sonst EK × (1 + Aufschlag des Artikels, sonst des Betriebs), sonst Listenpreis; `vkHerkunft` sagt, welcher
 - `buchungVk(buchung, firma)` = Verkaufswert einer Materialbuchung (Artikelpreis, bei freiem Text EK + Aufschlag)
 - `leistungPreis(leistung, material, firma, stundensatz)` = fester Preis, sonst Material-VK + Minuten/60 × Stundensatz
 - `stundensatzFuer(projekt, firma)`

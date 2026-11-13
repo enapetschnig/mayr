@@ -200,6 +200,7 @@ export type Database = {
         Row: {
           aktiv: boolean
           artikelnummer: string | null
+          aufschlag: number | null
           bestell_vpe: number | null
           bezeichnung: string
           created_at: string
@@ -225,6 +226,7 @@ export type Database = {
         Insert: {
           aktiv?: boolean
           artikelnummer?: string | null
+          aufschlag?: number | null
           bestell_vpe?: number | null
           bezeichnung: string
           created_at?: string
@@ -250,6 +252,7 @@ export type Database = {
         Update: {
           aktiv?: boolean
           artikelnummer?: string | null
+          aufschlag?: number | null
           bestell_vpe?: number | null
           bezeichnung?: string
           created_at?: string
@@ -273,6 +276,130 @@ export type Database = {
           warengruppe?: string | null
         }
         Relationships: []
+      }
+      artikel_dateien: {
+        Row: {
+          art: string
+          artikel_id: string
+          created_at: string
+          id: string
+          name: string | null
+          pfad: string
+        }
+        Insert: {
+          art: string
+          artikel_id: string
+          created_at?: string
+          id?: string
+          name?: string | null
+          pfad: string
+        }
+        Update: {
+          art?: string
+          artikel_id?: string
+          created_at?: string
+          id?: string
+          name?: string | null
+          pfad?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artikel_dateien_artikel_id_fkey"
+            columns: ["artikel_id"]
+            isOneToOne: false
+            referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      artikel_lagerplaetze: {
+        Row: {
+          artikel_id: string
+          lagerort_id: string
+          platz: string
+          updated_at: string
+        }
+        Insert: {
+          artikel_id: string
+          lagerort_id: string
+          platz: string
+          updated_at?: string
+        }
+        Update: {
+          artikel_id?: string
+          lagerort_id?: string
+          platz?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artikel_lagerplaetze_artikel_id_fkey"
+            columns: ["artikel_id"]
+            isOneToOne: false
+            referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artikel_lagerplaetze_lagerort_id_fkey"
+            columns: ["lagerort_id"]
+            isOneToOne: false
+            referencedRelation: "lagerorte"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      artikel_lieferanten: {
+        Row: {
+          artikel_id: string
+          bevorzugt: boolean
+          created_at: string
+          ek_preis: number | null
+          id: string
+          lieferant: string
+          lieferanten_nr: string | null
+          lieferzeit_tage: number | null
+          listenpreis: number | null
+          notiz: string | null
+          rabatt: number | null
+          updated_at: string
+        }
+        Insert: {
+          artikel_id: string
+          bevorzugt?: boolean
+          created_at?: string
+          ek_preis?: number | null
+          id?: string
+          lieferant: string
+          lieferanten_nr?: string | null
+          lieferzeit_tage?: number | null
+          listenpreis?: number | null
+          notiz?: string | null
+          rabatt?: number | null
+          updated_at?: string
+        }
+        Update: {
+          artikel_id?: string
+          bevorzugt?: boolean
+          created_at?: string
+          ek_preis?: number | null
+          id?: string
+          lieferant?: string
+          lieferanten_nr?: string | null
+          lieferzeit_tage?: number | null
+          listenpreis?: number | null
+          notiz?: string | null
+          rabatt?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "artikel_lieferanten_artikel_id_fkey"
+            columns: ["artikel_id"]
+            isOneToOne: false
+            referencedRelation: "artikel"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       artikel_codes: {
         Row: {
@@ -1525,6 +1652,8 @@ export type Database = {
           datei_pfad: string
           datum: string
           eingangsrechnung_id: string | null
+          eingebucht_am: string | null
+          eingebucht_von: string | null
           erstellt_von: string | null
           gelesen_am: string | null
           id: string
@@ -1540,6 +1669,8 @@ export type Database = {
           datei_pfad: string
           datum?: string
           eingangsrechnung_id?: string | null
+          eingebucht_am?: string | null
+          eingebucht_von?: string | null
           erstellt_von?: string | null
           gelesen_am?: string | null
           id?: string
@@ -1555,6 +1686,8 @@ export type Database = {
           datei_pfad?: string
           datum?: string
           eingangsrechnung_id?: string | null
+          eingebucht_am?: string | null
+          eingebucht_von?: string | null
           erstellt_von?: string | null
           gelesen_am?: string | null
           id?: string
@@ -1660,6 +1793,7 @@ export type Database = {
           ek_preis: number | null
           id: string
           lagerort_id: string | null
+          lieferschein_id: string | null
           menge: number
           notiz: string | null
           projekt_id: string | null
@@ -1678,6 +1812,7 @@ export type Database = {
           ek_preis?: number | null
           id?: string
           lagerort_id?: string | null
+          lieferschein_id?: string | null
           menge: number
           notiz?: string | null
           projekt_id?: string | null
@@ -1696,6 +1831,7 @@ export type Database = {
           ek_preis?: number | null
           id?: string
           lagerort_id?: string | null
+          lieferschein_id?: string | null
           menge?: number
           notiz?: string | null
           projekt_id?: string | null
@@ -2528,6 +2664,17 @@ export type Database = {
       }
     }
     Functions: {
+      angebot_material: { Args: { p_projekt: string }; Returns: Json }
+      artikel_aufschlag_setzen: {
+        Args: {
+          p_aufschlag: number
+          p_hersteller?: string
+          p_kategorie?: string
+          p_lieferant?: string
+          p_max?: number
+        }
+        Returns: number
+      }
       angebot_verrechnet: { Args: { p_id: string }; Returns: boolean }
       artikel_gruppen: {
         Args: { p_lieferant?: string }
@@ -2548,6 +2695,7 @@ export type Database = {
         Returns: {
           aktiv: boolean
           artikelnummer: string | null
+          aufschlag: number | null
           bestell_vpe: number | null
           bezeichnung: string
           created_at: string
@@ -2598,6 +2746,10 @@ export type Database = {
       }
       ist_aktiv: { Args: never; Returns: boolean }
       ist_chef: { Args: never; Returns: boolean }
+      lieferschein_einbuchen: {
+        Args: { p_lieferschein: string; p_zeilen: Json }
+        Returns: number
+      }
       kreditor_konten_holen: {
         Args: { p_namen: string[] }
         Returns: {

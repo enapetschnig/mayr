@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { weitereLieferantenLaden } from "@/components/material/artikelDaten";
+import { mitBestemLieferant } from "@/components/material/artikelLogik";
 import { artikelInfo, fehlerText, neueId, runden3, type ArtikelKurz } from "@/components/material/materialDaten";
 import {
   LIEFERANT_OHNE, bedarfAusAngebot, offeneMenge, vorschlagAusBedarf, type AngebotsPosition, type BestellStatus, type Vorschlag,
@@ -231,5 +233,7 @@ export async function projektBedarfLaden(projektId: string): Promise<{ angebot: 
     if (e4) throw e4;
     artikel.push(...(data ?? []));
   }
-  return { angebot: angebot.nummer ?? "Entwurf", vorschlaege: vorschlagAusBedarf(bedarf, artikel) };
+  // bevorzugter bzw. günstigster Lieferant statt immer dem am Artikel
+  const weitere = await weitereLieferantenLaden(artikel.map((a) => a.id));
+  return { angebot: angebot.nummer ?? "Entwurf", vorschlaege: vorschlagAusBedarf(bedarf, mitBestemLieferant(artikel, weitere)) };
 }

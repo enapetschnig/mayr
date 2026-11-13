@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  ArrowRightLeft, ChevronDown, ChevronRight, ClipboardCheck, Download, History, Loader2, Package, PackagePlus, Plus, Search, ShoppingCart, Truck, Warehouse,
+  ArrowRightLeft, ChevronDown, ChevronRight, MapPin, ClipboardCheck, Download, History, Loader2, Package, PackagePlus, Plus, Search, ShoppingCart, Truck, Warehouse,
 } from "lucide-react";
 import { Seite } from "@/components/PageHeader";
 import { Abschnitt, AktionsKachel, Kennzahl, Leer, StatusPille } from "@/components/Bausteine";
@@ -15,6 +15,7 @@ import {
   artikelInfo, fehlerText, lagerVorzeichen, mengeText, nachVorgang, runden3, useAlleLagerorte, useLagerArtikel,
   useLagerbestand, useLetzteBuchungen, useMaterialLive, zeitpunktText, type ArtikelLager,
 } from "@/components/material/materialDaten";
+import { platzSchluessel, useLagerplaetze } from "@/components/material/artikelDaten";
 import { useMitarbeiter } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { alsText, csvHerunterladen } from "@/lib/abfrage";
@@ -50,6 +51,7 @@ export default function Lager() {
   const { data: alleOrte = [] } = useAlleLagerorte();
   const { data: mitarbeiter = [] } = useMitarbeiter();
   const { data: bestellt } = useOffeneBestellMengen();
+  const { data: plaetze } = useLagerplaetze();
   useMaterialLive();
 
   const orte = useMemo(() => alleOrte.filter((o) => o.aktiv), [alleOrte]);
@@ -71,7 +73,9 @@ export default function Lager() {
     const holen = (a: ArtikelLager) => {
       let z = karte.get(a.id);
       if (!z) {
-        const suchtext = [a.bezeichnung, a.hersteller, a.hersteller_nr, a.artikelnummer, a.ean, a.kategorie]
+        // Lagerplatz ist suchbar: „regal 3“ findet alles, was dort liegt
+        const suchtext = [a.bezeichnung, a.hersteller, a.hersteller_nr, a.artikelnummer, a.ean, a.kategorie,
+          ...orte.map((o) => plaetze?.get(platzSchluessel(a.id, o.id)))]
           .filter(Boolean).join(" ").toLowerCase();
         z = { artikel: a, gesamt: 0, jeOrt: new Map(), fehlt: 0, suchtext };
         karte.set(a.id, z);
@@ -91,7 +95,7 @@ export default function Lager() {
       z.fehlt = min != null ? runden3(Number(min) - bestandFuerMindest(z.jeOrt, orte)) : 0;
     });
     return [...karte.values()].sort((a, b) => a.artikel.bezeichnung.localeCompare(b.artikel.bezeichnung, "de"));
-  }, [bestand, lagerArtikel, orte]);
+  }, [bestand, lagerArtikel, orte, plaetze]);
 
   const nachbestellen = zeilen.filter((z) => z.fehlt > 0);
   const mitBestand = zeilen.filter((z) => z.gesamt > 0).length;
@@ -136,6 +140,12 @@ export default function Lager() {
   const ortName = orte.find((o) => o.id === filterOrt)?.name;
   const lagerParam = filterOrt ? `&lager=${filterOrt}` : "";
   const reihenfolgeNeu = alleOrte.reduce((m, o) => Math.max(m, o.reihenfolge), 0) + 1;
+  /** „Regal 3, Fach B“ am gewählten Ort, sonst alle Plätze mit Ort */
+  const platzText = (artikelId: string) => {
+    if (filterOrt) return plaetze?.get(platzSchluessel(artikelId, filterOrt)) ?? null;
+    const alle = orte.flatMap((o) => { const p = plaetze?.get(platzSchluessel(artikelId, o.id)); return p ? [orte.length > 1 ? `${p} (${o.name})` : p] : []; });
+    return alle.length ? alle.join(" · ") : null;
+  };
   const mengeAnzeige = (z: LagerZeile) => (filterOrt && !nurNachbestellen ? z.jeOrt.get(filterOrt) ?? 0 : z.gesamt);
 
   const filterKnopf = (aktiv: boolean) => cn(
@@ -182,10 +192,11 @@ export default function Lager() {
                 <tr key={a.id} className="border-b last:border-b-0 hover:bg-muted/40">
                   <td className="py-2.5 pl-4 pr-2">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="font-medium">{a.bezeichnung}</span>
+                      <Link to={`/artikel/${a.id}`} className="font-medium hover:text-primary hover:underline">{a.bezeichnung}</Link>
                       {z.fehlt > 0 && <StatusPille eintrag={{ ton: "gelb", text: `Nachbestellen · ${zahl(z.fehlt)}${bestellt?.get(a.id) ? ` · ${zahl(bestellt.get(a.id))} bestellt` : ""}` }} />}
                     </div>
                     <p className="text-xs text-muted-foreground">{artikelInfo(a) || a.kategorie}</p>
+                    {platzText(a.id) && <p className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" />{platzText(a.id)}</p>}
                   </td>
                   {orte.map((o) => {
                     const b = z.jeOrt.get(o.id) ?? 0;
@@ -226,6 +237,7 @@ export default function Lager() {
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-2 font-medium leading-snug">{a.bezeichnung}</p>
                   <p className="truncate text-xs text-muted-foreground">{artikelInfo(a) || a.kategorie}</p>
+                  {platzText(a.id) && <p className="flex items-center gap-1 truncate text-xs text-muted-foreground"><MapPin className="h-3 w-3 shrink-0" />{platzText(a.id)}</p>}
                   {z.fehlt > 0 && (
                     <StatusPille className="mt-1" eintrag={{ ton: "gelb", text: `Nachbestellen · ${zahl(z.fehlt)} fehlen${bestellt?.get(a.id) ? ` · ${zahl(bestellt.get(a.id))} bestellt` : ""}` }} />
                   )}
@@ -252,6 +264,11 @@ export default function Lager() {
                       </li>
                     );
                   })}
+                  <li className="py-1">
+                    <Link to={`/artikel/${a.id}`} className="flex min-h-11 items-center gap-1 text-sm font-medium text-primary">
+                      Artikel öffnen — Lagerplatz, Bewegungen <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  </li>
                   {istChef && a.ek_preis != null && z.gesamt > 0 && (
                     <li className="flex items-center justify-between gap-3 py-2 text-sm text-muted-foreground">
                       <span>Wert (EK)</span>
@@ -299,7 +316,7 @@ export default function Lager() {
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={suche} onChange={(e) => { setSuche(e.target.value); setZeigen(SEITE); }} placeholder="Artikel, Hersteller, Nummer, EAN …"
+            <Input value={suche} onChange={(e) => { setSuche(e.target.value); setZeigen(SEITE); }} placeholder="Artikel, Nummer, EAN, Regal …"
               className="h-11 pl-9" inputMode="search" enterKeyHint="search" autoComplete="off" aria-label="Im Lager suchen" />
           </div>
           <div className="flex gap-2">

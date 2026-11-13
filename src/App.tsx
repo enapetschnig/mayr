@@ -30,6 +30,7 @@ const BelegeWeiter = lazy(() => import("./pages/Belege").then((m) => ({ default:
 const BelegDetail = lazy(() => import("./pages/BelegDetail"));
 const Kunden = lazy(() => import("./pages/Kunden"));
 const ArtikelSeite = lazy(() => import("./pages/Artikel"));
+const ArtikelDetail = lazy(() => import("./pages/ArtikelDetail"));
 const Leistungen = lazy(() => import("./pages/Leistungen"));
 const Auswertung = lazy(() => import("./pages/Auswertung"));
 const Einstellungen = lazy(() => import("./pages/Einstellungen"));
@@ -101,6 +102,7 @@ const App = () => (
                 <Route path="/buchhaltung" element={<S chef><Buchhaltung /></S>} />
                 <Route path="/kunden" element={<S><Kunden /></S>} />
                 <Route path="/artikel" element={<S><ArtikelSeite /></S>} />
+                <Route path="/artikel/:id" element={<S><ArtikelDetail /></S>} />
                 <Route path="/leistungen" element={<S chef><Leistungen /></S>} />
                 <Route path="/auswertung" element={<S chef><Auswertung /></S>} />
                 <Route path="/einstellungen" element={<S><Einstellungen /></S>} />

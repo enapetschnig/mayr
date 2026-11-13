@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormularDialog } from "@/components/FormularDialog";
+import { useHauptbilder } from "@/components/material/artikelDaten";
+import { ArtikelVorschau } from "@/components/material/ArtikelVorschau";
 import { useSitzung } from "@/hooks/useSitzung";
 import { euro, zahl } from "@/lib/format";
 import { artikelVk } from "@/lib/preise";
@@ -34,10 +36,10 @@ const KATEGORIEN: { name: string; icon: LucideIcon }[] = [
 ];
 const iconVon = (k: string) => KATEGORIEN.find((x) => x.name === k)?.icon ?? Package;
 const SEITE = 60;
-const FELDER = "id, artikelnummer, hersteller, bezeichnung, einheit, vk_preis, ek_preis, listenpreis, kategorie, unterkategorie";
+const FELDER = "id, artikelnummer, hersteller, bezeichnung, einheit, vk_preis, aufschlag, ek_preis, listenpreis, kategorie, unterkategorie";
 
 type Knoten = { kategorie: string; unterkategorie: string | null; hersteller: string | null; anzahl: number };
-type KatArtikel = Pick<Artikel, "id" | "artikelnummer" | "hersteller" | "bezeichnung" | "einheit" | "vk_preis" | "ek_preis" | "listenpreis"> & { kategorie: string | null; unterkategorie: string | null };
+type KatArtikel = Pick<Artikel, "id" | "artikelnummer" | "hersteller" | "bezeichnung" | "einheit" | "vk_preis" | "aufschlag" | "ek_preis" | "listenpreis"> & { kategorie: string | null; unterkategorie: string | null };
 export type KatalogWahl = { artikel: KatArtikel; menge: number };
 
 /**
@@ -239,6 +241,7 @@ function ArtikelListe({ artikel, laedt, firma, menge, setzen, mehr, mitKategorie
   artikel: KatArtikel[]; laedt: boolean; firma: Parameters<typeof artikelVk>[1]; menge: (id: string) => number;
   setzen: (a: KatArtikel, n: number) => void; mehr?: () => void; mitKategorie?: boolean;
 }) {
+  const { data: bilder } = useHauptbilder(artikel.map((a) => a.id));
   if (!artikel.length) return <p className="py-8 text-center text-sm text-muted-foreground">{laedt ? "Lädt …" : "Keine Artikel gefunden."}</p>;
   return (
     <div className={cn("space-y-2 transition-opacity", laedt && "opacity-60")}>
@@ -248,7 +251,8 @@ function ArtikelListe({ artikel, laedt, firma, menge, setzen, mehr, mitKategorie
           const Icon = iconVon(a.kategorie ?? "");
           return (
             <li key={a.id} className={cn("flex items-center gap-3 px-3 py-2.5", n > 0 && "bg-primary-soft/50")} data-katalog-artikel={a.id}>
-              {mitKategorie && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-label={a.kategorie ?? undefined} />}
+              {bilder?.get(a.id) ? <ArtikelVorschau url={bilder.get(a.id)} groesse="klein" />
+                : mitKategorie && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-label={a.kategorie ?? undefined} />}
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-2 text-sm font-medium leading-snug">{a.bezeichnung}</p>
                 <p className="zahl text-xs font-semibold sm:hidden">{euro(artikelVk(a, firma))} <span className="font-normal text-muted-foreground">/{a.einheit}</span></p>

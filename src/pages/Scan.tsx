@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { anlageIdAusCode } from "@/components/anlagen/pruefLogik";
 import { toast } from "sonner";
-import { Check, ClipboardList, Loader2, PencilLine, ScanBarcode, Search, Warehouse, X } from "lucide-react";
+import { Check, ClipboardList, Loader2, MapPin, PencilLine, ScanBarcode, Search, Warehouse, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
 import { Abschnitt, Leer, StatusPille } from "@/components/Bausteine";
@@ -26,6 +26,9 @@ import {
   standardLagerort, useBestandAmLagerort, useProjektMaterial, zeitpunktText, zuArtikelKurz, type ArtikelKurz,
   type ProjektMaterialZeile,
 } from "@/components/material/materialDaten";
+import { platzSchluessel, useAngebotMaterial, useHauptbilder, useLagerplaetze } from "@/components/material/artikelDaten";
+import { ausfassVorschlag } from "@/components/material/artikelLogik";
+import { ArtikelVorschau } from "@/components/material/ArtikelVorschau";
 import { alleZeilen } from "@/lib/abfrage";
 import { aufBestellungenVerteilen, type OffenePosition } from "@/components/bestellung/bestellLogik";
 import { useLagerorte, useNeuLaden, useProjekte } from "@/hooks/useDaten";
@@ -254,9 +257,18 @@ export default function Scan() {
   const bestandAbfrage = useBestandAmLagerort(info.lager && lagerortId ? lagerortId : null);
   const bestand = bestandAbfrage.data;
   const [zuViel, setZuViel] = useState<string | null>(null);
-  const projektMaterialAbfrage = useProjektMaterial(modus === "rueckgabe" && projektId ? projektId : null);
+  const projektMaterialAbfrage = useProjektMaterial((modus === "rueckgabe" || modus === "ausfassung") && projektId ? projektId : null);
   const projektMaterial = projektMaterialAbfrage.data;
   const verbrauchtJeArtikel = useMemo(() => verbrauchtKarte(projektMaterial), [projektMaterial]);
+  // Ausfassen: Material laut Angebot, abzüglich dessen, was schon auf dem Projekt ist
+  const { data: angebotMaterial } = useAngebotMaterial(modus === "ausfassung" && projektId ? projektId : null);
+  const vorschlag = useMemo(
+    () => (angebotMaterial && projektMaterial ? ausfassVorschlag(angebotMaterial.bedarf, verbrauchtJeArtikel) : []),
+    [angebotMaterial, projektMaterial, verbrauchtJeArtikel],
+  );
+  const [alleVorschlaege, setAlleVorschlaege] = useState(false);
+  const { data: plaetze } = useLagerplaetze();
+  const { data: bilder } = useHauptbilder(liste.flatMap((z) => (z.artikel ? [z.artikel.id] : [])));
 
   const setScanOffen = (o: boolean) => {
     scanOffenRef.current = o;
@@ -383,6 +395,19 @@ export default function Scan() {
     if (!a) return;
     artikelCache.current.set(a.id, a);
     artikelDazu(a, 1);
+  };
+
+  /** Ausfassen: Position aus dem Angebot antippen = mit der offenen Menge in die Liste */
+  const vorschlagDazu = (ids: string[]) => {
+    let n = 0;
+    for (const id of ids) {
+      const v = vorschlag.find((x) => x.artikel_id === id);
+      const a = angebotMaterial?.artikel.get(id);
+      if (!v || !a || listeRef.current.some((z) => z.schluessel === id)) continue;
+      artikelDazu(a, v.offen > 0 ? v.offen : 1);
+      n++;
+    }
+    if (n > 1) toast.success(`${n} Positionen aus dem Angebot in der Liste`, { description: "Mengen prüfen, dann buchen." });
   };
 
   const mengeSetzen = (schluessel: string, text: string) => {
@@ -946,6 +971,48 @@ export default function Scan() {
             </div>
           )}
 
+          {modus === "ausfassung" && projektId && angebotMaterial && vorschlag.length > 0 && (() => {
+            const offen = vorschlag.filter((v) => v.offen > 0);
+            const nichtDrin = offen.filter((v) => !liste.some((z) => z.schluessel === v.artikel_id));
+            const sichtbar = alleVorschlaege ? vorschlag : vorschlag.slice(0, 6);
+            return (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Laut Angebot {angebotMaterial.angebot} — antippen</Label>
+                  {nichtDrin.length > 1 && (
+                    <Button variant="ghost" className="-my-1 h-11 px-2 text-primary" onClick={() => vorschlagDazu(nichtDrin.map((v) => v.artikel_id))}>
+                      Alle {nichtDrin.length} offenen
+                    </Button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {sichtbar.map((v) => {
+                    const a = angebotMaterial.artikel.get(v.artikel_id);
+                    if (!a) return null;
+                    const drin = liste.some((z) => z.schluessel === v.artikel_id);
+                    const fertig = v.offen <= 0;
+                    return (
+                      <button key={v.artikel_id} type="button" disabled={drin} onClick={() => vorschlagDazu([v.artikel_id])}
+                        className={cn("min-h-11 max-w-full rounded-lg border bg-card px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted",
+                          drin && "border-primary bg-primary-soft text-primary", fertig && !drin && "text-muted-foreground")}>
+                        <span className="line-clamp-1 font-medium">{a.bezeichnung}</span>
+                        <span className="zahl block text-xs text-muted-foreground">
+                          {fertig ? `alle ${zahl(v.soll)} ${a.einheit} draußen` : `noch ${zahl(v.offen)} von ${zahl(v.soll)} ${a.einheit}`}
+                          {drin ? " · in der Liste" : ""}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {vorschlag.length > 6 && (
+                  <Button variant="ghost" className="h-11 px-2 text-muted-foreground" onClick={() => setAlleVorschlaege((x) => !x)}>
+                    {alleVorschlaege ? "Weniger zeigen" : `Alle ${vorschlag.length} Positionen zeigen`}
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+
           <div className="space-y-2">
             <Button className="h-14 w-full text-base" onClick={() => setScanOffen(true)}>
               <ScanBarcode className="mr-2 h-5 w-5" /> Scannen
@@ -993,6 +1060,8 @@ export default function Scan() {
                     bestand={z.artikel && info.lager ? bestand?.get(z.artikel.id) ?? (bestand ? 0 : undefined) : undefined}
                     verbraucht={z.artikel && modus === "rueckgabe" && projektMaterial ? verbrauchtJeArtikel.get(z.artikel.id) ?? 0 : undefined}
                     lagerName={lagerort?.name}
+                    platz={z.artikel && info.lager && lagerortId ? plaetze?.get(platzSchluessel(z.artikel.id, lagerortId)) : undefined}
+                    bild={z.artikel ? bilder?.get(z.artikel.id) : undefined}
                     onMenge={(t) => mengeSetzen(z.schluessel, t)}
                     onEntfernen={() => entfernen(z.schluessel)}
                   />
@@ -1158,8 +1227,12 @@ export default function Scan() {
 
 /** Eine Zeile der Liste — Handy: Name oben, Menge darunter; ab Tablet in einer Reihe. */
 function ZeileAnzeige({
-  z, modus, markiert, bestand, verbraucht, lagerName, onMenge, onEntfernen,
+  z, modus, markiert, bestand, verbraucht, lagerName, platz, bild, onMenge, onEntfernen,
 }: {
+  /** Lagerplatz am gewählten Lagerort („Regal 3, Fach B“) */
+  platz?: string;
+  /** Hauptbild des Artikels */
+  bild?: string;
   z: Zeile;
   modus: Modus;
   markiert: boolean;
@@ -1211,10 +1284,16 @@ function ZeileAnzeige({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2 p-3 transition-colors", markiert && "bg-primary-soft")}>
-      <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
-        <p className="line-clamp-2 font-medium leading-snug">{z.bezeichnung}</p>
-        {info && <p className="truncate text-xs text-muted-foreground">{info}</p>}
-        {hinweis && <div className="mt-1">{hinweis}</div>}
+      <div className="flex min-w-0 basis-full items-start gap-3 sm:basis-0 sm:flex-1">
+        {bild && <ArtikelVorschau url={bild} groesse="klein" />}
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 font-medium leading-snug">{z.bezeichnung}</p>
+          {info && <p className="truncate text-xs text-muted-foreground">{info}</p>}
+          {platz && (
+            <p className="flex items-center gap-1 text-xs font-medium text-foreground"><MapPin className="h-3 w-3 shrink-0 text-primary" />{platz}</p>
+          )}
+          {hinweis && <div className="mt-1">{hinweis}</div>}
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <MengeFeld wert={z.menge} onChange={onMenge} min={modus === "korrektur" ? 0 : 1}
