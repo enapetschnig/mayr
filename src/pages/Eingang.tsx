@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
 import { Check, ChevronRight, Download, Inbox, Loader2, Paperclip, Plus, Search, X } from "lucide-react";
@@ -11,7 +11,7 @@ import { EingangDialog } from "@/components/eingang/EingangDialog";
 import { ueberwiesen, useEingangsrechnungen, type EingangMitAnteilen } from "@/components/eingang/eingangDaten";
 import { ablauf, kategorieText, zahlung, zuordnung, zuZahlen } from "@/components/eingang/eingangLogik";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useNeuLaden } from "@/hooks/useDaten";
+import { useKunden, useNeuLaden } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { ibanPruefen, sepaXml } from "@/lib/sepa";
 import { passtSuche } from "@/components/regie/regieLogik";
@@ -60,6 +60,18 @@ export default function Eingang() {
   const [suche, setSuche] = useState("");
   const [offen, setOffen] = useState<EingangMitAnteilen | "neu" | null>(null);
   const { data: alle = [], isLoading, error, refetch } = useEingangsrechnungen();
+  const { data: kontakte = [] } = useKunden();
+
+  // ?offen=<id> aus dem Lieferanten-Kontakt: diese Rechnung gleich öffnen
+  const offenParam = params.get("offen");
+  useEffect(() => {
+    const r = offenParam ? alle.find((x) => x.id === offenParam) : undefined;
+    if (!r) return;
+    setOffen(r);
+    const neu = new URLSearchParams(params);
+    neu.delete("offen");
+    setParams(neu, { replace: true });
+  }, [offenParam, alle, params, setParams]);
 
   const filterSetzen = (w: Filter) => {
     const neu = new URLSearchParams(params);
@@ -79,7 +91,11 @@ export default function Eingang() {
   ], suche)).sort((a, b) => (filter === "freigegeben" ? (zuZahlen(a, heute).bis ?? a.faellig_am ?? "9").localeCompare(zuZahlen(b, heute).bis ?? b.faellig_am ?? "9") : 0)),
   [alle, filter, suche, heute]);
 
-  const lieferanten = useMemo(() => [...new Set(alle.map((r) => r.lieferant.trim()))].sort((a, b) => a.localeCompare(b, "de")), [alle]);
+  // Vorschläge: bisherige Lieferanten und die Lieferanten-Kontakte
+  const lieferanten = useMemo(() => [...new Set([
+    ...alle.map((r) => r.lieferant.trim()),
+    ...kontakte.filter((k) => k.art === "lieferant").map((k) => k.name.trim()),
+  ])].sort((a, b) => a.localeCompare(b, "de")), [alle, kontakte]);
   const summe = liste.reduce((s, r) => s + Number(r.brutto), 0);
 
   // ── Überweisen ──

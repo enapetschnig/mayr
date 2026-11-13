@@ -63,7 +63,7 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
 |---|---|
 | `firma` | genau eine Zeile: Briefkopf, Bank, Stundensatz, Materialaufschlag, Texte |
 | `profiles` | Mitarbeiter: Vorname, Nachname, `rolle` chef/monteur, `aktiv`, Farbe |
-| `kunden` | Kundenstamm, `nummer` ab 1001 |
+| `kunden` | Kontakte, `nummer` ab 1001; `art` kunde/lieferant/partner, Lage `lat`/`lng` (siehe „Kontakte“) |
 | `projekte` | `nummer` 2026-0001 (Trigger), `status` angebot/aktiv/verrechnen/abgeschlossen (Pille auf Kachel, Liste und im Projekt antippen = umstellen, `ProjektStatusWahl`), Baustellenadresse, optional eigener Stundensatz. Gebucht (Stunden, Ausfassen/direkt, Regie) wird nur bei „aktiv“ = In Arbeit — Trigger `nur_in_arbeit_buchen`; Garantiestunden gehen auch danach, Rückgaben immer |
 | `zeiten` | Stunden je Mitarbeiter, Projekt optional; `regiebericht_id`, `rechnung_id` |
 | `artikel` | Artikelstamm; Preise **je Einheit**; `ean`; `lagerartikel`, `mindestbestand` |
@@ -77,7 +77,7 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
 | `termine` | Kalender und Einsätze; `mitarbeiter uuid[]`, `status` geplant/begonnen/erledigt, `dringend`, `geaendert_am` (Trigger, nur bei Zeit, Ort, Personen) |
 | `abwesenheiten` | Urlaub, Krank, Arzt, Berufsschule, Zeitausgleich, Sonstiges je Person; `status` beantragt/genehmigt/abgelehnt |
 | `fibu_uebergaben` + `fibu_uebergabe_belege` | Was an die Kanzlei ging, je Beleg einmal; zurücknehmen löscht die Übergabe |
-| `kreditor_konten` | Kreditorennummer je Lieferant (ab 30001), einmal vergeben; Lieferanten sind sonst freier Text |
+| `kreditor_konten` | Kreditorennummer je Lieferant (ab 30001), einmal vergeben; an den Belegen bleibt der Lieferant freier Text, der Lieferanten-Kontakt findet sie über den Namen |
 | `konto_buchungen` | Korrekturen am Überstunden- und Urlaubskonto (Anfangsbestand, Auszahlung, Übertrag); nur der Chef schreibt |
 | `nummernkreise` | nur über `naechste_nummer()` |
 
@@ -244,6 +244,33 @@ Migration `20261103120000_anlagen.sql`:
   Rechnung storniert → wieder frei.
 - Startseite (Chef): „X Anlagen zu prüfen · Y überfällig“ (fällig = in den
   nächsten 30 Tagen).
+
+### Kontakte, PV-Anlagendaten und Karte (`components/kontakte/`, Seite `/kunden`)
+
+Migration `20261113113000_kontakte_anlagen_karte.sql`, Logik in `kontaktLogik.ts` (getestet):
+- **Kontakte** = Tabelle `kunden` mit `art` Kunde / Lieferant / Partner (Subunternehmer, Planer).
+  Seite „Kontakte“: Filter je Art (`?art=`), Liste oder Karte (`?ansicht=karte`). Kundenauswahl
+  (`KundeWahl`) zeigt keine Lieferanten.
+- **Lieferanten** bleiben an Eingangsrechnung, Lieferschein, Bestellung, Rabatt, Artikel freier Text —
+  nichts davon wurde umgebaut. Der Kontakt findet seine Belege über Name + `namen` (weitere
+  Schreibweisen, „Sonepar Österreich GmbH“) per `kontakt_belege(id)`: Vergleich über
+  `lieferant_schluessel` (klein, Leerzeichen zusammengezogen), läuft mit RLS des Aufrufers.
+  Im Kontakt Summen (Rechnungen, nicht überwiesen, bestellt) und Öffnen (`/eingang?offen=`,
+  `/lieferscheine?offen=`, `/bestellungen/:id`); dazu `kundennummer_extern` und die Kreditorennummer.
+  Lieferanten-Kontakte erscheinen als Vorschlag in Eingangsrechnung und Bestellung.
+- **PV-Anlagendaten** an der vorhandenen Anlage (`anlagen`, Art PV — ein Kunde kann mehrere haben):
+  kWp, Module, Wechselrichter, Speicher kWh + Typ, Einspeisebegrenzung % und/oder kW, Wallbox,
+  Überschussregelung (ja/nein + wie), Inbetriebnahme, Zählpunkt, Überwachung (Fronius Solar.web,
+  SolaX Cloud, Huawei FusionSolar, SMA, sonstige) + Link, Link PV-Planung. Links nur http(s)
+  (`linkSauber`). Zu sehen in der Anlage, im Kontakt (Eckdaten + Knöpfe) und im **Projekt**
+  („Anlage des Kunden“ in der Übersicht — auch für den Monteur).
+- **Karte** (Leaflet + OpenStreetMap-Kacheln, erst beim Öffnen geladen): Punkt je Kontakt mit
+  Lage; Farbe Projekt läuft / Kunde mit PV / Kunde / Lieferant / Partner (Status-Tokens);
+  Filter PV, Speicher, Wallbox, Projekt läuft; Tippen → Eckdaten + „Öffnen“.
+  Koordinaten aus Nominatim, höchstens 1 Anfrage/s (`kontaktDaten.ts`), gespeichert samt der
+  gesuchten Adresse (`geo_adresse`) — neu gesucht wird nur bei geänderter Adresse: automatisch
+  beim Speichern des Kontakts, für Altbestand per Knopf „Lage suchen“ auf der Karte.
+  Demo: `supabase/demo/04-kontakte.sql` trägt Koordinaten direkt ein.
 
 ### Zeit und Personal (`lib/zeitkonto.ts`, `components/zeiten/`, Seite `/zeiten`)
 

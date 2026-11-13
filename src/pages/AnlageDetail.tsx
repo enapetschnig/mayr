@@ -18,6 +18,7 @@ import { datum, euro, isoTag } from "@/lib/format";
 import { pdfTeilenOderLaden } from "@/lib/pdfBasis";
 import { anlagenEtikett } from "@/lib/pruefPdf";
 import { REGIE_STATUS } from "@/lib/types";
+import { mitPvDaten, PvDetails } from "@/components/kontakte/AnlagePv";
 
 const INTERVALL_TEXT = (m: number | null) =>
   !m ? "keine wiederkehrende Prüfung" : m % 12 === 0 ? (m === 12 ? "jährlich" : `alle ${m / 12} Jahre`) : `alle ${m} Monate`;
@@ -163,6 +164,8 @@ export default function AnlageDetail() {
             {anlage.notiz && (<><dt className="text-muted-foreground">Notiz</dt><dd className="whitespace-pre-wrap">{anlage.notiz}</dd></>)}
           </dl>
         </Karte>
+
+        {mitPvDaten(anlage) && <Karte titel="PV-Anlage"><PvDetails anlage={anlage} /></Karte>}
 
         <Karte titel="Prüfprotokolle" ohnePolster>
           {pruefungen.length === 0 ? (

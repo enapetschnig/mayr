@@ -7,6 +7,7 @@ import { datum, isoTag, zahl } from "@/lib/format";
 import { AnlageDialog } from "./AnlageDialog";
 import { anlageText, useAnlagen } from "./anlagenDaten";
 import { faelligkeit } from "./pruefLogik";
+import { mitPvDaten, PvLinks, PvStuecke } from "@/components/kontakte/AnlagePv";
 
 /** Anlagen eines Kunden in der Kundenansicht — mit „Neue Anlage“ für genau diesen Kunden */
 export function KundeAnlagen({ kundeId }: { kundeId: string }) {
@@ -22,7 +23,7 @@ export function KundeAnlagen({ kundeId }: { kundeId: string }) {
       ohnePolster
     >
       {anlagen.length === 0 ? (
-        <p className="px-4 pb-4 text-sm text-muted-foreground lg:px-5">Keine Anlagen — Verteiler, E-Check oder Blitzschutz hier anlegen, dann erinnert die App an die Prüfung.</p>
+        <p className="px-4 pb-4 text-sm text-muted-foreground lg:px-5">Keine Anlagen — PV-Anlage mit Speicher und Überwachung, Verteiler, E-Check oder Blitzschutz hier anlegen.</p>
       ) : (
         <ul className="divide-y border-t">
           {anlagen.map((a) => {
@@ -39,6 +40,12 @@ export function KundeAnlagen({ kundeId }: { kundeId: string }) {
                   {a.aktiv && f.stufe !== "spaeter" && f.stufe !== "keine" && <StatusPille eintrag={f.eintrag} />}
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </Link>
+                {mitPvDaten(a) && (
+                  <div className="space-y-2 px-4 pb-3 lg:px-5">
+                    <PvStuecke anlage={a} />
+                    <PvLinks anlage={a} />
+                  </div>
+                )}
               </li>
             );
           })}

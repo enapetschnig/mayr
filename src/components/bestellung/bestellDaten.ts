@@ -100,18 +100,19 @@ export function useOffeneBestellMengen() {
   return useQuery({ queryKey: ["bestellungen", "offen-lager"], queryFn: () => offeneBestellMengen() });
 }
 
-/** Lieferanten aus dem Artikelstamm und früheren Bestellungen (für die Auswahl). */
+/** Lieferanten aus dem Artikelstamm, früheren Bestellungen und den Kontakten (für die Auswahl). */
 export function useLieferanten() {
   return useQuery({
     queryKey: ["bestellungen", "lieferanten"],
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const [a, b] = await Promise.all([
+      const [a, b, k] = await Promise.all([
         supabase.from("artikel").select("lieferant").eq("aktiv", true).neq("lieferant", LIEFERANT_OHNE).limit(2000),
         supabase.from("bestellungen").select("lieferant").limit(500),
+        supabase.from("kunden").select("lieferant:name").eq("art", "lieferant").limit(500),
       ]);
       const namen = new Set<string>();
-      for (const z of [...(a.data ?? []), ...(b.data ?? [])]) if (z.lieferant?.trim()) namen.add(z.lieferant.trim());
+      for (const z of [...(a.data ?? []), ...(b.data ?? []), ...(k.data ?? [])]) if (z.lieferant?.trim()) namen.add(z.lieferant.trim());
       return [...namen].sort((x, y) => x.localeCompare(y, "de"));
     },
   });
