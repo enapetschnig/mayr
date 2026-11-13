@@ -30,4 +30,36 @@ H `1180xx`, A `1190xx`. Eingespielt mit `scripts/migration.sh <datei>`.
 
 ## Stand
 
-(wird beim Zusammenführen ergänzt)
+Stand 13.11.2026: alle Wünsche umgesetzt, im Browser durchgeklickt (Chef am PC,
+Monteur am Handy), RLS-Test 245/245, Durchlauf 22/22, 447 vitest-Tests grün.
+Details je Funktion in `docs/KONZEPT.md`.
+
+| Wunsch | Wo | Stand |
+|---|---|---|
+| Aufgaben mit Verfolgung | `/aufgaben`, Startseite, Projekt | ✓ wiederkehrend, Verlauf mit Foto |
+| Lohnkosten/Stundensätze je Mitarbeiter | Einstellungen → Mitarbeiter „€“ | ✓ mit „gültig ab“, nur Chef |
+| WhatsApp an den Kunden | Projekt → WhatsApp | ✓ als `wa.me`-Link mit Vorlagen (keine API) |
+| Büro-/unproduktive Stunden | Stunden → „Intern“ | ✓ Arten in Einstellungen, Spalte „Unproduktiv“ |
+| Stunden in Monatsansicht | `/zeiten` Woche/Monat | ✓ |
+| Rechnungen in der Buchhaltung öffnen, Eingang/Ausgang, Kategorien | `/buchhaltung` | ✓ |
+| Dokumente bei Mitarbeitern, Reiter „Dokumente“ | `/dokumente` | ✓ Lohnzettel „neu für dich“ |
+| Lieferanten mit ihren Belegen | `/kunden` → „Kontakte“ | ✓ Zuordnung über den Namen |
+| Anlagendaten (PV, Speicher, Wallbox, Links) | Kontakt, Anlage, Projekt | ✓ |
+| Alte Rechnungen einpflegen und ausbuchen | Buchhaltung → Altrechnungen | ✓ Tabelle oder CSV |
+| Kunden in Kartenansicht | Kontakte → Karte | ✓ OpenStreetMap, Lage beim Speichern |
+| Zoomen in Bildern, Planung (PDF) | Projekt | ✓ |
+| Angebotsvorlagen | Angebote → „Aus Vorlage“ | ✓ |
+| Kunde bestätigt Angebot | Link `/angebot/<token>` | ✓ mit Unterschrift |
+| „Heute – Morgen“ aufklappen | Startseite | ✓ |
+| Material aus Angebot beim Ausfassen | Scannen | ✓ |
+| Stunden für andere buchen | Stunden-Dialog | ✓ Chef und Teamleitung |
+| Angebotene Stunden, Regie getrennt in der Nachkalkulation | Projekt, Auswertung | ✓ |
+| Förderstatus | Projekt, Projektliste, Startseite | ✓ mit Frist |
+| Artikelbilder, VK/Aufschlag, Lieferanten-Preise, Datenblatt, Bewegungen, Lagerplatz | Artikel | ✓ |
+| Wareneingang per Lieferschein-PDF | Lieferscheine → Einbuchen | ✓ |
+| Kalender X/Y tauschen, Projektsuche | Plantafel „Mitarbeiter“, jede Projektwahl | ✓ |
+
+Offen für den Termin am 17.11.: Bankdaten (noch Demo), AGB-Link auf der
+Bestätigungsseite, welche Karte er zeigen wollte, Export seines alten Programms
+(Altrechnungen), wer zu „Büro“ gehört und was es sehen darf, interne
+Stundenarten, Einsätze einheitlich orange oder in Projektfarbe.
