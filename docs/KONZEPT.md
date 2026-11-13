@@ -449,6 +449,41 @@ Bewusst einfach, kein eigenes Kalkulationsblatt:
 - Bekannte Grenze: eine einzeln gelöschte Materialzeile eines übernommenen
   Berichts kommt nur über einen neuen Import zurück.
 
+### Angebotsvorlagen, Online-Bestätigung, Datenblätter (Migrationen `20261113115000…003`)
+
+- **Vorlagen** (`angebot_vorlagen`, nur Chef; `vorlagen.ts` rein, `vorlagenDaten.ts`,
+  `VorlagenDialog`, `VorlageSpeichernDialog`): ganzes Angebot mit Titeln als jsonb,
+  Name eindeutig (gleicher Name = ersetzen), Kategorie frei mit Vorschlägen. Ohne Kunde,
+  Datum, Abzüge und Herkunft (Stunden/Material). Getrennt vom Leistungskatalog.
+  „Aus Vorlage“ in der Angebotsliste (→ `/belege/neu?typ=angebot&vorlage=<id>`, Preise
+  von heute; `&preise=vorlage` = wie gespeichert) und im Editor (fügt unter dem aktiven
+  Titel ein, gleichnamige Titel werden „X 2“). Beim Einfügen werden Artikel- und
+  Leistungspreise aus Stamm/Katalog neu gerechnet; der Dialog zeigt, was sich seit dem
+  Speichern geändert hat, und lässt die alten Preise wählen. Inaktive/gelöschte Artikel
+  behalten den Vorlagenpreis und werden gemeldet.
+- **Kunde bestätigt online** (`AngebotVersand.tsx`, öffentliche Seite `/angebot/:token`
+  = `AngebotBestaetigen.tsx`, außerhalb der Anmeldung): Chef erzeugt im offenen Angebot
+  einen Link (`angebot_links`, 32 Zeichen Zufall, gilt bis Gültig-bis, einer je Angebot,
+  neu erzeugen sperrt den alten), teilt per Kopieren, WhatsApp, E-Mail oder Teilen.
+  Der Kunde sieht Angebot und PDF, schickt eine Rückfrage oder nimmt mit Name, Haken und
+  Fingerunterschrift an. Anon kommt nur über Security-Definer-RPCs dran
+  (`angebot_oeffentlich`, `angebot_annehmen`, `angebot_rueckfrage`) — nie an Tabellen,
+  keine EK/Minuten. Annehmen prüft: Link gültig, Angebot offen und nicht abgelaufen,
+  Stand (`updated_at`) unverändert, Haken, Unterschrift-PNG liegt unter
+  `angebot-bestaetigung/<token>/` (Upload nur mit gültigem Link, PNG ≤ 512 KB, ≤ 5 je
+  Link). Dann wie von Hand: Angebot `angenommen`, Projekt `angebot` → `aktiv`. Gespeichert
+  werden Name, Zeit, Betrag, Unterschrift — keine IP. Alles landet in `angebot_verlauf`;
+  Annahmen und Rückfragen sind ungelesen → Startseite „Zu erledigen“, bis der Chef das
+  Angebot öffnet.
+- **Datenblätter**: aus `artikel_dateien` (art `datenblatt`, Bucket `dateien`, Tabelle
+  aus Paket F) zu allen Artikeln des Angebots inkl. Material der Leistungen. Im Angebot
+  ankreuzen → „Angebot + n Datenblätter“ (Handy: Teilen, PC: ZIP). Der Kunde sieht sie
+  auf der Bestätigungsseite (Lesen für anon nur für Artikel in Angeboten mit gültigem
+  Link). Fehlt die Tabelle, bleibt alles still leer.
+- Demo: `supabase/demo/04-angebote.sql` (6 PV-Vorlagen, AN „Brunner“ offen mit Link
+  `/angebot/DEMO-pv-brunner-angebot-bestaetigen-2026`, AN „Reisinger“ online angenommen);
+  die Demo-Unterschrift lädt `unterschriften.py` hoch.
+
 ### Plantafel, Teams und Fuhrpark (Seiten `/plantafel`, `/fuhrpark`)
 
 Migration `20261110100000_fuhrpark_teams_plantafel.sql`, Logik in

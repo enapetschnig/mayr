@@ -39,6 +39,136 @@ export type Database = {
   }
   public: {
     Tables: {
+      angebot_links: {
+        Row: {
+          ablauf: string
+          beleg_id: string
+          created_at: string
+          erstellt_von: string | null
+          geoeffnet_am: string | null
+          gesperrt_am: string | null
+          id: string
+          token: string
+        }
+        Insert: {
+          ablauf: string
+          beleg_id: string
+          created_at?: string
+          erstellt_von?: string | null
+          geoeffnet_am?: string | null
+          gesperrt_am?: string | null
+          id?: string
+          token: string
+        }
+        Update: {
+          ablauf?: string
+          beleg_id?: string
+          created_at?: string
+          erstellt_von?: string | null
+          geoeffnet_am?: string | null
+          gesperrt_am?: string | null
+          id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "angebot_links_beleg_id_fkey"
+            columns: ["beleg_id"]
+            isOneToOne: false
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      angebot_verlauf: {
+        Row: {
+          art: string
+          beleg_id: string
+          betrag: number | null
+          created_at: string
+          gelesen: boolean
+          id: string
+          name: string | null
+          text: string | null
+          unterschrift_pfad: string | null
+          wer: string | null
+        }
+        Insert: {
+          art: string
+          beleg_id: string
+          betrag?: number | null
+          created_at?: string
+          gelesen?: boolean
+          id?: string
+          name?: string | null
+          text?: string | null
+          unterschrift_pfad?: string | null
+          wer?: string | null
+        }
+        Update: {
+          art?: string
+          beleg_id?: string
+          betrag?: number | null
+          created_at?: string
+          gelesen?: boolean
+          id?: string
+          name?: string | null
+          text?: string | null
+          unterschrift_pfad?: string | null
+          wer?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "angebot_verlauf_beleg_id_fkey"
+            columns: ["beleg_id"]
+            isOneToOne: false
+            referencedRelation: "belege"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      angebot_vorlagen: {
+        Row: {
+          betreff: string | null
+          created_at: string
+          einleitung: string | null
+          erstellt_von: string | null
+          id: string
+          kategorie: string | null
+          name: string
+          netto: number
+          positionen: Json
+          schlusstext: string | null
+          updated_at: string
+        }
+        Insert: {
+          betreff?: string | null
+          created_at?: string
+          einleitung?: string | null
+          erstellt_von?: string | null
+          id?: string
+          kategorie?: string | null
+          name: string
+          netto?: number
+          positionen?: Json
+          schlusstext?: string | null
+          updated_at?: string
+        }
+        Update: {
+          betreff?: string | null
+          created_at?: string
+          einleitung?: string | null
+          erstellt_von?: string | null
+          id?: string
+          kategorie?: string | null
+          name?: string
+          netto?: number
+          positionen?: Json
+          schlusstext?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       abwesenheiten: {
         Row: {
           art: string
@@ -2528,6 +2658,14 @@ export type Database = {
       }
     }
     Functions: {
+      angebot_annehmen: {
+        Args: { p_akzeptiert: boolean; p_name: string; p_stand: string; p_token: string; p_unterschrift: string }
+        Returns: Json
+      }
+      angebot_link_erstellen: { Args: { p_beleg: string }; Returns: string }
+      angebot_link_sperren: { Args: { p_beleg: string }; Returns: undefined }
+      angebot_oeffentlich: { Args: { p_token: string }; Returns: Json }
+      angebot_rueckfrage: { Args: { p_name: string; p_text: string; p_token: string }; Returns: undefined }
       angebot_verrechnet: { Args: { p_id: string }; Returns: boolean }
       artikel_gruppen: {
         Args: { p_lieferant?: string }

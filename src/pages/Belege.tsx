@@ -1,12 +1,13 @@
-import { useMemo } from "react";
-import { Link, Navigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, CalendarClock, CheckCircle2, FileText, Plus, Receipt, Search, Sparkles, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { AlertTriangle, CalendarClock, CheckCircle2, FileText, LayoutTemplate, Plus, Receipt, Search, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Seite } from "@/components/PageHeader";
 import { AktionsKachel, Kennzahl, Leer } from "@/components/Bausteine";
 import { useIstPc } from "@/components/AppLayout";
 import { BelegListe } from "@/components/belege/BelegListe";
+import { VorlagenDialog } from "@/components/belege/VorlagenDialog";
 import { listenStatus, useBelege, verrechneteAngeboteAus, type BelegListenEintrag } from "@/components/belege/daten";
 import { euro, isoTag } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,8 @@ export function BelegeWeiter() {
  */
 export default function Belege({ typ }: { typ: Typ }) {
   const pc = useIstPc();
+  const navigate = useNavigate();
+  const [vorlagenOffen, setVorlagenOffen] = useState(false);
   const heute = isoTag();
   const [params, setParams] = useSearchParams();
   const { data: alle = [], isLoading, error } = useBelege();
@@ -123,6 +126,7 @@ export default function Belege({ typ }: { typ: Typ }) {
   const neuKnoepfe = pc ? (
     angebot ? (
       <>
+        <Button variant="outline" className="h-10" onClick={() => setVorlagenOffen(true)}><LayoutTemplate className="h-4 w-4" /> Aus Vorlage</Button>
         <Button asChild variant="outline" className="h-10"><Link to="/belege/neu?typ=angebot&ki=1"><Sparkles className="h-4 w-4" /> Angebot mit KI</Link></Button>
         <Button asChild className="h-10"><Link to={pfad}><Plus className="h-4 w-4" /> Neues Angebot</Link></Button>
       </>
@@ -135,7 +139,8 @@ export default function Belege({ typ }: { typ: Typ }) {
       {!pc && (
         angebot ? (
           <div className="grid grid-cols-2 gap-2.5">
-            <AktionsKachel icon={FileText} titel="Neues Angebot" to={pfad} ton="primaer" />
+            <AktionsKachel icon={FileText} titel="Neues Angebot" to={pfad} ton="primaer" className="col-span-2" />
+            <AktionsKachel icon={LayoutTemplate} titel="Aus Vorlage" unter="PV, Speicher, Wallbox …" onClick={() => setVorlagenOffen(true)} />
             <AktionsKachel icon={Sparkles} titel="Mit KI" unter="„PV-Anlage 9 kWp“" to="/belege/neu?typ=angebot&ki=1" />
           </div>
         ) : <AktionsKachel icon={Receipt} titel="Neue Rechnung" to={pfad} ton="primaer" />
@@ -203,6 +208,10 @@ export default function Belege({ typ }: { typ: Typ }) {
             {listenSumme > 0 && <> · <span className="zahl font-semibold text-foreground">{euro(listenSumme)}</span> {angebot ? "netto" : "brutto"} (ohne Entwürfe{angebot ? ", Abgelehnte" : ", Storno"})</>}
           </p>
         </div>
+      )}
+      {angebot && (
+        <VorlagenDialog open={vorlagenOffen} onOpenChange={setVorlagenOffen} knopfText="Neues Angebot daraus"
+          onWahl={(w) => navigate(`/belege/neu?typ=angebot&vorlage=${w.vorlage.id}${w.nachgezogen ? "" : "&preise=vorlage"}`)} />
       )}
     </Seite>
   );

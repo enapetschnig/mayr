@@ -15,6 +15,7 @@ import os
 import pathlib
 import random
 import sys
+import urllib.error
 import urllib.request
 
 from PIL import Image, ImageDraw
@@ -90,6 +91,23 @@ def main():
             kopf={"Content-Type": "image/png", "x-upsert": "true"},
         )
         print(f"{r['nummer']}: Unterschrift hochgeladen")
+
+    # Online angenommene Demo-Angebote (04-angebote.sql): Bild der Annahme.
+    # Überschreiben verbietet die Policy — schon da (409) ist auch gut.
+    annahmen = json.loads(anfrage(
+        f"{url}/rest/v1/angebot_verlauf?select=name,unterschrift_pfad&art=eq.angenommen&unterschrift_pfad=like.DEMO-*",
+        key, token=token,
+    ))
+    for a in annahmen:
+        try:
+            anfrage(
+                f"{url}/storage/v1/object/angebot-bestaetigung/{a['unterschrift_pfad']}", key, "POST",
+                unterschrift(a["name"] or "Kunde"), token=token, kopf={"Content-Type": "image/png"},
+            )
+            print(f"Angebot online angenommen ({a['name']}): Unterschrift hochgeladen")
+        except urllib.error.HTTPError as e:
+            if e.code not in (400, 409):
+                raise
 
 
 if __name__ == "__main__":

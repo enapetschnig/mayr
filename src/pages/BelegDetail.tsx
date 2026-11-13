@@ -13,6 +13,7 @@ import { isoTag } from "@/lib/format";
 
 /**
  * /belege/neu?typ=angebot|rechnung[&projekt=<id>|&kunde=<id>][&sprache=1][&import=1][&ki=1]
+ *   [&vorlage=<id>[&preise=vorlage]] — Angebot aus einer Vorlage (sonst Preise von heute)
  * /belege/:id
  *
  * Neu: Startwerte aus Firma (Texte), Projekt und dessen Kunde. Gespeichert
@@ -84,6 +85,7 @@ function NeuerBeleg({ params }: { params: URLSearchParams }) {
       autoSprache={params.get("sprache") === "1"}
       autoKi={params.get("ki") === "1"}
       autoImport={typ === "rechnung" && !!projekt && params.get("import") === "1"}
+      startVorlage={typ === "angebot" && params.get("vorlage") ? { id: params.get("vorlage")!, nachziehen: params.get("preise") !== "vorlage" } : undefined}
     />
   );
 }
