@@ -1788,6 +1788,7 @@ export type Database = {
           email: string | null
           farbe: string | null
           gesperrt: boolean
+          gruppe: string | null
           id: string
           konto_ab: string
           lohnart: string | null
@@ -1805,6 +1806,7 @@ export type Database = {
           email?: string | null
           farbe?: string | null
           gesperrt?: boolean
+          gruppe?: string | null
           id: string
           konto_ab?: string
           lohnart?: string | null
@@ -1822,6 +1824,7 @@ export type Database = {
           email?: string | null
           farbe?: string | null
           gesperrt?: boolean
+          gruppe?: string | null
           id?: string
           konto_ab?: string
           lohnart?: string | null

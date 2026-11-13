@@ -15,6 +15,8 @@ export const DEMO_KONTEN = [
   { email: "lukas@elektro.handwerkapp.at", vorname: "Lukas", nachname: "Gruber" },
   { email: "sarah@elektro.handwerkapp.at", vorname: "Sarah", nachname: "Pirker" },
   { email: "jonas@elektro.handwerkapp.at", vorname: "Jonas", nachname: "Wimmer" },
+  // Büro (Gruppe „Büro“ im Terminplaner, gesetzt in supabase/demo/04-kalender.sql)
+  { email: "julia@elektro.handwerkapp.at", vorname: "Julia", nachname: "Steiner" },
 ];
 const PASSWORT = "demo123";
 

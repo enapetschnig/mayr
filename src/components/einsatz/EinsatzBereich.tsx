@@ -2,9 +2,10 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, BellRing, Bus, CalendarClock, Check, CheckCircle2, ClipboardSignature, Clock, FolderKanban, Navigation, Phone, ScanBarcode } from "lucide-react";
+import { AlertTriangle, BellRing, Bus, CalendarClock, Check, CheckCircle2, ChevronDown, ClipboardSignature, Clock, FolderKanban, Navigation, Phone, ScanBarcode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Gruppentitel, StatusPille } from "@/components/Bausteine";
+import { EinsatzDetails } from "@/components/einsatz/EinsatzDetails";
 import { useKalenderAbwesenheit } from "@/components/zeiten/personalDaten";
 import { Button } from "@/components/ui/button";
 import { useFahrzeuge, useMitarbeiter, useNeuLaden, useTeams } from "@/hooks/useDaten";
@@ -40,6 +41,9 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
   }, [heute]);
   const [gesehen, setGesehen] = useState(gesehenLesen);
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  /** Aufgeklappte Einsätze (Projekt, Kunde, Adresse …) */
+  const [auf, setAuf] = useState<string[]>([]);
+  const klappen = (id: string) => setAuf((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]));
   const { data: fahrzeuge = [] } = useFahrzeuge();
   const { data: teams = [] } = useTeams();
   const { data: mitarbeiter = [] } = useMitarbeiter();
@@ -160,6 +164,12 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
                   </>
                 )}
               </div>
+              <button type="button" onClick={() => klappen(t.id)} aria-expanded={auf.includes(t.id)}
+                className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md text-sm font-medium text-primary hover:bg-muted">
+                {auf.includes(t.id) ? "Weniger" : "Projekt, Kunde, Adresse"}
+                <ChevronDown className={cn("h-4 w-4 transition-transform", auf.includes(t.id) && "rotate-180")} />
+              </button>
+              {auf.includes(t.id) && <EinsatzDetails t={t} />}
             </li>
           );
         })}
@@ -170,12 +180,16 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
           <Gruppentitel>{naechster === tageDazu(heute, 1) ? "Morgen" : datumKurz(naechster)}</Gruppentitel>
           <ul className="divide-y rounded-lg border bg-card">
             {morgenListe.map((t) => (
-              <li key={t.id} className="flex items-center gap-3 p-3 text-sm">
-                {t.dringend ? <AlertTriangle className="h-4 w-4 shrink-0 text-status-rot-fg" /> : <CheckCircle2 className="h-4 w-4 shrink-0 text-muted-foreground" />}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{t.titel}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{zeitText(t)}{t.ort && ` · ${t.ort}`}{t.fahrzeuge.length ? ` · ${t.fahrzeuge.map((id) => fahrzeuge.find((f) => f.id === id)?.name).filter(Boolean).join(", ")}` : ""}</span>
-                </span>
+              <li key={t.id} className="text-sm">
+                <button type="button" onClick={() => klappen(t.id)} aria-expanded={auf.includes(t.id)} className="flex min-h-12 w-full items-center gap-3 p-3 text-left hover:bg-muted/50">
+                  {t.dringend ? <AlertTriangle className="h-4 w-4 shrink-0 text-status-rot-fg" /> : <CheckCircle2 className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{t.titel}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{zeitText(t)}{t.ort && ` · ${t.ort}`}{t.fahrzeuge.length ? ` · ${t.fahrzeuge.map((id) => fahrzeuge.find((f) => f.id === id)?.name).filter(Boolean).join(", ")}` : ""}</span>
+                  </span>
+                  <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", auf.includes(t.id) && "rotate-180")} />
+                </button>
+                {auf.includes(t.id) && <div className="px-3 pb-3"><EinsatzDetails t={t} /></div>}
               </li>
             ))}
           </ul>

@@ -273,6 +273,9 @@ Zeit kommt aus den Stunden); „Erledigt“ setzt den Status per Trigger `termin
 Terminänderung. Verschiebt das Büro einen Termin, sieht der Monteur beim
 nächsten Öffnen „Termin geändert“; was schon gesehen wurde, merkt sich das Gerät (`elektro.termine.gesehen`). Der
 Chef sieht auf der Startseite Anträge und „erledigter Einsatz, noch nicht verrechnet“.
+Jeder Einsatz (heute und morgen) klappt auf (`EinsatzDetails.tsx`): Projekt, Adresse mit Karte und Navigation,
+Kunde mit Telefon/Mail, Notiz und Projektbeschreibung, wer noch dabei ist (mit Anruf-Knopf), Bus und Geräte,
+offene Hinweise (dringend, Regieberichte ohne Unterschrift, Projekt noch im Angebot), „Ins Projekt“.
 
 ### Buchhaltung (`lib/fibu.ts`, Seite `/buchhaltung`)
 
@@ -492,6 +495,24 @@ Migration `20261110100000_fuhrpark_teams_plantafel.sql`, Logik in
   Strg+Z). Konflikte (doppelt, abwesend) als roter Knopf in der Leiste.
 - Am Handy eine Liste je Tag der Woche, Alle oder Meine (Monteur: Meine),
   mit Abwesenheiten, Farbstreifen je Projekt.
+- **Terminplaner** (Umschalter „Tafel | Mitarbeiter“, am Handy „Liste | Leute“,
+  gemerkt in `elektro.plantafel.sicht`; `components/plantafel/Terminplaner.tsx`,
+  Logik `lib/terminplaner.ts`, getestet) — Achsen getauscht wie SETECs alter
+  Terminplaner: Spalten = Leute nach Gruppen, Zeilen = Tage der Woche mit
+  den Stunden 6–18 (weiter, wenn ein Einsatz früher/später liegt), Sa/So nur
+  mit Einträgen. Gruppen (`gruppenBilden`): Geschäftsführung, eigene Gruppen
+  (`profiles.gruppe`, z. B. „Büro“, im Teams-Dialog pflegbar), Teams in ihrer
+  Reihenfolge, „Ohne Team“; eigene Gruppe geht vor Team, ein Chef ohne beides
+  ist Geschäftsführung (Migration `20261113112000_profil_gruppe.sql`).
+  Einsätze als Blöcke (Kunde, Titel, Zeit; Projektfarbe, ohne Projekt blau),
+  Überlappendes nebeneinander (`nebeneinander`), Abwesenheit als Fläche:
+  Urlaub/ZA grün, Krank rot, Schule/Arzt gelb. Filter Alle/Gruppe/Person,
+  rechts (ab 1280 px) Monatskalender zum Springen. Leere Zelle = neuer
+  Einsatz für Person und Uhrzeit (`TerminDialog` mit `von`/`bis`), Block =
+  `BalkenInfo`; ziehen = andere Zeit/Tag/Person (`planVerschieben`, 15-Min.-
+  Raster, Person wird getauscht), unterer Rand = Ende; „Rückgängig“ im Hinweis.
+  Handy: „Tag“ (Leute untereinander, Zeit quer) oder „Person“ (Mo–Fr,
+  Stunden nach unten), wischen = nächster Tag bzw. nächste Person.
 - Fuhrpark: oben je Art eine Kachel zum Filtern (Anzahl, wie viele unterwegs)
   plus „Fällig & Schäden“, darunter je Art ein Block mit Kacheln (im Einsatz
   oder frei, Team, heute, Fälligkeiten).
@@ -665,7 +686,8 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
     gibt `onCode` einen Text zurück, zeigt der Scanner ihn als Rückmeldung — sonst nichts zurückgeben)
   - `components/material/MengeFeld.tsx`, `CodeUnbekanntDialog.tsx`, `FreiePositionDialog.tsx`
   - `components/DiktatKnopf.tsx` (`<DiktatKnopf onText={…} />`, `useDiktat`)
-  - `components/KundeWahl.tsx`, `components/ProjektWahl.tsx`
+  - `components/KundeWahl.tsx`, `components/ProjektWahl.tsx` (Projekt per Tippen: Nummer, Name, Kunde,
+    Ort — `lib/projektSuche.ts`; Liste klappt im Formular auf, Pfeile/Enter/Esc)
   - `components/FormularDialog.tsx` (Vollbild-Formular mit festem Fuß)
   - `components/Bausteine.tsx` (`Kennzahl`, `Leer`, `StatusBadge`, …)
   - `lib/format.ts` (`euro`, `zahl`, `datum`, `isoTag`, `zahlLesen`, …), `lib/preise.ts`
