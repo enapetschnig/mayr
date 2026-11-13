@@ -58,6 +58,26 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
   `passwort_neu` lässt die App beim nächsten Anmelden ein eigenes verlangen
   (`ProtectedRoute` → `ChangePasswordDialog forced`). Das vorläufige Passwort
   wird nirgends gespeichert.
+- **Einladen** (Migration `20261114100000_einladungen.sql`, `components/einladung/`,
+  Seite `pages/Einladung.tsx`): Chef → Einstellungen → Mitarbeiter →
+  „Mitarbeiter einladen“ (Vor-/Nachname, Rolle, Team) → Link
+  `/einladung/<token>` per WhatsApp (`wa.me`), Mail, Kopieren oder QR. Token
+  18 Zufallsbytes, nur SHA-256 gespeichert, 14 Tage, einmal; „Neuer Link“
+  macht den alten ungültig, „Zurückziehen“ sperrt ihn. Eingelöst im Trigger
+  `handle_new_user` (Token als Metadatum bei `signUp`, Zeile `for update`) →
+  Konto sofort aktiv, Name/Rolle/Team aus der Einladung. Falscher Token =
+  normale Selbstregistrierung mit Freischaltung. „Zugangslink“ je Mitarbeiter
+  (`profil_id` gesetzt): nur installieren + anmelden, Benutzername steht da.
+- **Einladungsseite**: Handy im Browser → erst „App auf den Startbildschirm“
+  (Anleitung je Gerät/Browser aus `lib/installieren.ts`, Bedienzeichen als
+  Bild, iOS 26 über `Version/NN`; Android/PC-Chrome/Edge ein Knopf
+  „App installieren“, `beforeinstallprompt` schon in `index.html`
+  aufgefangen; Samsung/Firefox/In-App-Browser → „In Chrome öffnen“), dann
+  „App öffnen“ und darin Passwort festlegen. iPhone: Manifest wird auf der
+  Seite entfernt → die Home-App startet mit dem Link (eigener Speicher).
+  Android/PC: Merker `einladung.offen` im geteilten Speicher führt die auf
+  `/` startende App zurück zur Einladung (`Auth.tsx`). In der App und am PC
+  gleich das Formular (Benutzername vorgeschlagen, nur Passwort tippen).
 
 ## Datenmodell (supabase/migrations/20261025100000_elektriker_grundschema.sql)
 
@@ -867,8 +887,10 @@ Projekt- und Regienummer vergibt ein Trigger beim Anlegen, Belegnummern
    daneben dieselben Zeilen als CSV. Nachkalkulation
    je Projekt: geleistet (Stunden × Satz der Person + Material-VK, Regie getrennt) gegen Angebot und
    Verrechnetes, sortiert nach „noch nicht verrechnet“.
-7. **Neuer Mitarbeiter**: registriert sich selbst unter `/auth` → Chef schaltet
-   ihn unter Einstellungen → Mitarbeiter frei (Rolle, Farbe).
+7. **Neuer Mitarbeiter**: Chef schickt unter Einstellungen → Mitarbeiter einen
+   Einladungslink → Mitarbeiter installiert die App, legt darin sein Passwort
+   fest und ist sofort freigeschaltet. Ohne Link: selbst unter `/auth`
+   registrieren → Chef schaltet frei (Rolle, Farbe).
 
 ## Code-Konventionen
 

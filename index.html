@@ -15,7 +15,8 @@
     <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
 
     <!-- PWA -->
-    <meta name="theme-color" content="%KUNDE_FARBE%" />
+    <!-- Kopfleiste wie im Manifest (theme_color): SETEC-Schwarz, nicht die Aktionsfarbe -->
+    <meta name="theme-color" content="#121110" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="%KUNDE_KURZNAME%" />
@@ -31,6 +32,13 @@
 
   <body>
     <div id="root"></div>
+    <!-- Chrome bietet die Installation genau einmal an, oft bevor das App-Bündel
+         geladen ist (schwaches Netz). Hier sofort auffangen; lib/installieren.ts
+         übernimmt es aus window.__installPrompt. -->
+    <script>
+      window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__installPrompt = e; });
+      window.addEventListener('appinstalled', function () { window.__installPrompt = null; });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       // Nach einem Deployment sind die alten Chunk-Dateien weg. Statt einer

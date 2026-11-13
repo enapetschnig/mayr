@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Download, Share, Smartphone } from "lucide-react";
+import { CheckCircle2, Copy, Download, ExternalLink, Smartphone } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { mitZeichen } from "@/components/Bedienzeichen";
 import {
-  anleitungFuer, angebotVorhanden, aufAenderung, geraetErkennen, jetztInstallieren, laeuftAlsApp,
-  schonEinmalInstalliert,
+  anleitungFuer, angebotVorhanden, aufAenderung, chromeLink, geraetErkennen, inAppBrowser, jetztInstallieren,
+  laeuftAlsApp, schonEinmalInstalliert,
 } from "@/lib/installieren";
 import { useSitzung } from "@/hooks/useSitzung";
 import { imHandyRahmen } from "@/lib/handyansicht";
@@ -13,51 +15,105 @@ import { KUNDE } from "@/kunde.config";
 /** Merker je Gerät: Wurde der Hinweis hier schon gezeigt? */
 const GEZEIGT = "mayr.installhinweis";
 
-/** Anleitung passend zu Gerät und Browser — im Dialog und in den Einstellungen. */
+/**
+ * Anleitung passend zu Gerät und Browser — im Hinweis nach dem Anmelden, in
+ * den Einstellungen (Handy) und auf der Einladungsseite. Gibt es das
+ * Installations-Angebot des Browsers (Chrome/Edge am Android und am PC), ist
+ * es EIN Knopf „App installieren“. Jedes Zeichen, das man antippen muss,
+ * steht als Bild im Satz (Bedienzeichen.tsx).
+ */
 export function InstallAnleitung({ onFertig }: { onFertig?: () => void }) {
   const geraet = useMemo(() => geraetErkennen(), []);
   const [angebot, setAngebot] = useState(angebotVorhanden());
   const [alsApp, setAlsApp] = useState(laeuftAlsApp());
   useEffect(() => aufAenderung(() => { setAngebot(angebotVorhanden()); setAlsApp(laeuftAlsApp()); }), []);
   const a = anleitungFuer(geraet, angebot);
-  const iphone = geraet.startsWith("ios");
 
   if (alsApp) {
     return (
-      <p className="flex items-center gap-2 text-sm text-green-700">
+      <p className="flex items-center gap-2 text-sm text-green-700" data-pruef="installiert">
         <CheckCircle2 className="h-5 w-5" /> Die App ist auf diesem Gerät installiert.
       </p>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm font-semibold">{a.titel}</p>
-      {a.direkt ? (
-        <Button size="lg" className="w-full h-14 text-base gap-2" onClick={async () => { if (await jetztInstallieren()) onFertig?.(); }}>
-          <Download className="h-5 w-5" /> Jetzt installieren
+    <div className="space-y-4 text-left" data-geraet={geraet}>
+      <InAppHinweis />
+      {geraet !== "inapp" && <p className="text-sm font-semibold">{a.titel}</p>}
+      {a.direkt && (
+        <Button size="lg" className="h-14 w-full gap-2 text-base" data-pruef="app-installieren"
+          onClick={async () => {
+            try {
+              if (await jetztInstallieren()) onFertig?.();
+              else toast.info("Abgebrochen — geht jederzeit wieder über „App installieren“.");
+            } catch {
+              toast.error("Bitte die Installation über das Menü des Browsers starten (drei Punkte).");
+            }
+          }}>
+          <Download className="h-5 w-5" /> App installieren
         </Button>
-      ) : (
+      )}
+      {a.chromeKnopf && (
+        <Button asChild size="lg" className="h-12 w-full gap-2 text-base">
+          <a href={chromeLink(window.location.href)}><ExternalLink className="h-5 w-5" /> In Chrome öffnen</a>
+        </Button>
+      )}
+      {!a.direkt && geraet !== "inapp" && (
         <ol className="space-y-3">
           {a.schritte.map((s, i) => (
-            <li key={i} className="flex gap-3 text-sm">
-              <span className="h-7 w-7 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">{i + 1}</span>
-              <span className="pt-1">
-                {s}
-                {iphone && i === 0 && <Share className="inline h-4 w-4 ml-1 text-primary align-text-bottom" aria-label="Teilen-Zeichen" />}
-              </span>
+            <li key={i} className="flex gap-3 text-[0.95rem] leading-relaxed">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground">{i + 1}</span>
+              <span className="pt-0.5">{mitZeichen(s)}</span>
             </li>
           ))}
         </ol>
       )}
-      {a.hinweis && <p className="text-xs text-muted-foreground">{a.hinweis}</p>}
+      {a.hinweis && geraet !== "inapp" && <p className="text-sm leading-relaxed text-muted-foreground">{mitZeichen(a.hinweis)}</p>}
+    </div>
+  );
+}
+
+/**
+ * Link in WhatsApp, Instagram, Facebook … geöffnet? Dort geht weder die
+ * Installation noch bleibt man verlässlich angemeldet. Also sagen, wie man in
+ * den richtigen Browser kommt — am Android ein Knopf, der Chrome öffnet.
+ */
+export function InAppHinweis() {
+  const [app] = useState(() => inAppBrowser());
+  if (!app) return null;
+  const android = /Android/.test(navigator.userAgent);
+  const adresse = window.location.href;
+  const kopieren = async () => {
+    try {
+      await navigator.clipboard.writeText(adresse);
+      toast.success(`Link kopiert. Jetzt ${android ? "Chrome" : "Safari"} öffnen und oben einfügen.`);
+    } catch {
+      toast.error(`Bitte die Adresse ${adresse} in ${android ? "Chrome" : "Safari"} eintippen.`);
+    }
+  };
+  return (
+    <div role="alert" className="space-y-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4" data-pruef="inapp-hinweis">
+      <p className="font-semibold">Bitte im Browser öffnen</p>
+      <p className="text-sm">
+        Der Link ist in {app} aufgegangen. Hier lässt sich die App nicht installieren. Tippe auf das Menü
+        ({android ? "⋮ oben rechts" : "⋯ oder das Kompass-Zeichen"}) und wähle „Im Browser öffnen“{android ? "" : " bzw. „In Safari öffnen“"}.
+      </p>
+      <div className="flex flex-col gap-2">
+        {android && (
+          <Button asChild className="h-12 w-full gap-2"><a href={chromeLink(adresse)}><ExternalLink className="h-4 w-4" /> In Chrome öffnen</a></Button>
+        )}
+        <Button type="button" variant="outline" className="h-12 w-full gap-2" onClick={() => void kopieren()}>
+          <Copy className="h-4 w-4" /> Link kopieren
+        </Button>
+      </div>
     </div>
   );
 }
 
 /**
  * Erscheint einmal pro Gerät nach dem ersten Login.
- * Android/Chrome: ein Tipp auf „Jetzt installieren“. iPhone: die Schritte
+ * Android/Chrome: ein Tipp auf „App installieren“. iPhone: die Schritte
  * übers Teilen-Menü (Apple lässt keinen Knopf dafür zu).
  * Läuft die App schon installiert, kommt nichts.
  */

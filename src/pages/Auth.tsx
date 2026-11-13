@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSitzung } from "@/hooks/useSitzung";
 import { authFehler, benutzerFehler, benutzername, zuEmail } from "@/lib/konto";
+import { offeneEinladung } from "@/lib/einladung";
 import { KUNDE } from "@/kunde.config";
 
 type Modus = "login" | "register" | "reset" | "registriert";
@@ -20,6 +21,9 @@ export default function Auth() {
   const [neuerName, setNeuerName] = useState("");
 
   if (!sitzungLaedt && session && modus === "login") return <Navigate to="/" replace />;
+  // Frisch installierte App (Android/PC) startet auf „/“ — zurück zur offenen Einladung
+  const einladung = !sitzungLaedt && !session ? offeneEinladung() : null;
+  if (einladung) return <Navigate to={`/einladung/${einladung}`} replace />;
 
   const anmelden = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -110,19 +114,20 @@ export default function Auth() {
               <h2 className="text-lg font-semibold">Anmelden</h2>
               <div className="space-y-2">
                 <Label htmlFor="benutzer">Benutzername oder E-Mail</Label>
-                <Input id="benutzer" name="benutzer" type="text" autoComplete="username" autoCapitalize="none" required className="h-12" />
+                <Input id="benutzer" name="benutzer" type="text" autoComplete="username" autoCapitalize="none" required className="h-12 text-base md:text-base" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Passwort</Label>
-                <Input id="password" name="password" type="password" autoComplete="current-password" required minLength={6} className="h-12" />
+                <Input id="password" name="password" type="password" autoComplete="current-password" required minLength={6} className="h-12 text-base md:text-base" />
               </div>
               <Button type="submit" className="h-12 w-full text-base" disabled={laden}>
                 {laden && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Anmelden
               </Button>
-              <div className="flex items-center justify-between pt-1 text-sm">
-                <button type="button" onClick={() => setModus("reset")} className="text-muted-foreground hover:text-foreground">Passwort vergessen?</button>
-                <button type="button" onClick={() => setModus("register")} className="font-medium text-primary hover:underline">Konto anlegen</button>
+              <div className="flex items-center justify-between text-sm">
+                <button type="button" onClick={() => setModus("reset")} className="h-11 text-muted-foreground hover:text-foreground">Passwort vergessen?</button>
+                <button type="button" onClick={() => setModus("register")} className="h-11 font-medium text-primary hover:underline">Konto anlegen</button>
               </div>
+              <p className="text-center text-xs text-muted-foreground">Neu hier? Am schnellsten mit dem Einladungslink vom Chef — dann bist du gleich freigeschaltet.</p>
             </form>
           )}
 
@@ -130,16 +135,16 @@ export default function Auth() {
             <form onSubmit={registrieren} className="space-y-4">
               <h2 className="text-lg font-semibold">Konto anlegen</h2>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2"><Label htmlFor="vorname">Vorname</Label><Input id="vorname" name="vorname" autoComplete="given-name" required className="h-12" /></div>
-                <div className="space-y-2"><Label htmlFor="nachname">Nachname</Label><Input id="nachname" name="nachname" autoComplete="family-name" required className="h-12" /></div>
+                <div className="space-y-2"><Label htmlFor="vorname">Vorname</Label><Input id="vorname" name="vorname" autoComplete="given-name" required className="h-12 text-base md:text-base" /></div>
+                <div className="space-y-2"><Label htmlFor="nachname">Nachname</Label><Input id="nachname" name="nachname" autoComplete="family-name" required className="h-12 text-base md:text-base" /></div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reg-benutzer">Benutzername oder E-Mail</Label>
-                <Input id="reg-benutzer" name="benutzer" autoComplete="username" autoCapitalize="none" required className="h-12" placeholder="z. B. max" />
+                <Input id="reg-benutzer" name="benutzer" autoComplete="username" autoCapitalize="none" required className="h-12 text-base md:text-base" placeholder="z. B. max" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reg-password">Passwort</Label>
-                <Input id="reg-password" name="password" type="password" autoComplete="new-password" required minLength={6} className="h-12" placeholder="mindestens 6 Zeichen" />
+                <Input id="reg-password" name="password" type="password" autoComplete="new-password" required minLength={6} className="h-12 text-base md:text-base" placeholder="mindestens 6 Zeichen" />
               </div>
               <Button type="submit" className="h-12 w-full text-base" disabled={laden}>
                 {laden && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Registrieren
