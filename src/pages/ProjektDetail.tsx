@@ -36,6 +36,7 @@ import { datumKurz, euro, isoTag, stunden, uhrzeit } from "@/lib/format";
 import { buchungVk, runden2, stundensatzFuer } from "@/lib/preise";
 import { PROJEKT_STATUS, name, type ProjektStatus, type Termin } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ProjektAnlage } from "@/components/kontakte/AnlagePv";
 
 type Ordner = "uebersicht" | "fotos" | "dokumente" | "stunden" | "material" | "regie" | "termine" | "belege";
 
@@ -251,6 +252,7 @@ export default function ProjektDetail() {
         })}
       </nav>
 
+      {ordner === "uebersicht" && <ProjektAnlage kundeId={projekt.kunde_id} />}
       {ordner === "uebersicht" && <Uebersicht projektId={projekt.id} beschreibung={projekt.beschreibung} stundensatz={projekt.stundensatz} />}
       {ordner === "fotos" && <FotosTab projektId={projekt.id} art="foto" />}
       {ordner === "dokumente" && <FotosTab projektId={projekt.id} art="dokument" />}

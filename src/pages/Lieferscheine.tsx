@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Camera, ChevronDown, ExternalLink, FileCheck2, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +28,9 @@ export default function Lieferscheine() {
   const { data: liste = [], isLoading } = useLieferscheine();
   const [projekt, setProjekt] = useState("");
   const [laeuft, setLaeuft] = useState<string | null>(null);
-  const [offen, setOffen] = useState<string | null>(null);
+  // ?offen=<id> aus dem Lieferanten-Kontakt: diesen Lieferschein aufgeklappt zeigen
+  const [params] = useSearchParams();
+  const [offen, setOffen] = useState<string | null>(params.get("offen"));
   const kamera = useRef<HTMLInputElement>(null);
 
   /** KI liest das Foto und schreibt Kopf und Zeilen in den Lieferschein */

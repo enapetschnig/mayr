@@ -31,7 +31,9 @@ export function KundeWahl({
   onChange: (kunde: Kunde | null) => void;
   className?: string;
 }) {
-  const { data: kunden = [] } = useKunden();
+  const { data: alle = [] } = useKunden();
+  // Lieferanten sind auch Kontakte — Angebote, Projekte und Anlagen gehen an Kunden und Partner
+  const kunden = useMemo(() => alle.filter((k) => k.art !== "lieferant" || k.id === wert), [alle, wert]);
   const [offen, setOffen] = useState(false);
   const [suche, setSuche] = useState("");
   /** Name für „Neuer Kunde“ — null: Formular zu */

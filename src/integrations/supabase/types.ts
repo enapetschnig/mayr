@@ -101,6 +101,22 @@ export type Database = {
       }
       anlagen: {
         Row: {
+          pv_kwp: number | null
+          module_anzahl: number | null
+          module_typ: string | null
+          wechselrichter: string | null
+          speicher_kwh: number | null
+          speicher_typ: string | null
+          einspeisung_prozent: number | null
+          einspeisung_kw: number | null
+          wallbox: string | null
+          ueberschuss: boolean | null
+          ueberschuss_wie: string | null
+          inbetriebnahme: string | null
+          zaehlpunkt: string | null
+          ueberwachung: string | null
+          ueberwachung_link: string | null
+          planung_link: string | null
           aktiv: boolean
           art: string
           baujahr: number | null
@@ -125,6 +141,22 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          pv_kwp?: number | null
+          module_anzahl?: number | null
+          module_typ?: string | null
+          wechselrichter?: string | null
+          speicher_kwh?: number | null
+          speicher_typ?: string | null
+          einspeisung_prozent?: number | null
+          einspeisung_kw?: number | null
+          wallbox?: string | null
+          ueberschuss?: boolean | null
+          ueberschuss_wie?: string | null
+          inbetriebnahme?: string | null
+          zaehlpunkt?: string | null
+          ueberwachung?: string | null
+          ueberwachung_link?: string | null
+          planung_link?: string | null
           aktiv?: boolean
           art?: string
           baujahr?: number | null
@@ -149,6 +181,22 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          pv_kwp?: number | null
+          module_anzahl?: number | null
+          module_typ?: string | null
+          wechselrichter?: string | null
+          speicher_kwh?: number | null
+          speicher_typ?: string | null
+          einspeisung_prozent?: number | null
+          einspeisung_kw?: number | null
+          wallbox?: string | null
+          ueberschuss?: boolean | null
+          ueberschuss_wie?: string | null
+          inbetriebnahme?: string | null
+          zaehlpunkt?: string | null
+          ueberwachung?: string | null
+          ueberwachung_link?: string | null
+          planung_link?: string | null
           aktiv?: boolean
           art?: string
           baujahr?: number | null
@@ -1353,6 +1401,12 @@ export type Database = {
       }
       kunden: {
         Row: {
+          art: string
+          geo_adresse: string | null
+          kundennummer_extern: string | null
+          lat: number | null
+          lng: number | null
+          namen: string[]
           ansprechpartner: string | null
           created_at: string
           email: string | null
@@ -1368,6 +1422,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          art?: string
+          geo_adresse?: string | null
+          kundennummer_extern?: string | null
+          lat?: number | null
+          lng?: number | null
+          namen?: string[]
           ansprechpartner?: string | null
           created_at?: string
           email?: string | null
@@ -1383,6 +1443,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          art?: string
+          geo_adresse?: string | null
+          kundennummer_extern?: string | null
+          lat?: number | null
+          lng?: number | null
+          namen?: string[]
           ansprechpartner?: string | null
           created_at?: string
           email?: string | null
@@ -2601,6 +2667,19 @@ export type Database = {
       }
       ist_aktiv: { Args: never; Returns: boolean }
       ist_chef: { Args: never; Returns: boolean }
+      kontakt_belege: {
+        Args: { p_kontakt: string }
+        Returns: {
+          betrag: number | null
+          datum: string
+          id: string
+          nummer: string | null
+          projekt: string | null
+          projekt_id: string | null
+          quelle: string
+          status: string
+        }[]
+      }
       kreditor_konten_holen: {
         Args: { p_namen: string[] }
         Returns: {

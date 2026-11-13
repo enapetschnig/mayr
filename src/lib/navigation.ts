@@ -44,7 +44,7 @@ export const NAVIGATION: NavEintrag[] = [
   { titel: "Buchhaltung", selten: true, text: "Der Monat für den Steuerberater, BMD und RZL", pfad: "/buchhaltung", icon: BookOpenCheck, gruppe: "buero", nurChef: true },
   { titel: "Eingangsrechnungen", text: "Rechnungen vom Großhändler zuordnen", pfad: "/eingang", icon: Inbox, gruppe: "buero", nurChef: true },
   { titel: "Bestellungen", selten: true, text: "Beim Großhändler bestellen, Lieferung einbuchen", pfad: "/bestellungen", icon: ShoppingCart, gruppe: "buero", nurChef: true },
-  { titel: "Kunden", text: "Adressen und Kontakte", pfad: "/kunden", icon: Users, gruppe: "buero" },
+  { titel: "Kontakte", text: "Kunden, Lieferanten, Karte", pfad: "/kunden", icon: Users, gruppe: "buero" },
   { titel: "Artikel", selten: true, text: "Artikelstamm, Datanorm, Strichcodes", pfad: "/artikel", icon: Package, gruppe: "buero" },
   { titel: "Leistungskatalog", selten: true, text: "Leistungen mit Material und Montagezeit", pfad: "/leistungen", icon: ListChecks, gruppe: "buero", nurChef: true },
   { titel: "Auswertung", selten: true, text: "Stunden, Umsatz, Nachkalkulation", pfad: "/auswertung", icon: BarChart3, gruppe: "buero", nurChef: true },

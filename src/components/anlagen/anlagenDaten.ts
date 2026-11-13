@@ -92,7 +92,12 @@ export function anlageAdresse(a: Pick<Anlage, "strasse" | "plz" | "ort"> & { kun
 
 export type AnlageEingabe = Pick<Anlage,
   "kunde_id" | "projekt_id" | "bezeichnung" | "art" | "standort" | "strasse" | "plz" | "ort" | "hersteller" | "typ" | "baujahr"
-  | "intervall_monate" | "naechste_pruefung" | "preis" | "notiz" | "aktiv">;
+  | "intervall_monate" | "naechste_pruefung" | "preis" | "notiz" | "aktiv"> & Partial<Pick<Anlage, PvFeld>>;
+
+/** PV-Anlagendaten (Migration 20261113113000) — Anzeige in components/kontakte/AnlagePv.tsx */
+export type PvFeld = "pv_kwp" | "module_anzahl" | "module_typ" | "wechselrichter" | "speicher_kwh" | "speicher_typ"
+  | "einspeisung_prozent" | "einspeisung_kw" | "wallbox" | "ueberschuss" | "ueberschuss_wie" | "inbetriebnahme" | "zaehlpunkt"
+  | "ueberwachung" | "ueberwachung_link" | "planung_link";
 
 export async function anlageSpeichern(id: string | null, werte: AnlageEingabe): Promise<Anlage> {
   const antwort = id

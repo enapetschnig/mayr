@@ -1,13 +1,16 @@
 import type { ComponentType, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight, FileText, Mail, Navigation, Pencil, Phone, Receipt } from "lucide-react";
-import { Karte, Kennzahl, ProjektStatusBadge, StatusBadge } from "@/components/Bausteine";
+import { Karte, Kennzahl, ProjektStatusBadge, StatusBadge, StatusPille } from "@/components/Bausteine";
 import { Button } from "@/components/ui/button";
 import type { ProjektMitKunde } from "@/hooks/useDaten";
 import { datum, euro, isoTag, zahl } from "@/lib/format";
 import { belegStatus, type Kunde } from "@/lib/types";
 import { useKundeBelege } from "./stammDaten";
 import { KundeAnlagen } from "@/components/anlagen/KundeAnlagen";
+import { KONTAKT_ART, kontaktArt } from "@/components/kontakte/kontaktLogik";
+import { useKreditor } from "@/components/kontakte/kontaktDaten";
+import { LieferantBelege } from "@/components/kontakte/LieferantBelege";
 
 const adresse = (k: Pick<Kunde, "strasse" | "plz" | "ort">) =>
   [k.strasse, [k.plz, k.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
@@ -24,8 +27,9 @@ export const kartenLink = (k: Pick<Kunde, "strasse" | "plz" | "ort">) => {
 };
 
 /**
- * Ein Kunde auf einen Blick: Kontakt mit Anrufen/Mail/Navigation, seine
- * Projekte und — für den Chef — Angebote und Rechnungen mit offenem Betrag.
+ * Ein Kontakt auf einen Blick: Anrufen/Mail/Navigation; beim Kunden (und
+ * Partner) Projekte, Anlagen und — für den Chef — Angebote und Rechnungen;
+ * beim Lieferanten seine Eingangsrechnungen, Lieferscheine, Bestellungen.
  */
 export function KundeDetail({
   kunde, projekte, istChef, onBearbeiten, mitKopf,
@@ -37,7 +41,10 @@ export function KundeDetail({
   /** Name und Bearbeiten oben in der Karte (PC); am Handy steht beides im Seitenkopf */
   mitKopf?: boolean;
 }) {
-  const { data: belege = [], isLoading: belegeLaden } = useKundeBelege(kunde.id, istChef);
+  const art = kontaktArt(kunde.art);
+  const lieferant = art === "lieferant";
+  const { data: belege = [], isLoading: belegeLaden } = useKundeBelege(kunde.id, istChef && !lieferant);
+  const { data: kreditor } = useKreditor([kunde.name, ...(kunde.namen ?? [])], istChef && art !== "kunde");
   const heute = isoTag();
   const rechnungen = belege.filter((b) => b.typ === "rechnung");
   const offen = rechnungen.filter((b) => b.status === "offen");
@@ -53,14 +60,18 @@ export function KundeDetail({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 className="text-lg font-semibold leading-tight">{kunde.name}</h2>
-              <p className="text-sm text-muted-foreground">K{kunde.nummer}{kunde.ansprechpartner && ` · ${kunde.ansprechpartner}`}</p>
+              <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+                {art !== "kunde" && <StatusPille eintrag={KONTAKT_ART[art]} />}
+                <span>{[lieferant ? null : `K${kunde.nummer}`, kunde.ansprechpartner].filter(Boolean).join(" · ")}</span>
+              </p>
             </div>
             <Button variant="outline" className="h-11 shrink-0" onClick={onBearbeiten}>
               <Pencil className="h-4 w-4" /> Bearbeiten
             </Button>
           </div>
         )}
-        {istChef && (
+        {!mitKopf && art !== "kunde" && <StatusPille eintrag={KONTAKT_ART[art]} />}
+        {istChef && !lieferant && (
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <Button asChild className="h-11"><Link to={`/belege/neu?typ=angebot&kunde=${kunde.id}`}><FileText className="h-4 w-4" /> Neues Angebot</Link></Button>
             <Button asChild variant="outline" className="h-11"><Link to={`/belege/neu?typ=rechnung&kunde=${kunde.id}`}><Receipt className="h-4 w-4" /> Neue Rechnung</Link></Button>
@@ -76,6 +87,9 @@ export function KundeDetail({
           <Angabe titel="Telefon">{kunde.telefon}</Angabe>
           <Angabe titel="E-Mail"><span className="break-all">{kunde.email}</span></Angabe>
           {kunde.uid && <Angabe titel="UID-Nummer"><span className="font-mono">{kunde.uid}</span></Angabe>}
+          {kunde.kundennummer_extern && <Angabe titel="Unsere Kundennummer"><span className="font-mono">{kunde.kundennummer_extern}</span></Angabe>}
+          {art !== "kunde" && kreditor != null && <Angabe titel="Kreditor (Buchhaltung)"><span className="font-mono">{kreditor}</span></Angabe>}
+          {lieferant && (kunde.namen ?? []).length > 0 && <Angabe titel="Auf Belegen auch">{(kunde.namen ?? []).join(", ")}</Angabe>}
         </dl>
         <div className="grid grid-cols-3 gap-2">
           <AktionsLink href={telLink(kunde.telefon)} icon={Phone} text="Anrufen" />
@@ -90,6 +104,9 @@ export function KundeDetail({
         </Karte>
       )}
 
+      {art !== "kunde" && <LieferantBelege kontakt={kunde} istChef={istChef} />}
+
+      {!lieferant && (<>
       <Karte titel={`Projekte${projekte.length ? ` · ${zahl(projekte.length)}` : ""}`} ohnePolster>
         {projekte.length === 0 ? (
           <p className="px-4 pb-4 text-sm text-muted-foreground lg:px-5">Noch keine Projekte.</p>
@@ -112,8 +129,9 @@ export function KundeDetail({
       </Karte>
 
       <KundeAnlagen kundeId={kunde.id} />
+      </>)}
 
-      {istChef && (
+      {istChef && !lieferant && (
         <Karte titel="Angebote & Rechnungen" ohnePolster>
           {belegeLaden ? (
             <p className="px-4 pb-4 text-sm text-muted-foreground lg:px-5">Lädt…</p>
