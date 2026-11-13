@@ -110,9 +110,11 @@ export default function Index() {
     queryKey: ["belege", "start"],
     enabled: istChef,
     queryFn: async () => {
-      const [{ data: belege }, { count: wartend }] = await Promise.all([
+      const [{ data: belege }, { count: wartend }, { data: online }] = await Promise.all([
         supabase.from("belege").select("id, typ, status, brutto, faellig_am, gueltig_bis").in("status", ["entwurf", "offen"]),
         supabase.from("profiles").select("id", { count: "exact", head: true }).eq("aktiv", false).eq("gesperrt", false),
+        // Kunde hat online angenommen oder nachgefragt — bis der Chef das Angebot öffnet
+        supabase.from("angebot_verlauf").select("beleg_id, art, name, belege(nummer)").eq("gelesen", false).in("art", ["angenommen", "rueckfrage"]),
       ]);
       const liste = belege ?? [];
       const rechnungen = liste.filter((b) => b.typ === "rechnung" && b.status === "offen");
@@ -126,6 +128,7 @@ export default function Index() {
         entwuerfeAngebote: liste.filter((b) => b.typ === "angebot" && b.status === "entwurf").length,
         entwuerfeRechnungen: liste.filter((b) => b.typ === "rechnung" && b.status === "entwurf").length,
         wartend: wartend ?? 0,
+        online: (online ?? []) as { beleg_id: string; art: string; name: string | null; belege: { nummer: string | null } | null }[],
       };
     },
   });
@@ -195,7 +198,22 @@ export default function Index() {
     return z && (Number(z.stunden_offen) > 0 || Number(z.regie_offen) > 0);
   });
 
+  const onlineAn = buero?.online.filter((o) => o.art === "angenommen") ?? [];
+  const onlineFragen = buero?.online.filter((o) => o.art === "rueckfrage") ?? [];
   const offenePunkte: Punkt[] = istChef && buero ? ([
+    onlineAn.length > 0 && {
+      icon: CheckCircle2,
+      text: onlineAn.length === 1
+        ? `Angebot ${onlineAn[0].belege?.nummer ?? ""} online angenommen${onlineAn[0].name ? ` von ${onlineAn[0].name}` : ""}`
+        : `${onlineAn.length} Angebote online angenommen`,
+      to: onlineAn.length === 1 ? `/belege/${onlineAn[0].beleg_id}` : "/angebote?filter=angenommen",
+    },
+    onlineFragen.length > 0 && {
+      icon: PhoneCall,
+      text: `${onlineFragen.length} ${onlineFragen.length === 1 ? "Rückfrage" : "Rückfragen"} zu ${onlineFragen.length === 1 ? `Angebot ${onlineFragen[0].belege?.nummer ?? ""}` : "Angeboten"}`,
+      to: `/belege/${onlineFragen[0].beleg_id}`,
+      warn: true,
+    },
     antraege.length > 0 && { icon: CalendarOff, text: `${antraege.length} ${antraege.length === 1 ? "Antrag wartet" : "Anträge warten"} auf Entscheidung`, to: "/zeiten" },
     erledigtOffen.length > 0 && {
       icon: CheckCircle2,

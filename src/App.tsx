@@ -43,6 +43,8 @@ const Fuhrpark = lazy(() => import("./pages/Fuhrpark"));
 const Lieferscheine = lazy(() => import("./pages/Lieferscheine"));
 const Bestellungen = lazy(() => import("./pages/Bestellungen"));
 const BestellungDetail = lazy(() => import("./pages/BestellungDetail"));
+// Öffentlich, ohne Anmeldung: Kunde bestätigt ein Angebot über den Link
+const AngebotBestaetigen = lazy(() => import("./pages/AngebotBestaetigen"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: true, retry: 1 } },
@@ -72,6 +74,7 @@ const App = () => (
           <SitzungProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/angebot/:token" element={<Suspense fallback={<Laedt />}><AngebotBestaetigen /></Suspense>} />
               <Route element={<AppLayout />}>
                 <Route path="/" element={<S><Index /></S>} />
                 <Route path="/projekte" element={<S><Projekte /></S>} />

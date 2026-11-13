@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Ban, Calculator, Check, Clock, Copy, Download, Eye, FileText, FolderInput, LockOpen, Mic, MoreVertical, Package, PenLine, Percent, Plus,
+  Ban, Calculator, Check, Clock, Copy, Download, Eye, FileText, FolderInput, LayoutTemplate, LockOpen, Mic, MoreVertical, Package, PenLine, Percent, Plus,
   LayoutGrid, Receipt, RotateCcw, Rows3, Save, Sparkles, SplitSquareHorizontal, ThumbsDown, ThumbsUp, Trash2, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,11 @@ import { sicherungLesen, sicherungLoeschen, sicherungSchreiben, sicherungsSchlue
 import { SpracheDialog, type SprachUebernahme } from "./SpracheDialog";
 import { TeilrechnungDialog } from "./TeilrechnungDialog";
 import { Eingabezeile } from "./Eingabezeile";
+import { AngebotVersand } from "./AngebotVersand";
+import { vorlageEinfuegen } from "./vorlagen";
+import { useVorlagen, vorlageBerechnen } from "./vorlagenDaten";
+import { VorlagenDialog, type VorlageWahl } from "./VorlagenDialog";
+import { VorlageSpeichernDialog } from "./VorlageSpeichernDialog";
 import { useVerlassenSchutz } from "./useVerlassenSchutz";
 import { VerlassenDialog } from "./VerlassenSchutz";
 
@@ -87,7 +92,7 @@ const fokus = (selektor: string) => window.setTimeout(() => {
 }, 50);
 
 type Frage = "fertig" | "storno" | "entsperren" | null;
-type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | "teil" | "aufschlaege" | "ki" | "katalog" | null;
+type Dialog = "arbeitszeit" | "leistung" | "artikel" | "sprache" | "import" | "teil" | "aufschlaege" | "ki" | "katalog" | "vorlage" | "vorlageSpeichern" | null;
 type Icon = ComponentType<{ className?: string }>;
 
 /**
@@ -96,7 +101,7 @@ type Icon = ComponentType<{ className?: string }>;
  * Fertige Rechnungen sind nur noch zum Lesen, Bezahlen und Stornieren da.
  */
 export function BelegEditor({
-  id, daten, startKopf, autoSprache = false, autoImport = false, autoKi = false,
+  id, daten, startKopf, autoSprache = false, autoImport = false, autoKi = false, startVorlage,
 }: {
   id: string;
   /** null = neuer Beleg, noch nicht in der Datenbank */
@@ -106,6 +111,8 @@ export function BelegEditor({
   autoImport?: boolean;
   /** gleich „Material per KI“ öffnen */
   autoKi?: boolean;
+  /** neues Angebot aus dieser Vorlage (Preise von heute oder wie in der Vorlage) */
+  startVorlage?: { id: string; nachziehen: boolean };
 }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -682,6 +689,40 @@ export function BelegEditor({
     setFreie(null);
   };
 
+  /** Vorlage unter den aktiven Titel; ein leeres Angebot bekommt auch Betreff und Texte der Vorlage */
+  const vorlageUebernehmen = ({ vorlage, positionen: neue, abweichungen, nachgezogen }: VorlageWahl) => {
+    const leer = !positionen.length;
+    const { liste, letzterTitel } = vorlageEinfuegen(positionen, neue, aktiverTitel);
+    setPositionen(liste);
+    if (letzterTitel) setAktiverTitel(letzterTitel);
+    setKopf((k) => ({
+      ...k,
+      betreff: k.betreff.trim() ? k.betreff : (vorlage.betreff ?? vorlage.name),
+      ...(leer && vorlage.einleitung ? { einleitung: vorlage.einleitung } : {}),
+      ...(leer && vorlage.schlusstext ? { schlusstext: vorlage.schlusstext } : {}),
+    }));
+    const n = neue.filter((p) => !ohneBetrag(p)).length;
+    toast.success(`Vorlage „${vorlage.name}“: ${n} ${n === 1 ? "Position" : "Positionen"} übernommen`, {
+      description: abweichungen.length
+        ? `${abweichungen.length} ${abweichungen.length === 1 ? "Preis" : "Preise"} ${nachgezogen ? "auf heute aktualisiert" : "wie in der Vorlage (weicht von heute ab)"}.`
+        : undefined,
+      duration: abweichungen.length ? 8000 : 4000,
+    });
+  };
+  // /belege/neu?…&vorlage=<id>: einmal einfügen, sobald Vorlagen und Katalog da sind
+  const { data: startVorlagen } = useVorlagen(!!startVorlage);
+  const vorlageGestartet = useRef(false);
+  useEffect(() => {
+    if (!startVorlage || vorlageGestartet.current || !startVorlagen || katalogLaedt) return;
+    vorlageGestartet.current = true;
+    const v = startVorlagen.find((x) => x.id === startVorlage.id);
+    if (!v) { toast.error("Diese Vorlage gibt es nicht mehr."); return; }
+    vorlageBerechnen(v, katalog, firma, stundensatz)
+      .then((r) => vorlageUebernehmen({ vorlage: v, positionen: (startVorlage.nachziehen ? r.heute : r.wieVorlage).positionen, abweichungen: r.heute.abweichungen, nachgezogen: startVorlage.nachziehen }))
+      .catch((e) => toast.error((e as Error).message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startVorlage, startVorlagen, katalogLaedt]);
+
   const spracheUebernehmen = (posten: SprachUebernahme[]) => {
     let liste = positionen;
     let zuletzt = aktiverTitel;
@@ -767,6 +808,7 @@ export function BelegEditor({
           <MenuePunkt icon={RotateCcw} onClick={korrekturOeffnen}>{korrekturBeleg ? "Korrektur öffnen" : "Korrektur anlegen"}</MenuePunkt>
         )}
         {!neu && !istStorno && <MenuePunkt icon={Copy} onClick={() => kopieren(false)}>Kopieren (neuer Entwurf)</MenuePunkt>}
+        {istAngebot && anzahl > 0 && <MenuePunkt icon={LayoutTemplate} onClick={() => setDialog("vorlageSpeichern")}>Als Vorlage speichern</MenuePunkt>}
         <MenuePunkt icon={Download} onClick={pdf}>{pc ? "PDF ansehen" : "PDF teilen / laden"}</MenuePunkt>
         {!istAngebot && (status === "offen" || status === "bezahlt") && (
           <>
@@ -946,6 +988,7 @@ export function BelegEditor({
   const hinzuKnoepfe: { key: string; text: string; icon: Icon; onClick: () => void; primaer?: boolean; aus?: boolean }[] = [
     ...(!istAngebot ? [{ key: "import", text: kopf.projekt_id ? "Aus dem Projekt übernehmen" : "Aus dem Projekt (erst Projekt wählen)", icon: FolderInput, onClick: () => setDialog("import"), primaer: true, aus: !kopf.projekt_id }] : []),
     { key: "leistung", text: istAngebot ? "Leistung hinzufügen" : "Leistung", icon: Plus, onClick: () => setDialog("leistung"), primaer: istAngebot },
+    ...(istAngebot ? [{ key: "vorlage", text: "Aus Vorlage", icon: LayoutTemplate, onClick: () => setDialog("vorlage") }] : []),
     { key: "sprache", text: "Diktieren", icon: Mic, onClick: () => setDialog("sprache") },
     { key: "katalog", text: "Artikelkatalog", icon: LayoutGrid, onClick: () => setDialog("katalog") },
     { key: "ki", text: "Material per KI", icon: Sparkles, onClick: () => setDialog("ki") },
@@ -1009,6 +1052,9 @@ export function BelegEditor({
       <div className={cn(mitSeite && "grid grid-cols-[minmax(0,1fr)_minmax(26rem,34rem)] items-start gap-6")}>
       <div className="min-w-0 space-y-5">
       {statusKarte}
+      {istAngebot && beleg && !entwurf && firma && (
+        <AngebotVersand beleg={beleg} positionen={positionen} katalog={katalog} pdfErzeugen={() => entwurfPdf(firma)} />
+      )}
       {beleg && !istAngebot && !entwurf && !istStorno && <OpKarte rechnung={beleg} onGeaendert={() => void neuHolen()} />}
 
       {gefunden && bearbeitbar && (
@@ -1167,6 +1213,12 @@ export function BelegEditor({
         stundensatz={stundensatz}
       />
       <KatalogDialog open={dialog === "katalog"} onOpenChange={(o) => setDialog(o ? "katalog" : null)} ziel={titelName} onUebernehmen={katalogUebernehmen} />
+      {istAngebot && (
+        <>
+          <VorlagenDialog open={dialog === "vorlage"} onOpenChange={(o) => setDialog(o ? "vorlage" : null)} ziel={titelName} stundensatz={stundensatz} onWahl={vorlageUebernehmen} />
+          <VorlageSpeichernDialog open={dialog === "vorlageSpeichern"} onOpenChange={(o) => setDialog(o ? "vorlageSpeichern" : null)} kopf={kopf} positionen={positionen} />
+        </>
+      )}
       <KiMaterialDialog open={dialog === "ki"} onOpenChange={(o) => setDialog(o ? "ki" : null)} onUebernehmen={kiUebernehmen} />
       <AufschlaegeDialog open={dialog === "aufschlaege"} onOpenChange={(o) => setDialog(o ? "aufschlaege" : null)} positionen={positionen}
         stundensatz={stundensatz} materialStandard={Number(firma?.material_aufschlag ?? 0)} ustSatz={kopf.ust_satz} ohneUst={ohneUst}
