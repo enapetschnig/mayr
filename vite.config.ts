@@ -56,30 +56,33 @@ export default defineConfig(({ mode }) => ({
         // Kopfleiste der installierten App im SETEC-Schwarz wie Logo und Website
         theme_color: '#121110',
         background_color: '#121110',
+        // id bleibt "/" — so bleibt eine schon installierte App dieselbe
+        id: '/',
+        scope: '/',
         display: 'standalone',
         start_url: '/',
+        lang: 'de',
+        orientation: 'any',
+        categories: ['business', 'productivity'],
+        // „any“ und „maskable“ getrennt: Android schneidet maskable rund zu —
+        // dafür hat das Schild dort mehr Rand (icon-maskable-*.png)
         icons: [
-          {
-            src: '/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable'
-          },
-          {
-            src: '/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          },
-          {
-            src: '/apple-touch-icon.png',
-            sizes: '180x180',
-            type: 'image/png'
-          }
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png', purpose: 'any' }
+        ],
+        // Screenshots ergeben in Chrome das größere Installationsblatt (Android und PC)
+        screenshots: [
+          { src: '/screenshot-schmal.png', sizes: '780x1688', type: 'image/png', form_factor: 'narrow', label: 'Startseite am Handy' },
+          { src: '/screenshot-breit.png', sizes: '1440x900', type: 'image/png', form_factor: 'wide', label: 'Startseite am PC' }
         ]
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Screenshots braucht nur das Installationsblatt — nicht offline vorhalten
+        globIgnores: ['screenshot-*.png'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 // 5 MB
       }
     })

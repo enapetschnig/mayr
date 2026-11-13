@@ -1250,6 +1250,26 @@ export type Database = {
           },
         ]
       }
+      einladungen: {
+        Row: {
+          created_at: string
+          eingeloest_am: string | null
+          eingeloest_von: string | null
+          erstellt_von: string | null
+          gueltig_bis: string
+          id: string
+          nachname: string
+          profil_id: string | null
+          rolle: string
+          team_id: string | null
+          token_hash: string
+          vorname: string
+          zurueckgezogen_am: string | null
+        }
+        Insert: { id?: string }
+        Update: { id?: string }
+        Relationships: []
+      }
       eingang_anteile: {
         Row: {
           betrag: number
@@ -3357,6 +3377,13 @@ export type Database = {
       }
     }
     Functions: {
+      einladung_erstellen: {
+        Args: { p_nachname: string; p_profil?: string | null; p_rolle?: string; p_team?: string | null; p_vorname: string }
+        Returns: Json
+      }
+      einladung_lesen: { Args: { p_token: string }; Returns: Json }
+      einladung_neu: { Args: { p_id: string }; Returns: string }
+      einladung_zurueckziehen: { Args: { p_id: string }; Returns: undefined }
       altrechnung_pruefen: {
         Args: { b: Database["public"]["Tables"]["belege"]["Row"] }
         Returns: undefined

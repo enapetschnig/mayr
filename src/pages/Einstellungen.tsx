@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, Karte, StatusPille } from "@/components/Bausteine";
 import { InstallAnleitung } from "@/components/Installieren";
+import { EinladenKarte, ZugangsLinkKnopf } from "@/components/einladung/Einladungen";
 import { LohnSaetze, WhatsAppVorlagenKarte } from "@/components/projekt/ProjektEinstellungen";
 import { InterneArten } from "@/components/zeiten/InterneArten";
 import { useNeuLaden } from "@/hooks/useDaten";
@@ -424,16 +425,10 @@ function Mitarbeiter() {
   };
 
   const wartend = alle.filter((p) => zugang(p) === "neu");
-  const adresse = `${window.location.origin}/auth`;
 
   return (
     <div className="space-y-4">
-      <Karte titel="Neue Mitarbeiter">
-        <p className="text-sm text-muted-foreground">
-          Neue Mitarbeiter registrieren sich am Handy selbst unter <span className="font-mono text-foreground">{adresse}</span> („Registrieren“).
-          Danach erscheinen sie hier und du schaltest sie mit einem Tipp frei.
-        </p>
-      </Karte>
+      <EinladenKarte />
 
       <div className="space-y-2">
         {alle.map((p) => (
@@ -488,14 +483,17 @@ function Mitarbeiter() {
                       className={cn("h-7 w-7 rounded-full ring-offset-2 transition", p.farbe === c && "ring-2 ring-foreground")} style={{ backgroundColor: c }} />
                   ))}
                 </div>
+                <div className="ml-auto flex flex-wrap gap-1">
+                  <ZugangsLinkKnopf p={p} />
                 {p.id !== ich?.id && (
-                  <div className="ml-auto flex gap-1">
+                  <>
                     <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => setPasswort({ p, neu: null })}>
                       <KeyRound className="h-4 w-4" /> Passwort vergeben
                     </Button>
                     <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSperren(p)}>Sperren</Button>
-                  </div>
+                  </>
                 )}
+                </div>
               </div>
             )}
           </section>
