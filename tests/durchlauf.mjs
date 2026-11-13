@@ -10,7 +10,7 @@
 // Kundenunterschrift. Chef: Rechnung aus dem Projekt übernehmen, speichern,
 // fertigstellen, PDF (abgelegtes Original).
 // Bilder und PDF landen in tests/bilder/durchlauf-* (nicht im Repo).
-import { chromium } from "@playwright/test";
+import { chromium, webkit, devices } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { execFileSync } from "child_process";
 import fs from "fs";
@@ -44,11 +44,15 @@ const db = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_KEY, { auth: { 
 }
 const { data: maxProfil } = await db.from("profiles").select("id").eq("email", "max@elektro.handwerkapp.at").single();
 
-const browser = await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME } : {});
+// BROWSER=webkit: Safari-Technik wie am iPhone (Linux braucht dazu
+// PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1)
+const IPHONE = process.env.BROWSER === "webkit";
+const browser = IPHONE ? await webkit.launch() : await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME } : {});
 const fehler = [];
 
 async function sitzung(benutzer, passwort) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: "de-AT", timezoneId: "Europe/Vienna" });
+  const geraet = IPHONE ? devices["iPhone 15"] : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 };
+  const ctx = await browser.newContext({ ...geraet, locale: "de-AT", timezoneId: "Europe/Vienna" });
   await ctx.addInitScript(() => localStorage.setItem("mayr.installhinweis", "x"));
   const page = await ctx.newPage();
   page.on("pageerror", (e) => fehler.push(`[${benutzer}] ${e.message}`));

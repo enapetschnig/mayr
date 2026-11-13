@@ -645,7 +645,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 {gelesen.metallkurse?.CU ? " Kurs aus der Metallbasis-Datei." : " Die Metallbasis-Datei des Händlers war nicht dabei — Kurs (DEL-Notiz) selbst eintragen, sonst bleibt der Zuschlag weg."}
               </p>
               <Feld id="imp-kupfer" label="Kupferkurs in € je 100 kg">
-                <Input id="imp-kupfer" inputMode="decimal" className="h-12 w-40 text-base sm:text-sm" value={kupferText}
+                <Input id="imp-kupfer" inputMode="decimal" className="h-12 w-40 text-base md:[@media(pointer:fine)]:text-sm" value={kupferText}
                   onChange={(e) => setKupferText(e.target.value)} placeholder="z. B. 1258" autoComplete="off" />
               </Feld>
             </section>

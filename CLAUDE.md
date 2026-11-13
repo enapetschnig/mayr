@@ -73,7 +73,7 @@ Schritt wird in der Datenbank nachgeprüft (22 Prüfungen), Bilder und PDF in
 Test-Unterschrift und das abgelegte PDF:
 
 ```bash
-APP_URL=http://127.0.0.1:8093 MONTEUR_PW=… CHEF_PW=… node tests/durchlauf.mjs   # CHROME=… für einen eigenen Chromium
+APP_URL=http://127.0.0.1:8093 MONTEUR_PW=… CHEF_PW=… node tests/durchlauf.mjs   # CHROME=… für einen eigenen Chromium, BROWSER=webkit wie am iPhone
 DEMO_CHEF_PASSWORT=… node tests/durchlauf-aufraeumen.mjs
 ```
 

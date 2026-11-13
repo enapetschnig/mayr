@@ -349,14 +349,14 @@ export default function ArtikelSeite() {
           </table>
         </div>
       ) : (
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {zeilen.map((a) => (
             <li key={a.id}>
               <button type="button" onClick={() => oeffnen(a)}
                 className="flex h-full w-full items-start gap-3 rounded-lg border bg-card p-3.5 text-left transition-colors hover:border-primary/50 active:bg-muted/40">
                 <ArtikelVorschau url={bilder?.get(a.id)} />
                 <div className="min-w-0 flex-1">
-                  <p className={cn("line-clamp-2 font-medium leading-snug", !a.aktiv && "text-muted-foreground")}>{a.bezeichnung}</p>
+                  <p className={cn("line-clamp-2 break-words font-medium leading-snug", !a.aktiv && "text-muted-foreground")}>{a.bezeichnung}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {[a.hersteller, a.hersteller_nr].filter(Boolean).join(" · ") || [a.lieferant, a.artikelnummer].filter(Boolean).join(" · ")}
                   </p>

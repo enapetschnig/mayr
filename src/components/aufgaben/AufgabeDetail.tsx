@@ -185,7 +185,7 @@ export function AufgabeDetail({ aufgabe, onOpenChange }: { aufgabe: AufgabeMitIn
           </ol>
 
           <div className="space-y-2 rounded-lg border bg-card p-3">
-            <Textarea rows={2} className="text-base sm:text-sm" placeholder="Kommentar — z. B. „Material bestellt, kommt Dienstag“"
+            <Textarea rows={2} className="text-base md:[@media(pointer:fine)]:text-sm" placeholder="Kommentar — z. B. „Material bestellt, kommt Dienstag“"
               aria-label="Kommentar" value={kommentar} onChange={(e) => setKommentar(e.target.value)} />
             {foto && (
               <p className="flex items-center gap-2 text-sm">

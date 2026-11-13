@@ -55,7 +55,7 @@ export function InterneArten() {
         ))}
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Input className="h-11 w-full text-base sm:w-64 sm:text-sm" placeholder="Neue Art, z. B. Angebot erstellen" aria-label="Neue interne Art"
+        <Input className="h-11 w-full text-base sm:w-64 md:[@media(pointer:fine)]:text-sm" placeholder="Neue Art, z. B. Angebot erstellen" aria-label="Neue interne Art"
           value={neu} onChange={(e) => setNeu(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); dazu(); } }} />
         <Button variant="outline" className="h-11 gap-1.5" onClick={dazu} disabled={!neu.trim()}><Plus className="h-4 w-4" /> Dazu</Button>
         <Button className="h-11" onClick={() => void speichern()} disabled={!geaendert || laeuft}>

@@ -138,7 +138,7 @@ export function AufgabeDialog({
             <Label htmlFor="a-text">Beschreibung <span className="font-normal text-muted-foreground">(optional)</span></Label>
             <DiktatKnopf onText={(t) => setBeschreibung((alt) => `${alt}${alt && !alt.endsWith(" ") ? " " : ""}${t}`)} />
           </div>
-          <Textarea id="a-text" rows={3} className="text-base sm:text-sm" value={beschreibung} onChange={(e) => setBeschreibung(e.target.value)} />
+          <Textarea id="a-text" rows={3} className="text-base md:[@media(pointer:fine)]:text-sm" value={beschreibung} onChange={(e) => setBeschreibung(e.target.value)} />
         </div>
 
         <div className="space-y-2">

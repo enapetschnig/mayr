@@ -18,9 +18,9 @@ export function PvLinks({ anlage }: { anlage: Anlage }) {
   if (!ueber && !plan) return null;
   const anbieter = anlage.ueberwachung ? UEBERWACHUNG[anlage.ueberwachung as Ueberwachung]?.text : null;
   return (
-    <div className="grid gap-2 sm:flex sm:flex-wrap">
+    <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
       {ueber && (
-        <Button asChild variant="outline" className="h-11 justify-start">
+        <Button asChild variant="outline" className="h-11 min-w-0 justify-start">
           <a href={ueber} target="_blank" rel="noopener noreferrer">
             <LineChart className="h-4 w-4" />
             <span className="truncate">Überwachung{anbieter && anlage.ueberwachung !== "sonstige" ? ` · ${anbieter}` : ""}</span>
@@ -29,7 +29,7 @@ export function PvLinks({ anlage }: { anlage: Anlage }) {
         </Button>
       )}
       {plan && (
-        <Button asChild variant="outline" className="h-11 justify-start">
+        <Button asChild variant="outline" className="h-11 min-w-0 justify-start">
           <a href={plan} target="_blank" rel="noopener noreferrer">
             <PencilRuler className="h-4 w-4" />PV-Planung
             <ExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground sm:ml-1" />

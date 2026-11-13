@@ -83,7 +83,7 @@ export default function Aufgaben() {
 
       {projekte.length > 0 && (
         <select aria-label="Projekt" value={projekt ?? ""} onChange={(e) => setzen("projekt", e.target.value || null)}
-          className="h-11 w-full rounded-md border border-input bg-background px-2 text-base sm:w-80 sm:text-sm">
+          className="h-11 w-full rounded-md border border-input bg-background px-2 text-base sm:w-80 md:[@media(pointer:fine)]:text-sm">
           <option value="">Alle Projekte</option>
           {projekte.map(([id, p]) => <option key={id} value={id}>{p.nummer} {p.name}</option>)}
         </select>

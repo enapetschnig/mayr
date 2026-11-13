@@ -109,7 +109,7 @@ export function WareneingangDialog({ open, onOpenChange, bestellung: b }: {
         </div>
         <div className="space-y-1.5 sm:max-w-xs">
           <Label htmlFor="we-ls">Lieferschein-Nr. <span className="font-normal text-muted-foreground">(optional)</span></Label>
-          <Input id="we-ls" value={lieferschein} onChange={(e) => setLieferschein(e.target.value)} className="h-11 text-base sm:text-sm" autoComplete="off" />
+          <Input id="we-ls" value={lieferschein} onChange={(e) => setLieferschein(e.target.value)} className="h-11 text-base md:[@media(pointer:fine)]:text-sm" autoComplete="off" />
         </div>
         <ul className="divide-y rounded-lg border bg-card">
           {positionen.map((p) => {

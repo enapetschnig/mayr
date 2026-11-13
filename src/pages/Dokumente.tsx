@@ -86,7 +86,7 @@ function FirmenAblage() {
       <div className="flex gap-2">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="h-11 pl-9 text-base sm:text-sm" placeholder="Suchen — Titel, Ordner, Dateiname" aria-label="Dokumente suchen"
+          <Input className="h-11 pl-9 text-base md:[@media(pointer:fine)]:text-sm" placeholder="Suchen — Titel, Ordner, Dateiname" aria-label="Dokumente suchen"
             value={suche} onChange={(e) => setSuche(e.target.value)} />
         </div>
         {istChef && <Button className="h-11 gap-1.5" onClick={() => setNeu("")}><Plus className="h-4 w-4" /> Dokument</Button>}

@@ -455,7 +455,7 @@ export function ZeitDialog({
                     <Input inputMode="numeric" className="h-12" aria-label={`Pause in Minuten, ${i + 2}. Block`} value={b.pause} onChange={(e) => weiterAendern(b.id, { pause: e.target.value })} />
                   </div>
                   {!istIntern && <select aria-label={`Projekt, ${i + 2}. Block`} value={b.projektId} onChange={(e) => weiterAendern(b.id, { projektId: e.target.value })}
-                    className="h-11 w-full rounded-md border border-input bg-background px-2 text-base sm:text-sm">
+                    className="h-11 w-full rounded-md border border-input bg-background px-2 text-base md:[@media(pointer:fine)]:text-sm">
                     {!projekte.some((p) => p.id === b.projektId) && <option value={b.projektId}>Projekt wählen</option>}
                     {projekte.filter((p) => p.status === "aktiv" || (art === "garantie" && p.status !== "angebot") || p.id === b.projektId).map((p) => (
                       <option key={p.id} value={p.id}>{p.id === projektId ? "Gleiches Projekt — " : ""}{p.nummer} {p.name}</option>

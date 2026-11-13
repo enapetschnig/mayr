@@ -268,7 +268,7 @@ function Inhalt({ b }: { b: BestellungVoll }) {
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="be-lieferant">Lieferant</Label>
-                <Input id="be-lieferant" value={lieferant} onChange={(e) => setLieferant(e.target.value)} list="be-lieferanten" className="h-11 text-base sm:text-sm" autoComplete="off" />
+                <Input id="be-lieferant" value={lieferant} onChange={(e) => setLieferant(e.target.value)} list="be-lieferanten" className="h-11 text-base md:[@media(pointer:fine)]:text-sm" autoComplete="off" />
                 <datalist id="be-lieferanten">{lieferanten.map((l) => <option key={l} value={l} />)}</datalist>
               </div>
               <div className="space-y-1.5">
@@ -292,7 +292,7 @@ function Inhalt({ b }: { b: BestellungVoll }) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="be-termin">Liefertermin <span className="font-normal text-muted-foreground">(optional)</span></Label>
-                <Input id="be-termin" type="date" value={liefertermin} onChange={(e) => setLiefertermin(e.target.value)} className="h-11 text-base sm:text-sm" />
+                <Input id="be-termin" type="date" value={liefertermin} onChange={(e) => setLiefertermin(e.target.value)} className="h-11 text-base md:[@media(pointer:fine)]:text-sm" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="be-notiz">Hinweis <span className="font-normal text-muted-foreground">(Kundennummer, Ansprechpartner …)</span></Label>

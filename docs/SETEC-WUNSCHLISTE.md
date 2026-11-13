@@ -63,3 +63,24 @@ Offen für den Termin am 17.11.: Bankdaten (noch Demo), AGB-Link auf der
 Bestätigungsseite, welche Karte er zeigen wollte, Export seines alten Programms
 (Altrechnungen), wer zu „Büro“ gehört und was es sehen darf, interne
 Stundenarten, Einsätze einheitlich orange oder in Projektfarbe.
+
+## Gesamt-Review 13.11.2026
+
+Jede Funktion mit Kritiker (benutzen, Fehlerfälle, Rollen, DB-Nachweis) und
+Vereinfacher (Taps, Wörter, Vorbelegung) auf iPhone 15/SE (WebKit), Pixel 7
+(Chromium), PC Chrome 1366/1920, Firefox, Mac Safari 1440 und iPad.
+Nachweise: alle Seiten × 8 Geräte × Chef/Monteur ohne Querscrollen und mit
+Eingaben ≥ 16 px auf Touch, Durchlauf Monteur → Rechnung auf Chromium **und**
+WebKit (`BROWSER=webkit`), 378 Datenbank-Regeln, Einladung am Android-Emulator.
+
+- **Einladen und Installieren**: Einstellungen → Mitarbeiter → „Mitarbeiter
+  einladen“ → Link per WhatsApp/QR; die Seite `/einladung/<token>` erkennt
+  Gerät und Browser (iOS 26, Android/Chrome, Samsung → Chrome, PC) — kein
+  Freischalten nötig, 14 Tage gültig, einmal einlösbar.
+- Offline startet die App wieder angemeldet, PDF-Erzeugung lädt erst bei Bedarf.
+- Teilen am iPhone (abgebrochen/nicht erlaubt) mit klarer Meldung,
+  In-App-Browser-Hinweis auf der Angebotsseite.
+
+Fragen an Stefan dazu: Demo-Hinweis auf der Anmeldeseite weglassen? Darf der
+Monteur den Förderstatus ändern und EK-Preise sehen? Gruppen der Startseite,
+Rechte für „Büro“.

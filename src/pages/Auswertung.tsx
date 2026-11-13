@@ -323,7 +323,7 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
           <MonatsSaeulen jahr={jahr} werte={umsatzJeMonat} markiert={monat} onWahl={(m) => setZeitraum({ jahr, monat: m })} />
         </Karte>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Karte titel="Stunden je Mitarbeiter">
             {personen.length === 0 ? <Leer icon={Clock} text="Keine Stunden in diesem Zeitraum." className="py-6" /> : (
               <ul className="space-y-3">
