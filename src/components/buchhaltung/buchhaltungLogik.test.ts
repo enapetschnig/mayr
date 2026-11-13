@@ -120,4 +120,11 @@ describe("Altrechnungen lesen", () => {
     expect(format).toBe("punkt");
     expect(altZeileLesen(eingaben[0], heute, format).rechnung).toMatchObject({ netto: 1250.5, brutto: 1500.6 });
   });
+  it("CSV: Zahlungsziel ist nicht „bezahlt“, Status schon; Zahldatum = bezahlt", () => {
+    const zu = altSpaltenErkennen(["Re-Nr.", "Datum", "Kundenname", "Netto", "MwSt", "Brutto", "Zahlungsziel", "Status"]);
+    expect(zu).toEqual({ nummer: 0, datum: 1, kunde: 2, netto: 3, ust_satz: 4, brutto: 5, bezahlt: 7 });
+    const { eingaben, format } = altAusCsv([["W2", "02.08.2026", "Größl", "€ 100,00", "20%", "€ 120,00", "14", "bezahlt"]], zu);
+    expect(altZeileLesen(eingaben[0], heute, format).rechnung).toMatchObject({ netto: 100, brutto: 120, bezahlt: 120 });
+    expect(altZeileLesen({ ...eingaben[0], bezahlt: "12.10.2025" }, heute, format).rechnung?.bezahlt).toBe(120);
+  });
 });

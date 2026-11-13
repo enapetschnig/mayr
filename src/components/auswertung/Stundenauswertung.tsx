@@ -208,7 +208,7 @@ export function Stundenauswertung() {
           <div className="space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Projekt</p>
             <select value={projekt} onChange={(e) => setProjekt(e.target.value)} aria-label="Projekt"
-              className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm lg:w-72">
+              className="h-11 w-full rounded-md border border-input bg-background px-2 text-base lg:h-10 lg:w-72 lg:text-sm">
               <option value="">Alle Projekte</option>
               <option value="-">Intern / ohne Projekt (Büro, Lager …)</option>
               {projekte.map((p) => <option key={p.id} value={p.id}>{p.nummer} {p.name}</option>)}

@@ -96,7 +96,7 @@ export function AktionsKachel({
       </span>
       <span className="min-w-0 text-left">
         {/* hyphens: lange deutsche Wörter („Wareneingang“) trennen statt über den Rand ragen */}
-        <span className="block hyphens-auto font-semibold leading-tight">{titel}</span>
+        <span className="block hyphens-auto font-semibold leading-tight [overflow-wrap:anywhere]">{titel}</span>
         {unter && <span className={cn("mt-0.5 line-clamp-2 block text-xs", ton === "standard" ? "text-muted-foreground" : "opacity-80")}>{unter}</span>}
       </span>
     </>

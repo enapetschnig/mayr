@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  aufschlagAus, ausfassVorschlag, besterLieferant, bewegungsGruppe, ekAusListe, ekVon, lagerDelta, lieferantPasst,
+  aufschlagAus, ausfassVorschlag, besterLieferant, bewegungsGruppe, ekAusListe, ekVon, istNebenkosten, lagerDelta, lieferantPasst,
   mitBestandDanach, mitBestemLieferant, nummerNorm, zeileZuordnen, type WeitererLieferant,
 } from "./artikelLogik";
 import { artikelVk, vkHerkunft } from "@/lib/preise";
@@ -119,5 +119,12 @@ describe("Ausfassen laut Angebot", () => {
   });
   it("mehr ausgefasst als angeboten: offen 0", () => {
     expect(ausfassVorschlag(new Map([["a", 1]]), new Map([["a", 3]]))[0]).toMatchObject({ offen: 0, schon: 3 });
+  });
+});
+
+describe("Nebenkosten auf dem Lieferschein", () => {
+  it("Fracht, Verpackung, Maut ja — Ware nein", () => {
+    for (const t of ["Frachtkostenpauschale", "Versandkosten", "Verpackung", "Mautzuschlag", "Mindermengenzuschlag"]) expect(istNebenkosten(t)).toBe(true);
+    for (const t of ["Modulklemmen-Set Mitte/Ende", "NYM-J 3x1,5", "Dachhaken K2 CrossHook", ""]) expect(istNebenkosten(t)).toBe(false);
   });
 });

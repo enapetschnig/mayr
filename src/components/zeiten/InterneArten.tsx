@@ -48,7 +48,7 @@ export function InterneArten() {
           <span key={a} className="inline-flex min-h-10 items-center gap-1 rounded-full border bg-card pl-3.5 pr-1 text-sm font-medium">
             {a}
             <button type="button" aria-label={`${a} entfernen`} onClick={() => setArten(arten.filter((x) => x !== a))}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
+              className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
               <X className="h-3.5 w-3.5" />
             </button>
           </span>

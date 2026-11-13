@@ -322,7 +322,7 @@ function Inhalt({ b }: { b: BestellungVoll }) {
                       <p className="font-medium leading-snug">{z.artikel.bezeichnung}</p>
                       <p className="truncate text-xs text-muted-foreground">{positionInfo(z.artikel)}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <MengeFeld wert={z.menge} beschriftung={`Menge ${z.artikel.bezeichnung}`}
                         onChange={(t) => setZeilen((l) => l.map((x) => (x.key === z.key ? { ...x, menge: t } : x)))} />
                       <span className="w-9 shrink-0 text-xs text-muted-foreground">{z.artikel.einheit}</span>
@@ -401,7 +401,7 @@ function Inhalt({ b }: { b: BestellungVoll }) {
             {laeuft === "speichern" ? <Loader2 className="h-4 w-4 animate-spin" /> : dirty ? <Save className="h-4 w-4" /> : <Check className="h-4 w-4" />}
             {dirty ? "Speichern" : "Gespeichert"}
           </Button>
-          <Button className="h-12 flex-[2] text-base" disabled={!!laeuft || !zeilen.length} onClick={() => void bestellen()}>
+          <Button className="h-auto min-h-12 flex-[2] whitespace-normal text-base leading-tight" disabled={!!laeuft || !zeilen.length} onClick={() => void bestellen()}>
             {laeuft === "bestellen" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Als bestellt markieren
           </Button>
         </div>
