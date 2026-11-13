@@ -136,7 +136,17 @@ export function AngebotVersand({
     const files = dateien.map((d) => new File([d.blob], d.name, { type: d.blob.type || "application/pdf" }));
     const nav = navigator as Navigator & { canShare?: (x: { files: File[] }) => boolean };
     if (kannTeilen && nav.canShare?.({ files })) {
-      try { await navigator.share({ files, title: betreff }); return; } catch (e) { if ((e as Error).name === "AbortError") return; }
+      try { await navigator.share({ files, title: betreff }); return; } catch (e) {
+        if ((e as Error).name === "AbortError") return;
+        // iPhone: Laden dauerte länger als das Antippen gilt — ein Tipp mehr statt ZIP
+        if ((e as Error).name === "NotAllowedError") {
+          toast.success("Angebot und Datenblätter sind bereit", {
+            duration: 30_000,
+            action: { label: "Teilen", onClick: () => { void navigator.share({ files, title: betreff }).catch(() => undefined); } },
+          });
+          return;
+        }
+      }
     }
     const zip = await paketZip(dateien);
     await pdfTeilenOderLaden(zip, pdf.dateiname.replace(/\.pdf$/i, " mit Datenblättern.zip"));

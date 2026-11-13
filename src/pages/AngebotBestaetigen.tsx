@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { UnterschriftFeld, type UnterschriftHandle } from "@/components/regie/UnterschriftFeld";
 import { neueId, ohneBetrag, positionsNummern, zwischensummen } from "@/components/belege/editor";
-import { tokenGueltig, unterschriftPfad, ZUSTAND_TEXT, type OeffentlichZustand } from "@/components/belege/bestaetigung";
+import { inAppBrowser, tokenGueltig, unterschriftPfad, ZUSTAND_TEXT, type OeffentlichZustand } from "@/components/belege/bestaetigung";
 import { DATEIEN_BUCKET } from "@/components/belege/datenblattLogik";
 import { belegPdfErstellen, kvHinweis } from "@/lib/belegPdf";
 import { pdfTeilenOderLaden } from "@/lib/pdfBasis";
@@ -85,6 +85,7 @@ function Angebot({ daten, token, neuLaden }: { daten: Daten; token: string; neuL
   const [schritt, setSchritt] = useState<Schritt>("ansehen");
   const [pdfLaeuft, setPdfLaeuft] = useState(false);
   const ohneUst = !!b.reverse_charge || !!firma.kleinunternehmer;
+  const inApp = inAppBrowser(navigator.userAgent);
 
   const pdf = async () => {
     setPdfLaeuft(true);
@@ -122,6 +123,11 @@ function Angebot({ daten, token, neuLaden }: { daten: Daten; token: string; neuL
         <Button variant="outline" className="mt-4 h-12 w-full sm:w-auto" onClick={() => void pdf()} disabled={pdfLaeuft}>
           {pdfLaeuft ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Angebot als PDF
         </Button>
+        {inApp && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Geht das PDF hier nicht auf? Oben rechts über das Menü (⋮ oder …) „Im Browser öffnen“ wählen. Annehmen geht auch hier.
+          </p>
+        )}
       </section>
 
       {zustand !== "offen" && (
@@ -235,12 +241,19 @@ function Annehmen({ token, daten, zurueck, fertig, veraltet }: { token: string; 
       if (!png) throw new Error("Bitte im weißen Feld unterschreiben.");
       const pfad = unterschriftPfad(token, neueId());
       const hoch = await supabase.storage.from("angebot-bestaetigung").upload(pfad, png, { contentType: "image/png", upsert: false });
-      if (hoch.error) throw new Error("Die Unterschrift konnte nicht gespeichert werden. Bitte noch einmal versuchen.");
+      if (hoch.error) {
+        // Meist nicht das Netz, sondern: inzwischen angenommen (zweiter Tab), gesperrt oder abgelaufen
+        const { data: jetzt } = await supabase.rpc("angebot_oeffentlich", { p_token: token });
+        const z = (jetzt as { zustand?: OeffentlichZustand } | null)?.zustand;
+        if (z && z !== "offen") { toast.error(ZUSTAND_TEXT[z].titel, { duration: 10_000 }); veraltet(); return; }
+        throw new Error("Die Unterschrift konnte nicht gespeichert werden. Bitte noch einmal versuchen.");
+      }
       const { error } = await supabase.rpc("angebot_annehmen", {
         p_token: token, p_name: name.trim(), p_stand: daten.stand ?? "", p_unterschrift: pfad, p_akzeptiert: haken,
       });
       if (error) {
-        if (/geändert/.test(error.message)) { toast.error(error.message, { duration: 10_000 }); veraltet(); return; }
+        // Stand geändert, schon angenommen, abgelaufen: zurück zum Angebot, das zeigt den neuen Stand
+        if (/geändert|bereits angenommen|abgelaufen|nicht mehr angenommen/.test(error.message)) { toast.error(error.message, { duration: 10_000 }); veraltet(); return; }
         throw new Error(error.message);
       }
       toast.success("Vielen Dank — das Angebot ist angenommen.");

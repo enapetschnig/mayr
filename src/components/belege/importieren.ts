@@ -445,8 +445,10 @@ export function importPositionen(
     aus.push(...kopien);
     if (brauchtTitel || kopien.some((p) => p.art === "titel")) titelDavor = true;
   });
-  // gleich unter das Angebot — ist es schon im Entwurf, ganz ans Ende
-  if (abgegoltenZeile && angebote.length) aus.push(abgegoltenZeile);
+  // gleich unter das Angebot — ist es schon im Entwurf, als Erstes (hängt dann direkt
+  // an dessen Positionen, nicht unter einem neuen Regie-Titel: sonst stünde auf der
+  // Rechnung, die Regiestunden seien im Angebotspreis enthalten)
+  if (abgegoltenZeile) aus.push(abgegoltenZeile);
 
   berichte.forEach((r) => {
     tage.push(r.datum);
@@ -473,8 +475,6 @@ export function importPositionen(
     if (titelDavor || bloeckeGesamt > 1) aus.push(titelPosition("Fremdleistungen und Zukauf"));
     aus.push(...eingangPositionen(eingang, opt.eingangAufschlag ?? 0));
   }
-
-  if (abgegoltenZeile && !angebote.length) aus.push(abgegoltenZeile);
 
   // Schlussrechnung: gestellte Teilrechnungen ganz am Ende abziehen
   (daten.teile ?? []).filter((t) => (auswahl.teile ?? []).includes(t.id)).forEach((t) => aus.push(abzugPosition(t)));

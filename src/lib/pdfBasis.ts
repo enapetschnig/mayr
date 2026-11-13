@@ -1,4 +1,5 @@
 import type { jsPDF } from "jspdf";
+import { toast } from "sonner";
 import type { Firma } from "@/lib/types";
 import { logoAdresse } from "@/lib/upload";
 
@@ -236,6 +237,15 @@ export async function pdfTeilenOderLaden(blob: Blob, dateiname: string) {
       return;
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
+      // iPhone: Teilen geht nur kurz nach dem Antippen — dauerte das PDF zu lange
+      // (langsames Netz), noch einmal antippen lassen statt still herunterzuladen
+      if ((e as Error).name === "NotAllowedError") {
+        toast.success("PDF ist fertig", {
+          duration: 30_000,
+          action: { label: "Teilen", onClick: () => { void navigator.share({ files: [datei], title: dateiname }).catch(() => undefined); } },
+        });
+        return;
+      }
     }
   }
   const url = URL.createObjectURL(blob);

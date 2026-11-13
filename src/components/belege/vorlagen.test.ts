@@ -4,7 +4,7 @@ import {
   ausVorlage, kategorienAus, vorlageAusEditor, vorlageEinfuegen, vorlageNetto, vorlagenFiltern, vorlagePositionenLesen, vorlageUmfang,
   type PreisArtikel, type VorlagePosition,
 } from "./vorlagen";
-import { linkAdresse, mailAdresse, teilenText, telefonFuerWhatsapp, tokenGueltig, unterschriftPfad, whatsappAdresse } from "./bestaetigung";
+import { inAppBrowser, linkAdresse, mailAdresse, teilenText, telefonFuerWhatsapp, tokenGueltig, unterschriftPfad, whatsappAdresse } from "./bestaetigung";
 import { artikelIdsVon, datenblaetterOrdnen, paketNamen } from "./datenblattLogik";
 
 const firma = { material_aufschlag: 30, stundensatz: 72 };
@@ -174,5 +174,19 @@ describe("Datenblätter", () => {
     expect(l.map((d) => d.artikel)).toEqual(["Modul", "Wechselrichter"]);
     expect(paketNamen(l)).toEqual(["Datenblatt.pdf", "Datenblatt (2).pdf"]);
     expect(paketNamen([{ name: "a/b:c.pdf", pfad: "x" }])).toEqual(["a-b-c.pdf"]);
+  });
+});
+
+describe("inAppBrowser", () => {
+  it("erkennt WhatsApp, Facebook, Instagram und Android-WebView", () => {
+    expect(inAppBrowser("Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 WhatsApp/24.22.79")).toBe(true);
+    expect(inAppBrowser("Mozilla/5.0 (Linux; Android 14; Pixel 7; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/131.0 Mobile Safari/537.36")).toBe(true);
+    expect(inAppBrowser("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/440.0]")).toBe(true);
+    expect(inAppBrowser("Mozilla/5.0 (iPhone) AppleWebKit Mobile Instagram 300.0")).toBe(true);
+  });
+  it("normale Browser nicht", () => {
+    expect(inAppBrowser("Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1")).toBe(false);
+    expect(inAppBrowser("Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36")).toBe(false);
+    expect(inAppBrowser("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36")).toBe(false);
   });
 });

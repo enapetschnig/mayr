@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CornerDownLeft, ListChecks, Package, PenLine, Plus, Rows3, Search, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,11 @@ export function Eingabezeile({
   const eingabe = schnellLesen(text);
   const such = eingabe && "text" in eingabe ? eingabe.text : "";
   const menge = eingabe && "menge" in eingabe ? eingabe.menge : 1;
-  const { data: artikel = [], isFetching } = useArtikelSuche(such.length >= 2 ? such : "", 6);
+  const { data: artikel = [], isFetching, wartet } = useArtikelSuche(such.length >= 2 ? such : "", 6);
+  const sucht = such.length >= 2 && wartet;
+  // Enter, bevor die Artikel da sind: nicht still eine freie Position (0 €) anlegen,
+  // sondern auf die Treffer warten und dann den ersten nehmen
+  const [enterWartet, setEnterWartet] = useState(false);
 
   const treffer = useMemo<Treffer[]>(() => {
     if (!eingabe) return [];
@@ -53,9 +57,9 @@ export function Eingabezeile({
       .filter((l) => woerter.every((w) => normalisieren(`${l.nummer ?? ""} ${l.kurztext} ${l.suchwoerter ?? ""} ${l.kategorie}`).includes(w)))
       .slice(0, 6)
       .map((l): Treffer => ({ art: "leistung", l }));
-    const art = eingabe.text.length >= 2 ? artikel.slice(0, 6).map((a): Treffer => ({ art: "artikel", a })) : [];
+    const art = eingabe.text.length >= 2 && !sucht ? artikel.slice(0, 6).map((a): Treffer => ({ art: "artikel", a })) : [];
     return [...leistungen, ...art, { art: "frei", text: eingabe.text }];
-  }, [eingabe, katalog, artikel]);
+  }, [eingabe, katalog, artikel, sucht]);
 
   const waehlen = (t: Treffer) => {
     if (t.art === "leistung") onLeistung(t.l, menge);
@@ -71,9 +75,21 @@ export function Eingabezeile({
   const taste = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown" && treffer.length) { e.preventDefault(); setOffen(true); setMarkiert((m) => Math.min(m + 1, treffer.length - 1)); }
     else if (e.key === "ArrowUp" && treffer.length) { e.preventDefault(); setMarkiert((m) => Math.max(m - 1, 0)); }
-    else if (e.key === "Enter" && treffer.length) { e.preventDefault(); waehlen(treffer[Math.min(markiert, treffer.length - 1)]); }
+    else if (e.key === "Enter" && treffer.length) {
+      e.preventDefault();
+      const t = treffer[Math.min(markiert, treffer.length - 1)];
+      if (t.art === "frei" && sucht) setEnterWartet(true);
+      else waehlen(t);
+    }
     else if (e.key === "Escape") { setOffen(false); setText(""); }
   };
+
+  useEffect(() => {
+    if (!enterWartet || sucht) return;
+    setEnterWartet(false);
+    if (treffer.length) waehlen(treffer[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enterWartet, sucht, treffer]);
 
   const zeigen = offen && treffer.length > 0;
   const titelVorher = (i: number) => i === 0 || treffer[i - 1].art !== treffer[i].art;
@@ -86,7 +102,7 @@ export function Eingabezeile({
           <Input
             ref={feld}
             value={text}
-            onChange={(e) => { setText(e.target.value); setOffen(true); setMarkiert(0); }}
+            onChange={(e) => { setText(e.target.value); setOffen(true); setMarkiert(0); setEnterWartet(false); }}
             onFocus={() => setOffen(true)}
             onBlur={() => window.setTimeout(() => setOffen(false), 150)}
             onKeyDown={taste}
@@ -103,6 +119,9 @@ export function Eingabezeile({
               className="absolute inset-x-0 top-full z-40 mt-1 max-h-[26rem] overflow-y-auto rounded-lg border bg-popover p-1 text-sm">
               {treffer.map((t, i) => (
                 <li key={t.art === "leistung" ? `l${t.l.id}` : t.art === "artikel" ? `a${t.a.id}` : t.art}>
+                  {t.art === "frei" && sucht && (
+                    <p className="px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Artikel werden gesucht …</p>
+                  )}
                   {titelVorher(i) && t.art !== "frei" && t.art !== "titel" && (
                     <p className="px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       {t.art === "leistung" ? "Leistungen" : `Artikel${isFetching ? " …" : ""}`}

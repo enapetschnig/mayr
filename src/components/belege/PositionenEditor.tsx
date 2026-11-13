@@ -385,10 +385,11 @@ export function PositionenEditor({
               ) : (
                 <span className="zahl font-medium">{zahl(mengeVon(p))}</span>
               )}
-              <span className="truncate text-sm text-muted-foreground">{p.einheit}</span>
+              {/* Einheit nie abschneiden („S..“ statt „Stk“ am iPhone SE) — eher bricht die EK-Zeile um */}
+              <span className="shrink-0 text-sm text-muted-foreground">{p.einheit}</span>
               <button
                 type="button"
-                className="ml-auto shrink-0 text-right"
+                className="ml-auto min-w-0 text-right"
                 onClick={() => bearbeitbar && setBearbeiten(p)}
                 disabled={!bearbeitbar}
                 aria-label="Preis bearbeiten"

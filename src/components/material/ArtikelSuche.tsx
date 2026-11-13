@@ -26,7 +26,7 @@ export function useVerzoegert<T>(wert: T, ms = 250): T {
  */
 export function useArtikelSuche(suchtext: string, anzahl = 40, hersteller: string | null = null) {
   const q = useVerzoegert(suchtext.trim());
-  return useQuery({
+  const abfrage = useQuery({
     queryKey: ["artikel", "suche", q, anzahl, hersteller],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("artikel_suchen", { p_q: q, p_anzahl: anzahl, p_hersteller: hersteller ?? undefined });
@@ -35,6 +35,9 @@ export function useArtikelSuche(suchtext: string, anzahl = 40, hersteller: strin
     },
     placeholderData: (vorher) => vorher,
   });
+  // Treffer gehören (noch) zu einem älteren Suchtext — z. B. Enter nicht auf sie anwenden
+  const wartet = q !== suchtext.trim() || abfrage.isPlaceholderData || abfrage.isFetching;
+  return { ...abfrage, wartet };
 }
 
 /**

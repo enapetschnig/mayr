@@ -144,6 +144,7 @@ export function BelegEditor({
   const setSeitenVorschau = (an: boolean) => { setSeitenVorschauState(an); try { localStorage.setItem(VORSCHAU_KEY, an ? "an" : "aus"); } catch { /* egal */ } };
   const [vollVorschau, setVollVorschau] = useState(false);
   const breitGenug = useMedia("(min-width: 1536px)");
+  const schmal = !useMedia("(min-width: 640px)");
   const [dialog, setDialog] = useState<Dialog>(autoSprache ? "sprache" : autoImport ? "import" : autoKi ? "ki" : null);
   // EK und Aufschlag als Spalten am PC — gemerkt je Gerät
   const [kalkSpalten, setKalkSpalten] = useState(() => {
@@ -789,6 +790,7 @@ export function BelegEditor({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
+        {!pc && schmal && <MenuePunkt icon={Eye} onClick={() => setVollVorschau(true)}>Vorschau (so sieht es der Kunde)</MenuePunkt>}
         {entwurf && !pc && (
           <MenuePunkt icon={Check} onClick={() => void fertigFragen()}>Fertigstellen</MenuePunkt>
         )}
@@ -854,7 +856,8 @@ export function BelegEditor({
     </>
   ) : (
     <>
-      {vorschauKnopf}
+      {/* schmales Handy: die Vorschau steht im Menü — sonst bleibt für Nummer und Kunde im Kopf kaum Platz */}
+      {!schmal && vorschauKnopf}
       <Button variant="ghost" size="icon" className="h-11 w-11" onClick={pdf} disabled={!!laeuft} aria-label="PDF">
         <FileText className="h-5 w-5" />
       </Button>

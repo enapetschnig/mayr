@@ -282,7 +282,7 @@ function PreisVergleich({ rechnung, nachziehen, setNachziehen }: { rechnung: Vor
           <label className="flex cursor-pointer items-start justify-between gap-3">
             <span className="min-w-0">
               <span className="block font-semibold">
-                {abweichungen.length} {abweichungen.length === 1 ? "Preis hat" : "Preise haben"} sich seit dem Speichern geändert
+                {abweichungen.length} {abweichungen.length === 1 ? "Preis weicht" : "Preise weichen"} vom Artikelstamm / Leistungskatalog ab
               </span>
               <span className="block text-sm text-muted-foreground">
                 Heutige Preise: <span className="zahl font-medium text-foreground">{euro(nettoHeute)}</span> · wie in der Vorlage: <span className="zahl">{euro(nettoAlt)}</span> netto
