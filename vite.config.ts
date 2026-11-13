@@ -94,6 +94,9 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
+          // Vites Nachlade-Helfer und fflate (braucht auch die Bildschirmaufnahme) gehören
+          // zum Start — sonst landen sie im pdf-Chunk und der (1 MB) lädt bei jedem Start mit
+          if (id.includes("vite/preload-helper") || id.includes("commonjsHelpers") || id.includes("/node_modules/fflate/")) return "basis";
           if (!id.includes("node_modules")) return undefined;
           if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("pdfjs-dist")) return "pdf";
           if (id.includes("xlsx") || id.includes("xlsx-js-style")) return "xlsx";

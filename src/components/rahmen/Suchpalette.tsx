@@ -5,12 +5,12 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { supabase } from "@/integrations/supabase/client";
 import { useSitzung } from "@/hooks/useSitzung";
 import { useIstPc } from "@/components/AppLayout";
-import { sichtbareNavigation } from "@/lib/navigation";
+import { navPasst, sichtbareNavigation } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { neuStarten, useNeuAktionen } from "./NeuMenue";
 
 /*
-  Suche mit Strg+K wie bei Lengauer Stockner: Projekte, Kunden, Belege
+  Suche mit Strg+K wie bei Lengauer Stockner: Projekte, Kontakte, Belege
   (nur Chef), Seiten und „Neu anlegen“. Die Datenbank prüft ohnehin mit
   (RLS). ilike auf Name/Nummer, je Gruppe höchstens 5 Treffer.
   Am Handy öffnet die Lupe im Kopf der Startseite dieselbe Suche.
@@ -100,16 +100,16 @@ export function Suchpalette() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, offen, istChef]);
 
-  // Seiten und Neu-Aktionen per Teilwort — „Dach“ soll nicht „Buchhaltung“ finden
+  // Seiten (Titel und Stichworte: „Kalender“ → Plantafel, „Lohnzettel“ → Dokumente) und Neu-Aktionen per Teilwort
   const q = sauber(text).toLowerCase();
   const passt = (t: string) => !q || t.toLowerCase().includes(q);
   const gruppen: Gruppe[] = useMemo(() => [
     { titel: "Projekte", treffer: db.projekte },
-    { titel: "Kunden", treffer: db.kunden },
+    { titel: "Kontakte", treffer: db.kunden },
     { titel: "Belege", treffer: db.belege },
     {
       titel: "Seiten",
-      treffer: sichtbareNavigation(istChef, pc).filter((s) => passt(s.titel)).map((s) => ({
+      treffer: sichtbareNavigation(istChef, pc).filter((s) => navPasst(s, q)).map((s) => ({
         schluessel: `s-${s.pfad}`, titel: s.titel, icon: s.icon, los: () => gehe(s.pfad),
       })),
     },
@@ -142,11 +142,11 @@ export function Suchpalette() {
         className="top-[12%] max-w-[640px] translate-y-0 content-start gap-0 overflow-hidden bg-card p-0 data-[state=closed]:slide-out-to-top-[10%] data-[state=open]:slide-in-from-top-[10%] max-sm:top-0 max-sm:h-[100dvh] max-sm:max-w-none max-sm:rounded-none max-sm:border-0"
         data-suchpalette data-bildschirmfoto="aus">
         <DialogTitle className="sr-only">Suchen</DialogTitle>
-        <DialogDescription className="sr-only">Projekte, Kunden, Belege und Seiten</DialogDescription>
+        <DialogDescription className="sr-only">Projekte, Kontakte, Belege und Seiten</DialogDescription>
         <div className="flex items-center gap-2 border-b px-4" style={{ paddingTop: "env(safe-area-inset-top)" }}>
           <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
           <input autoFocus value={text} onChange={(e) => setText(e.target.value)} onKeyDown={taste}
-            placeholder={istChef ? "Projekte, Kunden, Belege suchen …" : "Projekte, Kunden, Seiten suchen …"}
+            placeholder={istChef ? "Projekte, Kontakte, Belege, Seiten …" : "Projekte, Kontakte, Seiten …"}
             aria-label="Suchbegriff" role="combobox" aria-expanded aria-controls="suche-liste"
             className="h-14 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" />
           {laedt && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}

@@ -30,7 +30,8 @@ export function PageHeader({ title, untertitel, showBackButton = true, backPath,
 
   return (
     <header className="sticky top-0 z-30 border-b bg-card" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-      <div className={cn("mx-auto flex min-h-14 items-center gap-1 px-2 py-1.5 sm:px-4 lg:px-6", !voll && "max-w-6xl")}>
+      {/* flex-wrap: passen Titel (mind. 7rem) und Knöpfe nicht in eine Zeile (iPhone SE), rutschen die Knöpfe darunter statt aus dem Bild */}
+      <div className={cn("mx-auto flex min-h-14 flex-wrap items-center gap-1 px-2 py-1.5 sm:px-4 lg:px-6", !voll && "max-w-6xl")}>
         {showBackButton && (
           <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" onClick={zurueck} aria-label="Zurück">
             <ArrowLeft className="h-5 w-5" />
@@ -39,11 +40,11 @@ export function PageHeader({ title, untertitel, showBackButton = true, backPath,
         <Link to="/" className="flex h-11 w-11 shrink-0 items-center justify-center md:hidden" aria-label="Zur Startseite">
           <img src={KUNDE.logo} alt="" className="h-8 w-8 rounded-md" />
         </Link>
-        <div className={cn("min-w-0 flex-1", !showBackButton && "pl-1")}>
+        <div className={cn("min-w-0 flex-1 basis-28", !showBackButton && "pl-1")}>
           {title && <h1 className="truncate text-base font-semibold leading-tight sm:text-lg">{title}</h1>}
           {untertitel && <div className="truncate text-xs text-muted-foreground">{untertitel}</div>}
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {aktionen}
           <WunschKnopf />
         </div>

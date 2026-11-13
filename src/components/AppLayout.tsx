@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { Seitenleiste, gemerktOffen, merkeOffen } from "@/components/rahmen/Seitenleiste";
 import { Suchpalette } from "@/components/rahmen/Suchpalette";
 import { NeuRahmen } from "@/components/rahmen/NeuMenue";
+import { OfflineHinweis } from "@/components/rahmen/OfflineHinweis";
 
 const PC_AB = 1024;
 
@@ -56,6 +57,7 @@ export function AppLayout() {
       {leiste ? <Seitenleiste festSchmal={!pc} /> : null}
       <Suchpalette />
       <NeuRahmen />
+      <OfflineHinweis />
       {/* min-w-0: breite Tabellen scrollen in sich, statt die Seite neben dem Menü aufzuschieben */}
       <SidebarInset className="min-w-0 bg-background">
         <Outlet />
