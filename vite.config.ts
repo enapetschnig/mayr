@@ -52,9 +52,10 @@ export default defineConfig(({ mode }) => ({
         // Alles aus src/kunde.config.ts — hier nichts hart eintragen.
         name: KUNDE.slogan ? `${KUNDE.firma} — ${KUNDE.slogan}` : KUNDE.firma,
         short_name: KUNDE.kurzname,
-        description: `Projekte, Stunden, Material und Rechnungen — ${KUNDE.firma} & Partner`,
-        theme_color: KUNDE.farben.primaryHex,
-        background_color: '#ffffff',
+        description: `Projekte, Stunden, Material und Rechnungen — ${KUNDE.firma}`,
+        // Kopfleiste der installierten App im SETEC-Schwarz wie Logo und Website
+        theme_color: '#121110',
+        background_color: '#121110',
         display: 'standalone',
         start_url: '/',
         icons: [

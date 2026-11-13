@@ -37,7 +37,7 @@ def foto(ls: dict) -> bytes:
     z.text((80, 140), "Musterweg 1 · 4000 Musterstadt · DEMO", font=schrift(26), fill=(90, 90, 90))
     z.text((80, 260), "LIEFERSCHEIN", font=schrift(56, True), fill=(20, 20, 20))
     z.text((80, 340), f"Nr. {ls['nummer']}      Datum {ls['datum'][8:10]}.{ls['datum'][5:7]}.{ls['datum'][:4]}", font=schrift(30), fill=(20, 20, 20))
-    z.text((80, 390), "Lieferadresse: Elektro Muster GmbH, Baustelle", font=schrift(28), fill=(20, 20, 20))
+    z.text((80, 390), "Lieferadresse: SETEC GmbH, Baustelle", font=schrift(28), fill=(20, 20, 20))
     y = 500
     z.line([(80, y), (1160, y)], fill=(0, 0, 0), width=3)
     for x, t in ((80, "Pos"), (170, "Artikel-Nr."), (420, "Bezeichnung"), (980, "Menge")):

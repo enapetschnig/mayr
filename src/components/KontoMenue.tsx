@@ -41,7 +41,7 @@ export function KontoMenue({ mitName, leiste }: { mitName?: boolean; leiste?: bo
               {mitName && (
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-sidebar-foreground">{name(profil)}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{istChef ? "Chef" : "Monteur"}</span>
+                  <span className="block truncate text-xs text-sidebar-foreground/55">{istChef ? "Chef" : "Monteur"}</span>
                 </span>
               )}
             </button>

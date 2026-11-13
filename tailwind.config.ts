@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        marke: ['"Montserrat Variable"', '"Inter Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -24,6 +27,10 @@ export default {
           foreground: "hsl(var(--primary-foreground))",
           hover: "hsl(var(--primary-hover))",
           soft: "hsl(var(--primary-soft))",
+        },
+        marke: {
+          gold: "hsl(var(--marke-gold))",
+          schwarz: "hsl(var(--marke-schwarz))",
         },
         status: Object.fromEntries(
           ["grau", "blau", "gelb", "gruen", "rot", "cyan", "lila", "rosa"].flatMap((t) => [

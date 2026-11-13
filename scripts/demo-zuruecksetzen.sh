@@ -28,4 +28,5 @@ done
 python3 -I "$D/supabase/demo/unterschriften.py"
 python3 -I "$D/supabase/demo/lieferscheine.py"
 node "$D/supabase/demo/eingangsrechnungen.mjs"
+node "$D/scripts/demo-logo.mjs"
 echo "Demo zurückgesetzt."

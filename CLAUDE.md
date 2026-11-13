@@ -1,6 +1,8 @@
 # Elektriker-Demo (Repo „mayr“)
 
-Demo-App für **einen Elektrobetrieb**: Chef (Büro, Angebote, Rechnungen) und
+App für **einen Elektrobetrieb** — erster Kunde **SETEC GmbH** (Stefan Sattler,
+Elektrik + Photovoltaik, Kindberg-Mürzhofen; Wunschliste und Stand:
+`docs/SETEC-WUNSCHLISTE.md`): Chef (Büro, Angebote, Rechnungen) und
 Monteure (Stunden, Material, Regieberichte, Fotos). Alles hängt am Projekt
 mit fortlaufender Nummer `2026-0001`. Ziel: die einfachste Software für
 Elektriker — am Handy auf der Baustelle bedienbar, Angebot vor Ort per Sprache.
@@ -9,7 +11,7 @@ Elektriker — am Handy auf der Baustelle bedienbar, Angebot vor Ort per Sprache
 |---|---|
 | Supabase | `xcsbbaiwzdivmaodltxm` (Projekt „mayr“, ePower-Org, eu-central-1) |
 | Vercel | Projekt `mayr`, Auto-Deploy von `main` |
-| Betrieb | „Elektro Muster GmbH“ — Demo-Daten, in Einstellungen änderbar |
+| Betrieb | „SETEC GmbH“ — Demo-Daten (Bank noch Demo), in Einstellungen änderbar |
 
 Die frühere Drei-Firmen-App ist abgelöst; sie
 steht im Git-Verlauf bis Commit `769f917`, die Datensicherung unter
@@ -19,7 +21,7 @@ steht im Git-Verlauf bis Commit `769f917`, die Datensicherung unter
 Ausbau nach dem Vorbild e-projekt (was fehlt, Reihenfolge, Stand): `docs/AUSBAU-E-PROJEKT.md`.
 Schema samt RLS und Triggern: `supabase/migrations/20261025100000_elektriker_grundschema.sql`.
 
-## Design „Werkbank“
+## Design „SETEC“ (Aufbau „Werkbank“)
 
 - Menü wie Lengauer Stockner (`components/rahmen/`, Details KONZEPT „Startseite
   und Menü“): Handy **die Startseite ist das Menü** (große Karten mit „… öffnen“,
@@ -28,7 +30,10 @@ Schema samt RLS und Triggern: `supabase/migrations/20261025100000_elektriker_gru
   Symbol-Leiste, PC ab 1024 px helle Seitenleiste mit Suche (Strg+K) und „+ Neu“.
 - Neutrale Flächen, weiße Karten mit 1-px-Rand, keine Schatten (Ausnahme: die
   Menü-Karten der Startseite, leicht).
-  **Blau ist die einzige Aktionsfarbe.** Status nur als Pille aus einer
+  Marke SETEC: Schild-Logo (`public/logo-*.png`, Pfade in `kunde.config.ts`),
+  Seitenleiste schwarz mit Gold `#C4A983`, Überschriften Montserrat.
+  **Bronze (`--primary`, `#866634`) ist die einzige Aktionsfarbe** — das Gold
+  selbst hat auf Weiß zu wenig Kontrast. Status nur als Pille aus einer
   Tabelle (`lib/types.ts`): Entwurf cyan, verrechnet lila, grün = erledigt.
 - Formulare als Vollbild (`FormularDialog`), Eingaben 16 px am Handy.
 - **Handyansicht** (`/handyansicht`, nur PC): die App in einem 390-px-Rahmen
@@ -95,8 +100,8 @@ Listenpreis samt Kupferzuschlag) plus ~72.000 aus der Sonepar-Datanorm
 EK = Liste − Rabatt aus der Tabelle `rabatte` (je Lieferant, Hersteller,
 Rabattgruppe; Demo: Sonepar 32 %, Hager 36 %, AI25 40 %), angewandt in Häppchen
 per `rabatte_anwenden` — echte Netto-Konditionen nie ins Repo (öffentlich).
-Demo-Konten: chef/max/lisa (Passwort `chef123`/`max123`/`lisa123`) plus tom, eva,
-stefan, sarah, jonas (Passwort `demo123`, anlegen mit `SUPABASE_SERVICE_KEY=… node scripts/demo-konten.mjs`). Unterschriften
+Demo-Konten: chef (= Stefan Sattler)/max/lisa (Passwort `chef123`/`max123`/`lisa123`) plus tom, eva,
+lukas, sarah, jonas (Passwort `demo123`, anlegen mit `SUPABASE_SERVICE_KEY=… node scripts/demo-konten.mjs`). Unterschriften
 im Speicher lassen sich nicht löschen (Policy `unterschriften_bleiben`) — alte
 bleiben nach dem Zurücksetzen als verwaiste Dateien liegen, wenige KB.
 
@@ -105,6 +110,8 @@ ausgeben). **Eine Anweisung je Aufruf** — mehrere mit Strichpunkt laufen still
 nicht; deshalb sind die Demo- und Aufräum-Dateien je ein `do $$ … $$`-Block.
 Neue Migrationen: `scripts/sql.sh push --dry-run`, dann `scripts/sql.sh push`
 (spielt nur ein, was im Verlauf `supabase_migrations.schema_migrations` fehlt).
+Mehrere Worktrees parallel: `scripts/migration.sh <datei>` spielt genau eine
+Datei samt Verlaufseintrag über die Management-API ein.
 Die Rolle `postgres` darf `session_replication_role` nicht setzen — das
 Zurücksetzen schaltet die Festschreib-Trigger per `alter table … disable
 trigger user` nur innerhalb der eigenen Transaktion aus.
@@ -141,6 +148,11 @@ Hier arbeitet der Zweig `elektriker` und wird nach `main` gepusht — vor eigene
 `git pull origin main`, der Roboter pusht ebenfalls nach `main`.
 
 ## Stolpersteine
+
+- **Echte Probedaten von Stefan Sattler** (seit 11.11.2026 in der Demo: Kunden
+  Sattler, Bärnthaler, Fa. xyz; Projekte 2026-0009 bis -0011 samt Belegen und
+  Dateien). Das Demo-Zurücksetzen löscht sie — vorher fragen; Sicherung unter
+  `~/Developer/_baukasten/sicherungen/mayr/2026-11-13-setec-probedaten/`.
 
 - PostgREST-Sammel-Inserts mit **unterschiedlichen Feldern** je Zeile setzen
   fehlende Felder auf NULL statt auf den Spalten-Standard → `not null` knallt.

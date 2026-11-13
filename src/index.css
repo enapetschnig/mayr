@@ -3,12 +3,14 @@
 @tailwind utilities;
 
 /*
-  Design „Werkbank“ — wie Lengauer (Konzept ~/Developer/_baukasten/design/
-  lengauer-plancraft-konzept.md): hellgrauer Arbeitstisch, weiße Karten mit
-  Rahmen statt Schatten, kleine Radien, fast schwarze Seitenleiste am PC.
-  Elektro-Blau ist die EINZIGE Aktionsfarbe (Knopf, Link, aktiver Menüpunkt,
-  Fokus); alle anderen Farben kommen nur als Pastell-Status vor
-  (lib/types.ts → STATUS_TON, Bausteine → StatusPille).
+  Design „SETEC“ (13.11.2026) auf dem Gerüst „Werkbank“: warmer, heller
+  Arbeitstisch, weiße Karten mit Rahmen, Seitenleiste und Anmeldung in
+  SETEC-Schwarz mit Gold wie Logo und Website (setec-gmbh.at). Gold/Bronze ist
+  die EINZIGE Aktionsfarbe (Knopf, Link, aktiver Menüpunkt, Fokus) — als Fläche
+  das dunklere Bronze #866634 (weiße Schrift lesbar, 5,3 : 1), auf Schwarz das
+  echte SETEC-Gold #C4A983. Alle anderen Farben nur als Pastell-Status
+  (lib/types.ts → STATUS_TON, Bausteine → StatusPille). Überschriften in
+  Montserrat (Hausschrift der Website), Fließtext und Zahlen in Inter.
 
   Die Markenfarbe setzt farbenAnwenden() aus kunde.config.ts beim Start.
   Alle Farben HSL ohne hsl() — nur so mischt Tailwind sie mit Deckkraft.
@@ -32,48 +34,69 @@
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
+/* Montserrat für Überschriften (@fontsource-variable/montserrat) */
+@font-face {
+  font-family: "Montserrat Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/montserrat/files/montserrat-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Montserrat Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/montserrat/files/montserrat-latin-ext-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 @layer base {
   :root {
     /* Flächen */
-    --background: 60 4% 95%;          /* Arbeitstisch */
-    --foreground: 0 0% 10%;
+    --background: 40 18% 95%;         /* Arbeitstisch, warm wie Sand */
+    --foreground: 30 8% 10%;
     --card: 0 0% 100%;
     --card-foreground: 0 0% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 10%;
 
     /* Marke = einzige Aktionsfarbe (Startwert, farbenAnwenden() legt sie darüber) */
-    --primary: 224 76% 48%;
+    --primary: 37 44% 36%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 224 76% 41%;
-    --primary-soft: 224 90% 96%;
+    --primary-hover: 37 44% 29%;
+    --primary-soft: 38 45% 94%;
+    /* SETEC-Gold für Flächen auf Schwarz (Logo, Seitenleiste, Anmeldung) */
+    --marke-gold: 36 35% 64%;
+    --marke-schwarz: 30 6% 7%;
 
     /* Neutrale Stufen */
-    --secondary: 0 0% 93%;
-    --secondary-foreground: 0 0% 15%;
-    --muted: 0 0% 96%;                /* berechnete Felder, Tabellenkopf */
-    --muted-foreground: 0 0% 42%;
-    --accent: 0 0% 94%;               /* nur Hover-Fläche (Dropdown, Ghost) — nie bunt */
-    --accent-foreground: 0 0% 10%;
+    --secondary: 38 14% 92%;
+    --secondary-foreground: 30 8% 15%;
+    --muted: 40 16% 96%;              /* berechnete Felder, Tabellenkopf */
+    --muted-foreground: 30 5% 40%;
+    --accent: 38 18% 93%;             /* nur Hover-Fläche (Dropdown, Ghost) — nie bunt */
+    --accent-foreground: 30 8% 10%;
 
-    --border: 0 0% 89%;
-    --input: 0 0% 84%;
-    --ring: 224 76% 48%;
+    --border: 36 12% 87%;
+    --input: 36 10% 80%;
+    --ring: 37 44% 36%;
 
     --destructive: 4 64% 45%;         /* nur Text/Rahmen, gefüllt nur in der Rückfrage */
     --destructive-foreground: 0 0% 100%;
     --success: 152 62% 31%;
     --success-foreground: 0 0% 100%;
 
-    /* Seitenleiste — hell wie bei Lengauer Stockner, aktiv = Fläche + blauer Strich */
-    --sidebar-background: 60 6% 98.5%;
-    --sidebar-foreground: 0 0% 28%;
-    --sidebar-primary: 224 76% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 60 5% 91.5%;
-    --sidebar-accent-foreground: 224 76% 40%;
-    --sidebar-border: 0 0% 87%;
-    --sidebar-ring: 224 76% 48%;
+    /* Seitenleiste in SETEC-Schwarz (Aufbau wie Lengauer Stockner), aktiv = Fläche + goldener Strich */
+    --sidebar-background: 30 6% 7%;
+    --sidebar-foreground: 36 10% 78%;
+    --sidebar-primary: 36 35% 64%;
+    --sidebar-primary-foreground: 30 6% 7%;
+    --sidebar-accent: 30 5% 13%;
+    --sidebar-accent-foreground: 36 45% 76%;
+    --sidebar-border: 30 5% 16%;
+    --sidebar-ring: 36 35% 64%;
 
     /* Status-Pillen: Fläche / Schrift */
     --status-grau: 0 0% 93%;     --status-grau-fg: 0 0% 27%;
@@ -85,7 +108,7 @@
     --status-lila: 251 82% 95%;  --status-lila-fg: 251 40% 48%;
     --status-rosa: 330 80% 94%;  --status-rosa-fg: 322 41% 39%;
 
-    --radius: 0.5rem;                 /* 8 px Karten; md = 6 px Knöpfe/Felder; sm = 4 px */
+    --radius: 0.625rem;               /* 10 px Karten; md = 8 px Knöpfe/Felder; sm = 6 px */
 
     /* Schatten nur für schwebende Ebenen — Karten haben Rahmen */
     --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.04);
@@ -93,16 +116,16 @@
   }
 
   .dark {
-    --background: 0 0% 6%;
-    --foreground: 0 0% 93%;
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 93%;
-    --popover: 0 0% 11%;
-    --popover-foreground: 0 0% 93%;
-    --primary: 221 83% 60%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 221 83% 54%;
-    --primary-soft: 224 40% 16%;
+    --background: 30 6% 6%;
+    --foreground: 36 10% 92%;
+    --card: 30 5% 10%;
+    --card-foreground: 36 10% 92%;
+    --popover: 30 5% 11%;
+    --popover-foreground: 36 10% 92%;
+    --primary: 36 35% 64%;
+    --primary-foreground: 30 6% 7%;
+    --primary-hover: 36 38% 70%;
+    --primary-soft: 36 20% 15%;
     --secondary: 0 0% 17%;
     --secondary-foreground: 0 0% 93%;
     --muted: 0 0% 14%;
@@ -111,17 +134,17 @@
     --accent-foreground: 0 0% 95%;
     --border: 0 0% 19%;
     --input: 0 0% 25%;
-    --ring: 221 83% 60%;
+    --ring: 36 35% 64%;
     --destructive: 4 70% 58%;
     --destructive-foreground: 0 0% 100%;
     --success: 152 50% 42%;
-    --sidebar-background: 0 0% 8%;
-    --sidebar-foreground: 0 0% 80%;
-    --sidebar-primary: 221 83% 60%;
-    --sidebar-accent: 0 0% 15%;
-    --sidebar-accent-foreground: 221 83% 72%;
-    --sidebar-border: 0 0% 16%;
-    --sidebar-ring: 221 83% 60%;
+    --sidebar-background: 30 6% 4%;
+    --sidebar-foreground: 36 10% 78%;
+    --sidebar-primary: 36 35% 64%;
+    --sidebar-accent: 30 5% 12%;
+    --sidebar-accent-foreground: 36 45% 76%;
+    --sidebar-border: 30 5% 14%;
+    --sidebar-ring: 36 35% 64%;
     --status-grau: 0 0% 20%;     --status-grau-fg: 0 0% 82%;
     --status-blau: 216 50% 20%;  --status-blau-fg: 214 90% 78%;
     --status-gelb: 44 50% 18%;   --status-gelb-fg: 46 85% 70%;
@@ -150,6 +173,12 @@
     font-feature-settings: "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Überschriften in der Hausschrift von SETEC */
+  h1, h2, h3, .schrift-marke {
+    font-family: "Montserrat Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.01em;
   }
 
   /* Eingabefelder am Handy 16 px — sonst zoomt iOS beim Antippen hinein */

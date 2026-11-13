@@ -22,11 +22,11 @@ const SCHNELL: Record<string, NeuArt> = {
 };
 
 /**
- * Seitenleiste nach dem Vorbild Lengauer Stockner: hell, 240 px, einklappbar
- * auf 56 px (nur Symbole mit Tooltip, Zustand gemerkt). Oben das Logo auf
- * weißer Plakette, darunter Suchen (Strg+K) und das blaue „+ Neu“. Gruppen
- * mit Versal-Etikett, einzeln einklappbar; der aktive Punkt hat eine hellere
- * Fläche und einen blauen Strich links. Im Fuß Einstellungen, Wünsche,
+ * Seitenleiste nach dem Vorbild Lengauer Stockner im SETEC-Look: schwarz,
+ * 240 px, einklappbar auf 56 px (nur Symbole mit Tooltip, Zustand gemerkt).
+ * Oben das Querlogo (eingeklappt das Schild), darunter Suchen (Strg+K) und das
+ * goldene „+ Neu“. Gruppen mit Versal-Etikett, einzeln einklappbar; der aktive
+ * Punkt hat eine hellere Fläche, goldene Schrift und einen goldenen Strich links. Im Fuß Einstellungen, Wünsche,
  * Handyansicht und das Konto mit Namen.
  * Tablet (768–1023 px): immer schmal, ohne Umschalter.
  */
@@ -48,16 +48,11 @@ export function Seitenleiste({ festSchmal }: { festSchmal?: boolean }) {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border" data-seitenleiste>
       <SidebarHeader className={cn("gap-3 px-3 pb-2 pt-3", schmal && "items-center px-2")}>
         <div className={cn("flex items-center gap-2", schmal && "flex-col")}>
-          <Link to="/" title={firma?.name || KUNDE.kurzname}
-            className={cn("flex min-w-0 items-center gap-2.5 rounded-md border border-sidebar-border bg-white transition-colors hover:border-primary/40",
-              schmal ? "h-9 w-9 justify-center p-0.5" : "h-12 flex-1 px-2")}>
-            <img src={KUNDE.logo} alt="" className={cn("shrink-0 rounded-md object-contain", schmal ? "h-7 w-7" : "h-8 w-8")} />
-            {!schmal && (
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-bold leading-tight text-neutral-900">{firma?.name || KUNDE.kurzname}</span>
-                <span className="block truncate text-[11px] text-neutral-500">{KUNDE.slogan}</span>
-              </span>
-            )}
+          <Link to="/" title={firma?.name || KUNDE.kurzname} data-leiste-logo
+            className={cn("flex min-w-0 items-center rounded-md transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+              schmal ? "h-10 w-10 justify-center" : "h-20 flex-1 px-1")}>
+            <img src={schmal ? KUNDE.logoZeichen : KUNDE.logoQuerHell} alt={firma?.name || KUNDE.firma}
+              className={cn("object-contain", schmal ? "h-8 w-8" : "h-[76px] w-auto max-w-full")} />
           </Link>
           {!festSchmal && (
             <button type="button" onClick={toggleSidebar}
@@ -71,19 +66,21 @@ export function Seitenleiste({ festSchmal }: { festSchmal?: boolean }) {
         <div className={cn("flex flex-col gap-1.5", schmal && "items-center")}>
           <MitTipp tipp="Suchen (Strg+K)" aus={!schmal}>
             <button type="button" onClick={sucheOeffnen} aria-label="Suchen" data-suche-knopf
-              className={cn("flex h-8 items-center gap-2.5 rounded-md border border-sidebar-border bg-white/60 text-sm text-sidebar-foreground hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring dark:bg-transparent",
+              className={cn("flex h-8 items-center gap-2.5 rounded-md border border-sidebar-border bg-white/[0.04] text-sm text-sidebar-foreground hover:bg-sidebar-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                 schmal ? "w-8 justify-center border-0 bg-transparent" : "w-full px-2.5")}>
               <Search className="h-4 w-4 shrink-0" />
               {!schmal && (
                 <>
-                  <span className="text-muted-foreground">Suchen …</span>
-                  <kbd className="ml-auto rounded border border-sidebar-border px-1.5 text-[10px] font-medium text-muted-foreground">Strg K</kbd>
+                  <span className="text-sidebar-foreground/60">Suchen …</span>
+                  <kbd className="ml-auto rounded border border-sidebar-border px-1.5 text-[10px] font-medium text-sidebar-foreground/50">Strg K</kbd>
                 </>
               )}
             </button>
           </MitTipp>
           <MitTipp tipp="Neu anlegen" aus={!schmal}>
-            <span className={cn(schmal ? "inline-flex" : "block w-full")}><NeuKnopf kompakt={schmal} /></span>
+            <span className={cn(schmal ? "inline-flex" : "block w-full")}>
+              <NeuKnopf kompakt={schmal} className="bg-sidebar-primary font-semibold text-sidebar-primary-foreground hover:bg-sidebar-primary/85" />
+            </span>
           </MitTipp>
         </div>
       </SidebarHeader>
@@ -97,7 +94,7 @@ export function Seitenleiste({ festSchmal }: { festSchmal?: boolean }) {
             <nav key={g} aria-label={titel || "Hauptmenü"} className="pt-3 first:pt-1" data-menue-gruppe={g}>
               {titel && !schmal && (
                 <button type="button" onClick={() => umschalten(titel, aktivDrin, pathname)} aria-expanded={offen}
-                  className="flex w-full items-center gap-1 rounded px-2.5 pb-1 text-left text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+                  className="flex w-full items-center gap-1 rounded px-2.5 pb-1 text-left font-marke text-[10.5px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/50 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
                   <span className="flex-1">{titel}</span>
                   <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !offen && "-rotate-90")} aria-hidden="true" />
                 </button>

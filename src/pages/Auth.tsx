@@ -67,22 +67,22 @@ export default function Auth() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Kopf in Markenfarbe — Blitz-Logo, Name */}
-      <div className="relative overflow-hidden bg-primary px-6 pb-16 pt-[calc(3rem+env(safe-area-inset-top))] text-primary-foreground">
-        <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" aria-hidden />
-        <div className="absolute -bottom-24 -left-10 h-56 w-56 rounded-full bg-white/10" aria-hidden />
+      {/* Kopf in SETEC-Schwarz mit Querlogo wie auf setec-gmbh.at, das Schild groß und leise im Hintergrund */}
+      <div className="relative overflow-hidden bg-marke-schwarz px-6 pb-20 pt-[calc(2.5rem+env(safe-area-inset-top))] text-white">
+        <img src={KUNDE.logoZeichen} alt="" aria-hidden className="pointer-events-none absolute -right-20 -top-6 h-80 w-auto opacity-[0.07]" />
+        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-marke-gold/60 to-transparent" aria-hidden />
         <div className="relative mx-auto max-w-sm">
-          <img src={KUNDE.logo} alt="" className="h-16 w-16 rounded-2xl shadow-lg ring-2 ring-white/30" />
-          <h1 className="mt-5 text-3xl font-extrabold tracking-tight">{KUNDE.kurzname}</h1>
-          <p className="mt-1 text-primary-foreground/80">Stunden, Material, Regie, Rechnung — alles am Handy.</p>
+          <img src={KUNDE.logoQuerHell} alt={KUNDE.firma} className="h-24 w-auto" />
+          <p className="mt-5 text-sm font-medium uppercase tracking-[0.18em] text-marke-gold">Betriebs-App</p>
+          <p className="mt-1 text-white/70">Projekte, Einsätze, Stunden, Material und Rechnungen — am Handy und im Büro.</p>
         </div>
       </div>
 
-      <div className="relative -mt-8 flex-1 px-4 pb-10">
-        <div className="mx-auto w-full max-w-sm rounded-3xl border bg-card p-6 shadow-lg">
+      <div className="relative -mt-10 flex-1 px-4 pb-10">
+        <div className="mx-auto w-full max-w-sm rounded-2xl border bg-card p-6 shadow-lg">
           {modus === "registriert" && (
             <div className="space-y-5 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100"><Clock className="h-8 w-8 text-amber-600" /></div>
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-soft"><Clock className="h-8 w-8 text-primary" /></div>
               <div>
                 <h2 className="text-lg font-semibold">Registrierung eingegangen</h2>
                 <p className="mt-2 text-sm text-muted-foreground">Der Chef schaltet dein Konto frei — danach meldest du dich mit Benutzername und Passwort an.</p>

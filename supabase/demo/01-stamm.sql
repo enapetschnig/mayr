@@ -20,7 +20,7 @@ declare
   -- weitere Demo-Mitarbeiter (Konten: scripts/demo-konten.mjs)
   v_tom uuid := (select id from profiles where email = 'tom@elektro.handwerkapp.at');
   v_eva uuid := (select id from profiles where email = 'eva@elektro.handwerkapp.at');
-  v_stefan uuid := (select id from profiles where email = 'stefan@elektro.handwerkapp.at');
+  v_stefan uuid := (select id from profiles where email = 'lukas@elektro.handwerkapp.at');
   v_sarah uuid := (select id from profiles where email = 'sarah@elektro.handwerkapp.at');
   v_jonas uuid := (select id from profiles where email = 'jonas@elektro.handwerkapp.at');
   l_bus1 uuid; l_bus2 uuid; l_bus3 uuid;
@@ -85,22 +85,23 @@ begin
 
   -- ── Betrieb ──────────────────────────────────────────────────────────────
   update firma set
-    name = 'Elektro Muster GmbH',
-    zusatz = 'Elektrotechnik · Photovoltaik · Smart Home',
-    inhaber = 'Martin Muster',
-    strasse = 'Musterstraße 1',
-    plz = '4020',
-    ort = 'Linz',
+    -- SETEC: Stammdaten aus der Signatur (Mail 12.11.2026); Bank bleibt Demo, bis SETEC die echte nennt
+    name = 'SETEC GmbH',
+    zusatz = 'Elektrik · Photovoltaik',
+    inhaber = 'Stefan Sattler',
+    strasse = 'Grazer Straße 41',
+    plz = '8644',
+    ort = 'Kindberg-Mürzhofen',
     land = 'Österreich',
-    telefon = '+43 000 0000000',
-    email = 'office@elektro-muster.demo',
-    website = 'www.elektro-muster.demo',
-    uid = 'ATU00000000',
-    firmenbuch = 'FN 000000a (Demo)',
+    telefon = '+43 664 88228429',
+    email = 's.sattler@setec-gmbh.at',
+    website = 'www.setec-gmbh.at',
+    uid = 'ATU75443156',
+    firmenbuch = 'FN 531730g, LG Leoben',
     bank_name = 'Demo Bank',
     iban = 'AT61 1904 3002 3457 3201',
     bic = 'DEMOATW1',
-    farbe = '#1D4ED8',
+    farbe = '#866634',
     stundensatz = 72,
     stundensaetze = '[{"name": "Meister", "satz": 85}, {"name": "Lehrling", "satz": 42}]'::jsonb,
     kostensatz = 38,
@@ -122,7 +123,7 @@ begin
   insert into lagerorte (name, art, user_id, aktiv, reihenfolge) values
     ('Hauptlager', 'lager', null, true, 0);
   insert into lagerorte (name, art, user_id, aktiv, reihenfolge) values ('Bus 1 · Max', 'fahrzeug', v_max, true, 1) returning id into l_bus1;
-  insert into lagerorte (name, art, user_id, aktiv, reihenfolge) values ('Bus 2 · Martin', 'fahrzeug', v_chef, true, 2) returning id into l_bus2;
+  insert into lagerorte (name, art, user_id, aktiv, reihenfolge) values ('Bus 2 · Stefan', 'fahrzeug', v_chef, true, 2) returning id into l_bus2;
   insert into lagerorte (name, art, user_id, aktiv, reihenfolge) values ('Bus 3 · Tom', 'fahrzeug', v_tom, v_tom is not null, 3) returning id into l_bus3;
 
   -- ── Mitarbeiter ─────────────────────────────────────────────────────────
@@ -131,8 +132,8 @@ begin
     from (values
       ('tom@elektro.handwerkapp.at', 'Tom', 'Berger', '#7C3AED', 'Partieführer', '+43 000 0000201'),
       ('eva@elektro.handwerkapp.at', 'Eva', 'Huber', '#DB2777', null, '+43 000 0000202'),
-      ('stefan@elektro.handwerkapp.at', 'Stefan', 'Gruber', '#0891B2', null, '+43 000 0000203'),
-      ('sarah@elektro.handwerkapp.at', 'Sarah', 'Pichler', '#65A30D', null, '+43 000 0000204'),
+      ('lukas@elektro.handwerkapp.at', 'Lukas', 'Gruber', '#0891B2', null, '+43 000 0000203'),
+      ('sarah@elektro.handwerkapp.at', 'Sarah', 'Pirker', '#65A30D', null, '+43 000 0000204'),
       ('jonas@elektro.handwerkapp.at', 'Jonas', 'Wimmer', '#CA8A04', 'Lehrling', '+43 000 0000205')
     ) as x(email, vorname, nachname, farbe, lohnart, telefon)
    where p.email = x.email;

@@ -242,7 +242,7 @@ export default function Index() {
           <img src={KUNDE.logo} alt="" className="h-9 w-9 shrink-0 rounded-md" />
           <div className="min-w-0 flex-1 pl-0.5">
             <p className="truncate text-xs text-muted-foreground">{datumLang()}</p>
-            <h1 className="truncate text-base font-semibold leading-tight" data-gruss>{gruss()}, {profil?.vorname || "willkommen"}</h1>
+            <h1 className="line-clamp-2 text-[15px] font-semibold leading-tight" data-gruss>{gruss()}, {profil?.vorname || "willkommen"}</h1>
           </div>
           <button type="button" onClick={sucheOeffnen} aria-label="Suchen" data-handy-suche
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">

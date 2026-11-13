@@ -76,7 +76,7 @@ for (const r of liste) {
   // Empfänger
   doc.setFontSize(8).text(`${kopf.name} · ${kopf.zeile}`, 20, 48);
   doc.setFontSize(11).setTextColor(20);
-  [firma?.name ?? "Elektro Muster GmbH", firma?.strasse ?? "", `${firma?.plz ?? ""} ${firma?.ort ?? ""}`.trim(), firma?.uid ? `UID ${firma.uid}` : ""]
+  [firma?.name ?? "SETEC GmbH", firma?.strasse ?? "", `${firma?.plz ?? ""} ${firma?.ort ?? ""}`.trim(), firma?.uid ? `UID ${firma.uid}` : ""]
     .filter(Boolean).forEach((z, i) => doc.text(z, 20, 55 + i * 5.5));
 
   // Rechnungsdaten rechts

@@ -52,11 +52,11 @@ export function neuStarten(art?: NeuArt) {
   window.dispatchEvent(new CustomEvent<NeuArt | undefined>(EREIGNIS, { detail: art }));
 }
 
-/** Der blaue Knopf — in der Seitenleiste, eingeklappt nur das Plus. */
-export function NeuKnopf({ kompakt }: { kompakt?: boolean }) {
+/** Der „+ Neu“-Knopf — in der Seitenleiste, eingeklappt nur das Plus. */
+export function NeuKnopf({ kompakt, className }: { kompakt?: boolean; className?: string }) {
   return (
     <Button type="button" size="sm" onClick={() => neuStarten()} aria-label="Neu anlegen" title="Neues Projekt, Angebot, Rechnung …"
-      data-neu-knopf className={cn("h-8 w-full justify-start gap-2", kompakt && "w-8 justify-center px-0")}>
+      data-neu-knopf className={cn("h-8 w-full justify-start gap-2", kompakt && "w-8 justify-center px-0", className)}>
       <Plus className="h-4 w-4" />
       {!kompakt && <span>Neu</span>}
     </Button>

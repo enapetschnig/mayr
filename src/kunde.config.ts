@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- *  KUNDEN-KONFIGURATION — Elektriker-Demo
+ *  KUNDEN-KONFIGURATION — SETEC GmbH (Elektrik · Photovoltaik)
  * ============================================================================
  *
  * Eigene, schlanke App im Look der Handwerker-Apps (kein hw-core-Fork).
@@ -20,39 +20,48 @@ export interface KundeConfig {
   kontakt: { telefon: string; email: string; website: string; uid: string };
   /** Benutzername ohne @ → <name>@<loginDomain> */
   loginDomain: string;
+  /** Quadratisches App-Zeichen (Schild auf Schwarz) */
   logo: string;
+  /** Querlogo mit Schriftzug: für dunkle bzw. helle Flächen */
+  logoQuerHell: string;
+  logoQuerDunkel: string;
+  /** Schild allein, durchsichtig */
+  logoZeichen: string;
   farben: { primary: string; primaryHex: string };
 }
 
 export const KUNDE: KundeConfig = {
   slug: "mayr",
 
-  firma: "Elektro Muster GmbH",
-  kurzname: "Elektro Muster",
-  slogan: "Elektriker-App",
+  firma: "SETEC GmbH",
+  kurzname: "SETEC",
+  slogan: "Elektrik · Photovoltaik",
 
   anschrift: {
-    strasse: "",
-    plz: "",
-    ort: "",
+    strasse: "Grazer Straße 41",
+    plz: "8644",
+    ort: "Kindberg-Mürzhofen",
     land: "Österreich",
   },
 
   kontakt: {
-    telefon: "",
-    email: "",
-    website: "",
-    uid: "",
+    telefon: "+43 664 88228429",
+    email: "s.sattler@setec-gmbh.at",
+    website: "www.setec-gmbh.at",
+    uid: "ATU75443156",
   },
 
   loginDomain: "elektro.handwerkapp.at",
 
   logo: "/logo.png",
+  logoQuerHell: "/logo-quer-hell.png",
+  logoQuerDunkel: "/logo-quer-dunkel.png",
+  logoZeichen: "/logo-zeichen.png",
 
-  // Elektro-Blau — die einzige Aktionsfarbe (Design „Werkbank“)
+  // SETEC-Bronze — die einzige Aktionsfarbe (dunkler als das Logo-Gold #C4A983, damit weiße Schrift lesbar bleibt)
   farben: {
-    primary: "224 76% 48%",
-    primaryHex: "#1D4ED8",
+    primary: "37 44% 36%",
+    primaryHex: "#866634",
   },
 };
 
@@ -75,8 +84,7 @@ export function farbenAnwenden(): void {
 
   const haupt = `${h} ${s}% ${l}%`;
   const dunkler = `${h} ${s}% ${Math.max(l - 7, 10)}%`;
-  const hell = `${h} ${Math.round(s * 0.9)}% ${Math.min(l + 12, 92)}%`;
-  const zart = `${h} 90% 96%`;
+  const zart = `${h} ${Math.min(s, 45)}% 94%`;
 
   // Nur im hellen Modus überschreiben — der dunkle bringt eigene, hellere Werte mit
   if (document.documentElement.classList.contains("dark")) return;
@@ -84,6 +92,5 @@ export function farbenAnwenden(): void {
   setze("--primary-hover", dunkler);
   setze("--primary-soft", zart);
   setze("--ring", haupt);
-  setze("--sidebar-primary", haupt);
-  setze("--sidebar-ring", hell);
+  // Die Seitenleiste ist schwarz und trägt das helle Logo-Gold aus index.css
 }

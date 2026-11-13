@@ -254,7 +254,7 @@ begin
   returning id into re2;
 
   insert into beleg_positionen (beleg_id, pos, art, bezeichnung, langtext, menge, einheit, einzelpreis, ek_preis, minuten, artikel_id, leistung_id, quelle)
-  select re2, 1, 'arbeit', 'Arbeitszeit Elektrotechnik', 'Martin Muster, Max Monteur — 22. und 23.09.2026', sum(z.stunden), 'h', v_satz,
+  select re2, 1, 'arbeit', 'Arbeitszeit Elektrotechnik', 'Stefan Sattler, Max Monteur — 22. und 23.09.2026', sum(z.stunden), 'h', v_satz,
          null, null, null, null, jsonb_build_object('zeiten', jsonb_agg(z.id))
   from zeiten z where z.projekt_id = p6;
   insert into beleg_positionen (beleg_id, pos, art, bezeichnung, langtext, menge, einheit, einzelpreis, ek_preis, minuten, artikel_id, leistung_id, quelle)
@@ -413,7 +413,7 @@ begin
   declare
     v_tom uuid := (select id from profiles where email = 'tom@elektro.handwerkapp.at');
     v_eva uuid := (select id from profiles where email = 'eva@elektro.handwerkapp.at');
-    v_stefan uuid := (select id from profiles where email = 'stefan@elektro.handwerkapp.at');
+    v_stefan uuid := (select id from profiles where email = 'lukas@elektro.handwerkapp.at');
     v_sarah uuid := (select id from profiles where email = 'sarah@elektro.handwerkapp.at');
     v_jonas uuid := (select id from profiles where email = 'jonas@elektro.handwerkapp.at');
     t_max uuid := (select id from teams where name = 'Max');

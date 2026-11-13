@@ -12,8 +12,8 @@ import { fileURLToPath } from "url";
 export const DEMO_KONTEN = [
   { email: "tom@elektro.handwerkapp.at", vorname: "Tom", nachname: "Berger" },
   { email: "eva@elektro.handwerkapp.at", vorname: "Eva", nachname: "Huber" },
-  { email: "stefan@elektro.handwerkapp.at", vorname: "Stefan", nachname: "Gruber" },
-  { email: "sarah@elektro.handwerkapp.at", vorname: "Sarah", nachname: "Pichler" },
+  { email: "lukas@elektro.handwerkapp.at", vorname: "Lukas", nachname: "Gruber" },
+  { email: "sarah@elektro.handwerkapp.at", vorname: "Sarah", nachname: "Pirker" },
   { email: "jonas@elektro.handwerkapp.at", vorname: "Jonas", nachname: "Wimmer" },
 ];
 const PASSWORT = "demo123";
