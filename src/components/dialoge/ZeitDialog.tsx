@@ -339,7 +339,7 @@ export function ZeitDialog({
         <div className="inline-flex rounded-md border bg-secondary p-0.5" role="group" aria-label="Projekt oder intern">
           {([["projekt", "Projekt"], ["intern", "Intern (Büro, Lager …)"]] as [Ziel, string][]).map(([z, t]) => (
             <button key={z} type="button" onClick={() => setZiel(z)} aria-pressed={ziel === z} disabled={gesperrt || nurAnsehen}
-              className={cn("rounded px-4 py-2 text-sm font-medium transition-colors",
+              className={cn("min-h-11 rounded px-4 py-2 text-sm font-medium transition-colors",
                 ziel === z ? "bg-card text-foreground ring-1 ring-border" : "text-muted-foreground")}>
               {t}
             </button>
@@ -370,7 +370,7 @@ export function ZeitDialog({
                 if (!p) return null;
                 return (
                   <button key={id} type="button" onClick={() => setProjektId(id)}
-                    className={cn("max-w-full truncate rounded-full border px-3 py-1.5 text-sm",
+                    className={cn("min-h-11 max-w-full truncate rounded-full border px-3.5 py-2 text-sm",
                       projektId === id ? "border-primary bg-primary-soft font-medium text-primary" : "bg-card hover:bg-muted")}>
                     {p.name}
                   </button>
@@ -394,7 +394,7 @@ export function ZeitDialog({
                 key={m}
                 type="button"
                 onClick={() => modusWechseln(m)}
-                className={cn("rounded px-4 py-2 text-sm font-medium transition-colors",
+                className={cn("min-h-11 rounded px-4 py-2 text-sm font-medium transition-colors",
                   modus === m ? "bg-card text-foreground ring-1 ring-border" : "text-muted-foreground")}
               >
                 {m === "stunden" ? "Stunden" : "Von – Bis"}

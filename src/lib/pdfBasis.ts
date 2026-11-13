@@ -226,16 +226,30 @@ export function pdfDateiname(...teile: (string | null | undefined)[]): string {
   return `${roh.slice(0, 80) || "Dokument"}.pdf`;
 }
 
+/** Handy oder Tablet — das iPad meldet sich seit iPadOS 13 als „Macintosh“, hat aber Touch */
+export const istMobilGeraet = () => /Android|iPhone|iPad/i.test(navigator.userAgent)
+  || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+
 /** Am Handy über das Teilen-Menü (WhatsApp, Mail …), sonst Download. */
 export async function pdfTeilenOderLaden(blob: Blob, dateiname: string) {
   const datei = new File([blob], dateiname, { type: "application/pdf" });
   const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
-  if (nav.canShare?.({ files: [datei] }) && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+  if (nav.canShare?.({ files: [datei] }) && istMobilGeraet()) {
     try {
       await navigator.share({ files: [datei], title: dateiname });
       return;
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
+      // Safari erlaubt Teilen nur kurz nach dem Tipp — dauerte das PDF länger, mit einem neuen Tipp teilen.
+      // (Herunterladen per Link bleibt in der installierten iPhone-App ohne Weg zurück hängen.)
+      if ((e as Error).name === "NotAllowedError") {
+        const { toast } = await import("sonner");
+        toast.success("PDF ist fertig", {
+          duration: 30_000,
+          action: { label: "Teilen", onClick: () => { navigator.share({ files: [datei], title: dateiname }).catch(() => undefined); } },
+        });
+        return;
+      }
     }
   }
   const url = URL.createObjectURL(blob);
