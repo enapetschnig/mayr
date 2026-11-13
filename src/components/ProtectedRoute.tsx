@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Ban, Clock, LogOut, ShieldAlert } from "lucide-react";
+import { Ban, Clock, LogOut, RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
 import ChangePasswordDialog from "@/components/ChangePasswordDialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,7 @@ import { KUNDE } from "@/kunde.config";
  * Nach einem vorläufigen Passwort vom Chef zuerst ein eigenes festlegen.
  */
 export function ProtectedRoute({ children, nurChef = false }: { children: ReactNode; nurChef?: boolean }) {
-  const { laden, session, profil, istChef, neuLaden } = useSitzung();
+  const { laden, session, profil, istChef, ohneVerbindung, neuLaden } = useSitzung();
 
   if (laden) {
     return (
@@ -24,6 +24,18 @@ export function ProtectedRoute({ children, nurChef = false }: { children: ReactN
     );
   }
   if (!session) return <Navigate to="/auth" replace />;
+
+  if (!profil && ohneVerbindung) {
+    return (
+      <Hinweis
+        icon={<WifiOff className="h-8 w-8 text-amber-600" />}
+        titel="Keine Verbindung"
+        text="Die App braucht kurz Netz, um dich zu erkennen. Sobald du Empfang hast, geht es weiter."
+      >
+        <Button onClick={() => void neuLaden()}><RefreshCw className="mr-2 h-4 w-4" /> Nochmal versuchen</Button>
+      </Hinweis>
+    );
+  }
 
   if (!profil?.aktiv) {
     const abmelden = (

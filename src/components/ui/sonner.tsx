@@ -1,5 +1,14 @@
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, toast } from "sonner";
+import { FEHLER_DAUER_MS, fehlerDeutsch } from "@/lib/fehlerDeutsch";
+
+// Jede Fehlermeldung auf Deutsch („Failed to fetch“ → „Keine Verbindung …“) und
+// länger sichtbar als die kurzen Erfolgsmeldungen — einmal hier statt an 60 Stellen
+const fehlerOriginal = toast.error;
+toast.error = ((nachricht, daten) => fehlerOriginal(
+  typeof nachricht === "string" ? fehlerDeutsch(nachricht) : nachricht,
+  { duration: FEHLER_DAUER_MS, ...daten, description: typeof daten?.description === "string" ? fehlerDeutsch(daten.description) : daten?.description },
+)) as typeof toast.error;
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 

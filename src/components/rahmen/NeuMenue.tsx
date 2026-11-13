@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarPlus, Camera, ChevronRight, ClipboardSignature, Clock, FilePlus2, FileText, FolderPlus, Mic, Plus, type LucideIcon } from "lucide-react";
+import { CalendarPlus, Camera, ChevronRight, ClipboardSignature, Clock, FilePlus2, FileText, FolderPlus, ListTodo, Mic, Plus, UserPlus, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FotoDialog } from "@/components/dialoge/FotoDialog";
 import { ProjektDialog } from "@/components/dialoge/ProjektDialog";
 import { TerminDialog } from "@/components/dialoge/TerminDialog";
 import { ZeitDialog } from "@/components/dialoge/ZeitDialog";
+import { AufgabeDialog } from "@/components/aufgaben/AufgabeDialog";
+import { KundeDialog } from "@/components/stamm/KundeDialog";
 import { useSitzung } from "@/hooks/useSitzung";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +19,7 @@ import { cn } from "@/lib/utils";
   Menüpunkt starten dieselben Aktionen über neuStarten().
 */
 
-export type NeuArt = "projekt" | "angebot" | "sprache" | "rechnung" | "termin" | "zeit" | "regie" | "foto";
+export type NeuArt = "projekt" | "angebot" | "sprache" | "rechnung" | "termin" | "aufgabe" | "kontakt" | "zeit" | "regie" | "foto";
 
 interface NeuAktion {
   art: NeuArt;
@@ -35,6 +37,8 @@ const ALLE: NeuAktion[] = [
   { art: "sprache", titel: "Angebot vor Ort", text: "„3 Steckdosen, 2 Schalter, 1 FI“ — sprechen, fertig", icon: Mic, ziel: "/belege/neu?typ=angebot&sprache=1", nurChef: true },
   { art: "rechnung", titel: "Rechnung", text: "Leer oder aus dem Projekt übernehmen", icon: FilePlus2, ziel: "/belege/neu?typ=rechnung", nurChef: true },
   { art: "termin", titel: "Termin", text: "Einsatz in die Plantafel eintragen", icon: CalendarPlus },
+  { art: "aufgabe", titel: "Aufgabe", text: "Wer muss was bis wann erledigen", icon: ListTodo },
+  { art: "kontakt", titel: "Kontakt", text: "Kunde, Lieferant oder Partner", icon: UserPlus },
   { art: "zeit", titel: "Stunden", text: "Stunden auf ein Projekt buchen", icon: Clock },
   { art: "regie", titel: "Regiebericht", text: "Mit Unterschrift des Kunden", icon: ClipboardSignature, ziel: "/regie/neu" },
   { art: "foto", titel: "Foto", text: "Zum Projekt fotografieren", icon: Camera },
@@ -97,7 +101,7 @@ export function NeuRahmen() {
         <DialogContent className="max-w-lg gap-0 p-0" data-neu-auswahl>
           <DialogHeader className="border-b px-5 py-4 text-left">
             <DialogTitle className="text-base">Was möchtest du anlegen?</DialogTitle>
-            <DialogDescription className="sr-only">Projekt, Angebot, Rechnung, Termin, Stunden …</DialogDescription>
+            <DialogDescription className="sr-only">Projekt, Angebot, Rechnung, Termin, Aufgabe, Kontakt, Stunden …</DialogDescription>
           </DialogHeader>
           <div className="max-h-[70vh] space-y-2 overflow-y-auto p-4">
             {aktionen.map((a) => (
@@ -121,6 +125,8 @@ export function NeuRahmen() {
       <TerminDialog open={offen === "termin"} onOpenChange={zu} />
       <ZeitDialog open={offen === "zeit"} onOpenChange={zu} />
       <FotoDialog open={offen === "foto"} onOpenChange={zu} />
+      <AufgabeDialog open={offen === "aufgabe"} onOpenChange={zu} />
+      <KundeDialog open={offen === "kontakt"} onOpenChange={zu} kunde={null} onGespeichert={(k) => navigate(`/kunden?k=${k.id}`)} />
     </>
   );
 }

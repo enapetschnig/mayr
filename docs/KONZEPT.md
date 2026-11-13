@@ -672,31 +672,46 @@ Ende nach 19, über 10 h, Überschneidung, Lücke über 1 h. Auch als CSV.
 ### Startseite und Menü
 
 PC: unter dem Gruß die Schnellaktionen Neues Projekt, Neue Rechnung, Termin
-eintragen; dann „Laufende Projekte“, darunter „Zu erledigen“ (Anträge, überfällig,
+eintragen; dann „Zu erledigen“ (online angenommen, Rückfragen, überfällig,
 mahnen, Rechnungen prüfen/überweisen, Skonto läuft ab, Fuhrpark fällig,
-Schäden, zuzuordnen …), dann Einsatz und Schnell festhalten.
+Schäden, zuzuordnen …), darunter „Laufende Projekte“ (ohne abgeschlossene),
+dann Einsatz und Schnell festhalten. „Zu erledigen“ ordnet `lib/zuErledigen.ts`:
+erst `oben` (Angebot online angenommen), dann Rotes (`warn`), dann der Rest;
+sichtbar sind am Handy 5, am PC 9 Punkte, der Rest hinter „Alle N anzeigen“.
 
-Menü nach dem Vorbild Lengauer Stockner (`components/rahmen/`):
-- **Seitenleiste** (`Seitenleiste.tsx`): hell, 240 px, ab 1024 px einklappbar auf
+Menü nach dem Vorbild Lengauer Stockner (`components/rahmen/`), alle Ziele in
+`lib/navigation.ts` (Gruppen haupt/baustelle/buero/system, `selten`, `stichworte`):
+- **Seitenleiste** (`Seitenleiste.tsx`): SETEC-Schwarz, 240 px, ab 1024 px einklappbar auf
   56 px (gemerkt in `localStorage` `mayr.seitenleiste`); Tablet 768–1023 px immer
-  schmal. Oben Logo auf weißer Plakette, „Suchen … Strg K“ und das blaue „+ Neu“.
-  Gruppen ohne Etikett (Start, Projekte, Angebote, Rechnungen, Plantafel), dann
-  BAUSTELLE und BÜRO, einzeln zuklappbar (`menue.zu`; die Gruppe der offenen Seite
-  ist offen, zugeklappt nur bis zum Seitenwechsel). Aktiv: hellere Fläche und
-  blauer Strich links. „+“ beim Überfahren an Projekte, Angebote, Rechnungen,
-  Plantafel, Stunden, Regieberichte legt gleich an. Im Fuß Einstellungen,
-  Änderungswünsche, Handyansicht und das Konto mit Namen (`KontoMenue leiste`).
+  schmal. Oben Querlogo, „Suchen … Strg K“ und das goldene „+ Neu“.
+  Gruppe ohne Etikett (Start, Projekte, Kontakte, Angebote, Rechnungen, Plantafel), dann
+  beim Chef BÜRO vor BAUSTELLE (am Laptop sieht er Eingangsrechnungen & Co. ohne
+  Scrollen), beim Monteur BAUSTELLE vor BÜRO; einzeln zuklappbar (`menue.zu`; die
+  Gruppe der offenen Seite ist offen, zugeklappt nur bis zum Seitenwechsel). Aktiv:
+  hellere Fläche und goldener Strich links. „+“ beim Überfahren an Projekte, Kontakte,
+  Angebote, Rechnungen, Plantafel, Stunden, Aufgaben, Regieberichte legt gleich an.
+  Im Fuß Einstellungen, Änderungswünsche, Handyansicht und das Konto (`KontoMenue leiste`).
 - **„+ Neu“** (`NeuMenue.tsx`, `NeuRahmen` einmal im Rahmen): Projekt, Angebot,
-  Angebot vor Ort, Rechnung, Termin, Stunden, Regiebericht, Foto (Monteur ohne
-  Angebot/Rechnung) — jeder Eintrag öffnet den vorhandenen Dialog oder die Seite.
-  `neuStarten(art)` startet eine Aktion von überall.
+  Angebot vor Ort, Rechnung, Termin, Aufgabe, Kontakt, Stunden, Regiebericht, Foto
+  (Monteur ohne Angebot/Rechnung) — jeder Eintrag öffnet den vorhandenen Dialog oder
+  die Seite. `neuStarten(art)` startet eine Aktion von überall.
 - **Suche** (`Suchpalette.tsx`): Strg+K, am Handy die Lupe im Kopf der Startseite
-  (Vollbild). Projekte, Kunden, Belege (nur Chef), Seiten, Neu anlegen; Pfeile +
-  Enter.
+  (Vollbild). Projekte, Kontakte, Belege (nur Chef), Seiten, Neu anlegen; Pfeile +
+  Enter. Seiten werden über Titel und `stichworte` gefunden („Kalender“ → Plantafel,
+  „Lohnzettel“ → Dokumente, „Mitarbeiter“ → Einstellungen).
 - **Startseite am Handy/Tablet** (`StartListe.tsx`): Kopf mit Logo, Datum und
-  Gruß, Lupe, Melden, Konto. Menü als große Karten mit blauem „… öffnen“ und
-  leichtem Schatten; ab 7 Einträgen wandern die seltenen (`selten` in
-  `lib/navigation.ts`) unter „Mehr in …“ (aufgeklappt gemerkt: `start.mehr`).
+  Gruß, Lupe, Melden, Konto. Menü als große Karten mit „… öffnen“ und leichtem
+  Schatten in den Gruppen Täglich, Baustelle, Büro, Sonstiges; ab 7 Einträgen
+  wandern die seltenen (`selten`) unter „Mehr in …“ (aufgeklappt gemerkt: `start.mehr`).
+- **App-Hülle**: Seitenkopf (`PageHeader`) bricht um, wenn Titel und Knöpfe nicht in
+  eine Zeile passen (iPhone SE) — die Knöpfe rutschen darunter statt aus dem Bild.
+  Funkloch: gelbe Pille „Kein Netz“ (`rahmen/OfflineHinweis.tsx`); Profil und Betrieb
+  sind am Gerät gemerkt (`mayr.sitzung`, beim Abmelden gelöscht), damit die App ohne
+  Netz normal öffnet statt „Wartet auf Freischaltung“; ohne gemerktes Profil „Keine
+  Verbindung — Nochmal versuchen“. Jede `toast.error`-Meldung läuft durch
+  `lib/fehlerDeutsch.ts` („Failed to fetch“/„Load failed“ → „Keine Verbindung …“) und
+  bleibt 6 s stehen (`components/ui/sonner.tsx`). Der 1-MB-PDF-Chunk lädt erst bei
+  Bedarf (`vite.config.ts`: Nachlade-Helfer und fflate im Chunk `basis`).
 
 Projekte (`pages/Projekte.tsx`) als Kacheln: Nummer, Name, Status, Förderung, Kunde,
 Adresse, Stunden und was noch nicht verrechnet ist; Filter „Förderung“ mit Unterfilter je Schritt; am Handy eine Spalte,

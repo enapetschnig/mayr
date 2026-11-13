@@ -288,7 +288,7 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
           <span className="min-w-36 text-center text-sm font-semibold">{zeitraumText(zeitraum)}</span>
           <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => schritt(1)} disabled={weiterGesperrt} aria-label="Weiter"><ChevronRight className="h-4 w-4" /></Button>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
           <Button variant="outline" className="h-10 gap-1.5" onClick={stundenlisteLaden} disabled={zeiten.length === 0 || altesBild}>
             <Download className="h-4 w-4" /> Stunden-CSV
           </Button>

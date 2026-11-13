@@ -14,10 +14,12 @@ import { sucheOeffnen } from "./Suchpalette";
 /** Menüpunkte mit „+“ beim Überfahren — gleich anlegen, ohne erst hinzugehen */
 const SCHNELL: Record<string, NeuArt> = {
   "/projekte": "projekt",
+  "/kunden": "kontakt",
   "/angebote": "angebot",
   "/rechnungen": "rechnung",
   "/plantafel": "termin",
   "/zeiten": "zeit",
+  "/aufgaben": "aufgabe",
   "/regie": "regie",
 };
 
@@ -39,7 +41,9 @@ export function Seitenleiste({ festSchmal }: { festSchmal?: boolean }) {
   const { istZu, umschalten } = useZugeklappt();
 
   const alle = sichtbareNavigation(istChef, !festSchmal);
-  const gruppen = (["haupt", "baustelle", "buero"] as const)
+  // Der Chef sitzt am PC fürs Büro — Büro vor Baustelle, damit Eingangsrechnungen &
+  // Co. auch am Laptop (768 px hoch) ohne Scrollen in der Leiste zu sehen sind
+  const gruppen = (istChef ? ["haupt", "buero", "baustelle"] as const : ["haupt", "baustelle", "buero"] as const)
     .map((g) => ({ g, eintraege: alle.filter((n) => n.gruppe === g) }))
     .filter((x) => x.eintraege.length > 0);
   const fuss = alle.filter((n) => n.gruppe === "system");
@@ -50,9 +54,9 @@ export function Seitenleiste({ festSchmal }: { festSchmal?: boolean }) {
         <div className={cn("flex items-center gap-2", schmal && "flex-col")}>
           <Link to="/" title={firma?.name || KUNDE.kurzname} data-leiste-logo
             className={cn("flex min-w-0 items-center rounded-md transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-              schmal ? "h-10 w-10 justify-center" : "h-20 flex-1 px-1")}>
+              schmal ? "h-10 w-10 justify-center" : "h-16 flex-1 px-1")}>
             <img src={schmal ? KUNDE.logoZeichen : KUNDE.logoQuerHell} alt={firma?.name || KUNDE.firma}
-              className={cn("object-contain", schmal ? "h-8 w-8" : "h-[76px] w-auto max-w-full")} />
+              className={cn("object-contain", schmal ? "h-8 w-8" : "h-[60px] w-auto max-w-full")} />
           </Link>
           {!festSchmal && (
             <button type="button" onClick={toggleSidebar}
@@ -72,7 +76,7 @@ export function Seitenleiste({ festSchmal }: { festSchmal?: boolean }) {
               {!schmal && (
                 <>
                   <span className="text-sidebar-foreground/60">Suchen …</span>
-                  <kbd className="ml-auto rounded border border-sidebar-border px-1.5 text-[10px] font-medium text-sidebar-foreground/50">Strg K</kbd>
+                  <kbd className="ml-auto rounded border border-sidebar-border px-1.5 text-[10px] font-medium text-sidebar-foreground/60">Strg K</kbd>
                 </>
               )}
             </button>
@@ -94,7 +98,7 @@ export function Seitenleiste({ festSchmal }: { festSchmal?: boolean }) {
             <nav key={g} aria-label={titel || "Hauptmenü"} className="pt-3 first:pt-1" data-menue-gruppe={g}>
               {titel && !schmal && (
                 <button type="button" onClick={() => umschalten(titel, aktivDrin, pathname)} aria-expanded={offen}
-                  className="flex w-full items-center gap-1 rounded px-2.5 pb-1 text-left font-marke text-[10.5px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/50 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+                  className="flex w-full items-center gap-1 rounded px-2.5 pb-1 text-left font-marke text-[10.5px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/60 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
                   <span className="flex-1">{titel}</span>
                   <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !offen && "-rotate-90")} aria-hidden="true" />
                 </button>
