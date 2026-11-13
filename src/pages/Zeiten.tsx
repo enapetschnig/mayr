@@ -11,12 +11,15 @@ import { useKalenderAbwesenheit } from "@/components/zeiten/personalDaten";
 import { ABWESENHEIT_ART, type AbwesenheitArt } from "@/lib/types";
 import { abwesenheitStunden, feiertagName, sollZeitraum } from "@/lib/zeitkonto";
 import { ZeitenListe, useZeitenListe, type ZeitMitInfo } from "@/components/zeiten/ZeitenListe";
+import { MonatAlle, MonatsAnsicht } from "@/components/zeiten/MonatsAnsicht";
 import { useMitarbeiter } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datum, isoTag, isoZuDatum, stunden, tageDazu, zahl } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const TAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const ANSICHT_KEY = "elektro.zeiten.ansicht";
+type Ansicht = "woche" | "monat";
 
 function montagVon(iso: string): string {
   return tageDazu(iso, -((isoZuDatum(iso).getDay() + 6) % 7));
@@ -33,6 +36,7 @@ function kalenderwoche(iso: string): number {
 /**
  * Stunden: Monteur sieht seine Woche, der Chef zusätzlich alle — als
  * Wochenraster (wer hat wann wie viel) und darunter die Buchungen.
+ * Umschaltbar auf den Monat (Kalenderblatt je Person, gemerkt im Gerät).
  */
 export default function Zeiten() {
   const navigate = useNavigate();
@@ -41,6 +45,8 @@ export default function Zeiten() {
   const [montag, setMontag] = useState(() => montagVon(isoTag()));
   const [person, setPerson] = useState<string>(() => (istChef ? "alle" : ""));
   const [dialog, setDialog] = useState<{ eintrag?: ZeitMitInfo | null; datum?: string } | null>(null);
+  const [ansicht, setAnsicht] = useState<Ansicht>(() => { try { return localStorage.getItem(ANSICHT_KEY) === "monat" ? "monat" : "woche"; } catch { return "woche"; } });
+  const ansichtWechseln = (a: Ansicht) => { setAnsicht(a); try { localStorage.setItem(ANSICHT_KEY, a); } catch { /* egal */ } };
 
   const sonntag = tageDazu(montag, 6);
   const userId = person === "alle" ? undefined : person || profil?.id;
@@ -71,9 +77,17 @@ export default function Zeiten() {
   };
 
   return (
-    <Seite titel="Stunden" untertitel={`KW ${kalenderwoche(montag)} · ${datum(montag).slice(0, 6)} – ${datum(sonntag)}`}
+    <Seite titel="Stunden" untertitel={ansicht === "monat" ? "Monatsansicht" : `KW ${kalenderwoche(montag)} · ${datum(montag).slice(0, 6)} – ${datum(sonntag)}`}
       aktionen={<Button onClick={() => setDialog({})} className="gap-1.5"><Plus className="h-4 w-4" /> Stunden</Button>}>
-      <div className="flex items-center gap-2">
+      <div className="inline-flex rounded-md border bg-secondary p-0.5" role="group" aria-label="Ansicht">
+        {(["woche", "monat"] as Ansicht[]).map((a) => (
+          <button key={a} type="button" onClick={() => ansichtWechseln(a)} aria-pressed={ansicht === a}
+            className={cn("min-h-10 rounded px-5 text-sm font-medium transition-colors", ansicht === a ? "bg-card text-foreground ring-1 ring-border" : "text-muted-foreground")}>
+            {a === "woche" ? "Woche" : "Monat"}
+          </button>
+        ))}
+      </div>
+      {ansicht === "woche" && <div className="flex items-center gap-2">
         <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setMontag(tageDazu(montag, -7))} aria-label="Woche zurück">
           <ChevronLeft className="h-5 w-5" />
         </Button>
@@ -83,7 +97,7 @@ export default function Zeiten() {
         <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setMontag(tageDazu(montag, 7))} aria-label="Woche vor">
           <ChevronRight className="h-5 w-5" />
         </Button>
-      </div>
+      </div>}
 
       {istChef && (
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -104,8 +118,12 @@ export default function Zeiten() {
 
       {istChef && <AntraegeKarte />}
 
+      {ansicht === "monat" && (alle
+        ? <MonatAlle mitarbeiter={mitarbeiter} onPerson={setPerson} />
+        : gewaehlt && <MonatsAnsicht key={gewaehlt.id} person={gewaehlt} onBuchen={(d) => setDialog({ datum: d })} onWahl={waehlen} />)}
+
       {/* Wochenüberblick: Balken je Tag, beim Chef „Alle“ als Raster Person × Tag */}
-      <section className="rounded-lg border bg-card p-4">
+      {ansicht === "woche" && <section className="rounded-lg border bg-card p-4">
         <div className="flex items-baseline justify-between">
           <p className="text-sm font-medium text-muted-foreground">{alle ? "Alle Mitarbeiter" : "Woche"}</p>
           <p className="zahl text-xl font-bold">
@@ -173,7 +191,7 @@ export default function Zeiten() {
             })}
           </div>
         )}
-      </section>
+      </section>}
 
       {gewaehlt && !alle && <KontoKarte person={gewaehlt} onAbwesenheit={() => setAbwesenheitOffen(true)} />}
       {userId && <AbwesenheitListe userId={userId} />}
@@ -183,7 +201,7 @@ export default function Zeiten() {
         </Button>
       )}
 
-      {!isLoading && zeiten.length === 0 ? (
+      {ansicht === "monat" ? null : !isLoading && zeiten.length === 0 ? (
         <Leer icon={Clock} text="In dieser Woche ist nichts gebucht.">
           <Button onClick={() => setDialog({})} className="gap-2"><Plus className="h-4 w-4" /> Stunden buchen</Button>
         </Leer>

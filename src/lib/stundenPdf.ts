@@ -2,7 +2,7 @@ import { FUSS_PLATZ, RAND, eur, fmt, fmtMenge, fusszeilen, pdfLaden, platzPruefe
 import { pdfText } from "@/components/regie/regieLogik";
 import { uhrzeit } from "@/lib/format";
 import { ABWESENHEIT_ART, STUNDEN_ART, type AbwesenheitArt, type Firma, type StundenArt } from "@/lib/types";
-import type { LohnSumme } from "@/lib/zeitkonto";
+import { produktivProzent, type LohnSumme } from "@/lib/zeitkonto";
 
 /**
  * Stundennachweis eines Monats (oder Jahres) als PDF — für die
@@ -61,13 +61,15 @@ export async function stundenPdf(firma: Firma, zeitraum: string, personen: Stund
   let y = kopf(`Stundennachweis ${zeitraum}`);
   const abwesendTage = (s: LohnSumme) => Object.values(s.abwesend).reduce((x, a) => x + a.tage, 0);
   const summeAlle = (f: (s: LohnSumme) => number) => personen.reduce((x, p) => x + f(p.summe), 0);
+  // Unproduktiv = intern (Büro, Lager …) mit Anteil an den gebuchten Stunden
+  const unprod = (s: LohnSumme) => (s.unproduktiv > 0 ? `${h(s.unproduktiv)} (${100 - (produktivProzent(s) ?? 100)} %)` : "–");
   autoTable(pdf, {
     ...tabelle,
     startY: y,
-    head: [["Mitarbeiter", "Soll", "Ist", "Differenz", "Abwesend", "Taggeld", "km"]],
-    body: personen.map((p) => [pdfText(p.name), h(p.summe.soll), h(p.summe.ist), h(p.summe.differenz), `${abwesendTage(p.summe)} T.`, fmt(p.summe.taggeld), fmtMenge(p.summe.km)]),
-    foot: [["Summe", h(summeAlle((s) => s.soll)), h(summeAlle((s) => s.ist)), h(summeAlle((s) => s.differenz)), `${summeAlle(abwesendTage)} T.`, fmt(summeAlle((s) => s.taggeld)), fmtMenge(summeAlle((s) => s.km))]],
-    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" } },
+    head: [["Mitarbeiter", "Soll", "Ist", "Differenz", "Unproduktiv", "Abwesend", "Taggeld", "km"]],
+    body: personen.map((p) => [pdfText(p.name), h(p.summe.soll), h(p.summe.ist), h(p.summe.differenz), unprod(p.summe), `${abwesendTage(p.summe)} T.`, fmt(p.summe.taggeld), fmtMenge(p.summe.km)]),
+    foot: [["Summe", h(summeAlle((s) => s.soll)), h(summeAlle((s) => s.ist)), h(summeAlle((s) => s.differenz)), h(summeAlle((s) => s.unproduktiv)), `${summeAlle(abwesendTage)} T.`, fmt(summeAlle((s) => s.taggeld)), fmtMenge(summeAlle((s) => s.km))]],
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" } },
     didParseCell: (d) => { if (d.section !== "body" && d.column.index > 0) d.cell.styles.halign = "right"; },
   });
 
@@ -102,6 +104,10 @@ export async function stundenPdf(firma: Firma, zeitraum: string, personen: Stund
       ["Soll", h(s.soll)], ["Ist (mit Abwesenheit)", h(s.ist)], ["Differenz", h(s.differenz)],
       ...([["Arbeit", s.arbeit], ["Fahrzeit", s.fahrt], ["Überstunden 50 %", s.ue50], ["Überstunden 100 %", s.ue100], ["Garantie", s.garantie]] as [string, number][])
         .filter(([, n]) => n > 0).map(([t, n]): [string, string] => [t, h(n)]),
+      ...(s.unproduktiv > 0 ? [
+        ["Produktiv (auf Projekten)", `${h(s.produktiv)} (${produktivProzent(s)} %)`] as [string, string],
+        [`Unproduktiv: ${Object.entries(s.jeIntern).map(([a, n]) => `${a} ${h(n)}`).join(", ")}`, h(s.unproduktiv)] as [string, string],
+      ] : []),
       ...Object.entries(s.abwesend).map(([a, w]): [string, string] => [ABWESENHEIT_ART[a as AbwesenheitArt]?.text ?? a, `${w.tage} T. / ${h(w.stunden)}`]),
       ...(s.taggeld > 0 ? [[`Taggeld (${s.taggeldTage} Tage, Vorschlag)`, eur(s.taggeld)] as [string, string]] : []),
       ...(s.km > 0 ? [[`Kilometer (${fmtMenge(s.km)} km)`, eur(s.kmGeld)] as [string, string]] : []),

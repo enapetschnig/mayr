@@ -43,6 +43,8 @@ const Fuhrpark = lazy(() => import("./pages/Fuhrpark"));
 const Lieferscheine = lazy(() => import("./pages/Lieferscheine"));
 const Bestellungen = lazy(() => import("./pages/Bestellungen"));
 const BestellungDetail = lazy(() => import("./pages/BestellungDetail"));
+const Aufgaben = lazy(() => import("./pages/Aufgaben"));
+const Dokumente = lazy(() => import("./pages/Dokumente"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: true, retry: 1 } },
@@ -77,6 +79,8 @@ const App = () => (
                 <Route path="/projekte" element={<S><Projekte /></S>} />
                 <Route path="/projekte/:id" element={<S><ProjektDetail /></S>} />
                 <Route path="/zeiten" element={<S><Zeiten /></S>} />
+                <Route path="/aufgaben" element={<S><Aufgaben /></S>} />
+                <Route path="/dokumente" element={<S><Dokumente /></S>} />
                 <Route path="/kalender" element={<Navigate to="/plantafel" replace />} />
                 <Route path="/plantafel" element={<S><Plantafel /></S>} />
                 <Route path="/fuhrpark" element={<S><Fuhrpark /></S>} />

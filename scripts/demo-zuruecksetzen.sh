@@ -28,4 +28,7 @@ done
 python3 -I "$D/supabase/demo/unterschriften.py"
 python3 -I "$D/supabase/demo/lieferscheine.py"
 node "$D/supabase/demo/eingangsrechnungen.mjs"
+# Personal: Aufgaben, interne Stunden, Lohnzettel und Firmendokumente (samt PDFs)
+"$D/scripts/sql.sh" -f "$D/supabase/demo/04-personal.sql" > /dev/null
+node "$D/supabase/demo/personal-dokumente.mjs"
 echo "Demo zurückgesetzt."

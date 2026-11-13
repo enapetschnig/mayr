@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { darfZeitAendern } from "@/components/regie/regieLogik";
 import { ProjektWahl } from "@/components/ProjektWahl";
 import { DiktatKnopf } from "@/components/DiktatKnopf";
-import { useMitarbeiter, useNeuLaden, useProjekte } from "@/hooks/useDaten";
+import { PersonenWahl } from "@/components/PersonenWahl";
+import { useMitarbeiter, useNeuLaden, useProjekte, useTeams } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datum as datumText, isoTag, stunden as stundenText, stundenAusVonBis, ueberMitternacht, zahlLesen } from "@/lib/format";
 import { ersteUeberschneidung, naechsterBlock, ueberschneiden } from "@/lib/zeitBloecke";
@@ -30,13 +30,16 @@ import { fehlerText } from "@/components/stamm/stammDaten";
  * Standard ist „8 Stunden auf Projekt X“: ein Tipp auf eine Schnellwahl,
  * die zuletzt benutzten Projekte stehen als Knöpfe oben. Wer es genauer
  * will, schaltet auf Von–Bis um; die App merkt sich die zuletzt benutzte Art.
- * Der Chef kann auch für einen Monteur buchen.
+ * Der Chef (und die Teamleitung für ihr Team) bucht auch für andere — für
+ * mehrere auf einmal („ganzes Team 7–16 Uhr“), je Person eine Zeile.
+ * „Intern“ = ohne Projekt mit Art (Büro, Lager …), zählt als unproduktiv.
  */
 
 const SCHNELLWAHL = [1, 2, 4, 6, 7, 8, 8.5, 9, 10];
 const MODUS_KEY = "elektro.zeitmodus";
 type Modus = "stunden" | "vonbis";
 type Weiterer = { id: string; von: string; bis: string; pause: string; projektId: string };
+type Ziel = "projekt" | "intern";
 
 /** Die letzten drei Projekte, auf die ich gebucht habe */
 export function useLetzteProjekte(userId: string | undefined) {
@@ -61,12 +64,17 @@ export function ZeitDialog({
   datum?: string;
 }) {
   const neuLaden = useNeuLaden();
-  const { profil, istChef } = useSitzung();
+  const { profil, istChef, firma } = useSitzung();
   const { data: projekte = [] } = useProjekte();
   const { data: mitarbeiter = [] } = useMitarbeiter();
+  const { data: teams = [] } = useTeams();
   const { data: letzte = [] } = useLetzteProjekte(profil?.id);
-  const [userId, setUserId] = useState("");
+  // Für wen gebucht wird — neu auch mehrere, beim Bearbeiten genau einer
+  const [wer, setWer] = useState<string[]>([]);
+  const userId = wer[0] ?? "";
   const [projektId, setProjektId] = useState("");
+  const [ziel, setZiel] = useState<Ziel>("projekt");
+  const [intern, setIntern] = useState("");
   const [datum, setDatum] = useState(isoTag());
   const [modus, setModus] = useState<Modus>("stunden");
   const [std, setStd] = useState("");
@@ -89,8 +97,10 @@ export function ZeitDialog({
     let gemerkt: Modus = "stunden";
     try { if (localStorage.getItem(MODUS_KEY) === "vonbis") gemerkt = "vonbis"; } catch { /* egal */ }
     if (eintrag) {
-      setUserId(eintrag.user_id);
+      setWer([eintrag.user_id]);
       setProjektId(eintrag.projekt_id ?? "");
+      setZiel(eintrag.projekt_id ? "projekt" : "intern");
+      setIntern(eintrag.intern ?? "");
       setDatum(eintrag.datum);
       setModus(eintrag.von && eintrag.bis ? "vonbis" : "stunden");
       setStd(String(eintrag.stunden).replace(".", ","));
@@ -102,8 +112,10 @@ export function ZeitDialog({
       setArt((eintrag.art as StundenArt) || "arbeit");
       setMehr(!!eintrag.art && eintrag.art !== "arbeit");
     } else {
-      setUserId(profil?.id ?? "");
+      setWer(profil?.id ? [profil.id] : []);
       setProjektId(vorProjekt || "");
+      setZiel("projekt");
+      setIntern("");
       setDatum(vorDatum || isoTag());
       setModus(gemerkt);
       setStd("");
@@ -129,6 +141,14 @@ export function ZeitDialog({
   }, [open, eintrag, vorProjekt, projektId, letzteBuchbar[0]]);
 
   const gesperrt = !!eintrag?.rechnung_id;
+  // Wen ich buchen darf: Chef alle, Teamleitung ihr Team (Trigger zeit_person_schutz)
+  const meineTeams = teams.filter((t) => t.leiter_id === profil?.id);
+  const waehlbar = istChef ? mitarbeiter
+    : mitarbeiter.filter((m) => m.id === profil?.id || meineTeams.some((t) => t.mitglieder.includes(m.id)));
+  // Andere Person einer Buchung zuordnen darf nur der Chef
+  const werWaehlbar = waehlbar.length > 1 && (!eintrag || istChef);
+  const istIntern = ziel === "intern";
+  const internArten = firma?.intern_arten?.length ? firma.intern_arten : ["Büro", "Lager/Werkstatt", "Sonstiges"];
   // Fremde Stunden: nur ansehen (die Datenbank lehnt Ändern ab — still)
   const nurAnsehen = !!eintrag && !gesperrt && !darfZeitAendern(eintrag, profil?.id, istChef);
   const vonBis = modus === "vonbis";
@@ -170,10 +190,12 @@ export function ZeitDialog({
   };
 
   const speichern = async () => {
-    if (!projektId) return toast.error("Bitte ein Projekt wählen.");
+    if (!wer.length) return toast.error("Bitte wählen, für wen gebucht wird.");
+    if (!istIntern && !projektId) return toast.error("Bitte ein Projekt wählen.");
+    if (istIntern && !intern) return toast.error("Bitte wählen, was intern gemacht wurde (Büro, Lager …).");
     if (!datum) return toast.error("Bitte ein Datum eintragen.");
     // Neue Buchung oder anderes Projekt: vorher sagen, warum es nicht geht (die Datenbank lehnt sonst ab)
-    const nichtBuchbar = [eintrag?.projekt_id === projektId ? "" : projektId, ...(vonBis ? weitere.map((w) => w.projektId) : [])]
+    const nichtBuchbar = istIntern ? undefined : [eintrag?.projekt_id === projektId ? "" : projektId, ...(vonBis ? weitere.map((w) => w.projektId) : [])]
       .find((id) => id && !buchbar(id));
     if (nichtBuchbar) {
       const p = projekte.find((x) => x.id === nichtBuchbar);
@@ -190,7 +212,7 @@ export function ZeitDialog({
         if (zahlLesen(b.pause) < 0) return toast.error(`${welcher}Die Pause kann nicht negativ sein.`);
         if (b.von === b.bis) return toast.error(`${welcher}Von und Bis sind gleich.`);
         if (blockStunden(b) === 0) return toast.error(`${welcher}Die Pause ist länger als die Arbeitszeit.`);
-        if (!b.projektId) return toast.error(`${welcher}Bitte ein Projekt wählen.`);
+        if (!istIntern && !b.projektId) return toast.error(`${welcher}Bitte ein Projekt wählen.`);
         if (datum === isoTag() && (!eintrag || i > 0)) {
           const jetzt = new Date();
           const inEinerStunde = `${String(Math.min(jetzt.getHours() + 1, 23)).padStart(2, "0")}:${String(jetzt.getMinutes()).padStart(2, "0")}`;
@@ -201,21 +223,24 @@ export function ZeitDialog({
       if (paar) return toast.error(`Block ${paar[0] + 1} und ${paar[1] + 1} überschneiden sich.`);
     }
     if (!(ergebnis > 0 && ergebnis <= 24)) return toast.error("Bitte die Stunden eintragen — mehr als 0 und höchstens 24.");
-    const wer = userId || profil!.id;
     setSpeichert(true);
     // Mehr als 24 h an einem Tag für eine Person geht nicht — meist doppelt gebucht
-    let tagQ = supabase.from("zeiten").select("stunden").eq("user_id", wer).eq("datum", datum);
+    let tagQ = supabase.from("zeiten").select("user_id, stunden").in("user_id", wer).eq("datum", datum);
     if (eintrag) tagQ = tagQ.neq("id", eintrag.id);
     const { data: tag } = await tagQ;
-    const schon = (tag ?? []).reduce((s, z) => s + Number(z.stunden), 0);
-    if (schon + ergebnis > 24) {
-      setSpeichert(false);
-      return toast.error(`Am ${datumText(datum)} sind schon ${stundenText(schon)} gebucht — zusammen mehr als 24 h.`);
+    for (const u of wer) {
+      const schon = (tag ?? []).filter((z) => z.user_id === u).reduce((s, z) => s + Number(z.stunden), 0);
+      if (schon + ergebnis > 24) {
+        setSpeichert(false);
+        const m = mitarbeiter.find((x) => x.id === u);
+        return toast.error(`${wer.length > 1 && m ? `${m.vorname}: a` : "A"}m ${datumText(datum)} sind schon ${stundenText(schon)} gebucht — zusammen mehr als 24 h.`);
+      }
     }
-    // Eine Zeile je Block — alle Felder in jeder Zeile (Sammel-Insert setzt fehlende sonst auf NULL)
-    const zeile = (b: { von: string; bis: string; pause: string; projektId: string } | null) => ({
-      user_id: wer,
-      projekt_id: b?.projektId ?? projektId,
+    // Eine Zeile je Block und Person — alle Felder in jeder Zeile (Sammel-Insert setzt fehlende sonst auf NULL)
+    const zeile = (b: { von: string; bis: string; pause: string; projektId: string } | null, fuer = wer[0]) => ({
+      user_id: fuer,
+      projekt_id: istIntern ? null : b?.projektId ?? projektId,
+      intern: istIntern ? intern : null,
       datum,
       stunden: b ? blockStunden(b) : ergebnis,
       von: b ? b.von : null,
@@ -230,16 +255,21 @@ export function ZeitDialog({
       : await supabase.from("zeiten").insert(erste).select("id");
     if (error) { setSpeichert(false); return toast.error("Nicht gespeichert", { description: fehlerText(error) }); }
     if (!zeilen?.length) { setSpeichert(false); return toast.error("Nicht gespeichert — ändern kann das nur, wer gebucht hat, oder der Chef."); }
-    if (vonBis && weitere.length) {
-      const { error: e2 } = await supabase.from("zeiten").insert(weitere.map(zeile));
+    // Weitere Blöcke der ersten Person, dann alle Blöcke der übrigen Personen
+    const rest = [
+      ...(vonBis ? weitere.map((b) => zeile(b)) : []),
+      ...(eintrag ? [] : wer.slice(1).flatMap((u) => (vonBis ? bloecke.map((b) => zeile(b, u)) : [zeile(null, u)]))),
+    ];
+    if (rest.length) {
+      const { error: e2 } = await supabase.from("zeiten").insert(rest);
       if (e2) {
         setSpeichert(false);
         await neuLaden("zeiten", "projekt_zahlen");
-        return toast.error(`Der erste Block ist gebucht, die weiteren nicht: ${fehlerText(e2)}`);
+        return toast.error(`Der erste Eintrag ist gebucht, die weiteren nicht: ${fehlerText(e2)}`);
       }
     }
     setSpeichert(false);
-    toast.success(`Gebucht · ${stundenText(ergebnis)}${vonBis && weitere.length ? ` in ${bloecke.length} Blöcken` : ""}`);
+    toast.success(`Gebucht · ${stundenText(ergebnis)}${vonBis && weitere.length ? ` in ${bloecke.length} Blöcken` : ""}${wer.length > 1 ? ` für ${wer.length} Personen` : ""}`);
     await neuLaden("zeiten", "projekt_zahlen");
     onOpenChange(false);
   };
@@ -295,18 +325,42 @@ export function ZeitDialog({
           <p className="rounded-md border bg-muted p-3 text-sm text-muted-foreground">Gehört zu einem Regiebericht.</p>
         )}
 
-        {istChef && mitarbeiter.length > 1 && (
+        {werWaehlbar && !gesperrt && (
           <div className="space-y-2">
-            <Label htmlFor="z-wer">Für wen?</Label>
-            <Select value={userId} onValueChange={setUserId} disabled={gesperrt}>
-              <SelectTrigger id="z-wer" className="h-12"><SelectValue placeholder="Mitarbeiter wählen" /></SelectTrigger>
-              <SelectContent>
-                {mitarbeiter.map((m) => <SelectItem key={m.id} value={m.id}>{name(m)}{m.id === profil?.id ? " (ich)" : ""}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Label>Für wen?{!eintrag && <span className="font-normal text-muted-foreground"> — mehrere antippen: je Person eine Buchung</span>}</Label>
+            <PersonenWahl personen={waehlbar} teams={istChef ? teams : meineTeams} gewaehlt={wer} onChange={setWer}
+              ich={profil?.id} einzeln={!!eintrag} label="Für wen" />
           </div>
         )}
+        {eintrag && !werWaehlbar && eintrag.user_id !== profil?.id && (
+          <p className="text-sm text-muted-foreground">Für {name(mitarbeiter.find((m) => m.id === eintrag.user_id))}</p>
+        )}
 
+        <div className="inline-flex rounded-md border bg-secondary p-0.5" role="group" aria-label="Projekt oder intern">
+          {([["projekt", "Projekt"], ["intern", "Intern (Büro, Lager …)"]] as [Ziel, string][]).map(([z, t]) => (
+            <button key={z} type="button" onClick={() => setZiel(z)} aria-pressed={ziel === z} disabled={gesperrt || nurAnsehen}
+              className={cn("rounded px-4 py-2 text-sm font-medium transition-colors",
+                ziel === z ? "bg-card text-foreground ring-1 ring-border" : "text-muted-foreground")}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {istIntern ? (
+          <div className="space-y-2">
+            <Label>Was wurde intern gemacht?</Label>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Interne Art">
+              {[...internArten, ...(intern && !internArten.includes(intern) ? [intern] : [])].map((a) => (
+                <button key={a} type="button" role="radio" aria-checked={intern === a} onClick={() => setIntern(a)}
+                  className={cn("min-h-11 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                    intern === a ? "border-primary bg-primary-soft text-primary" : "bg-card hover:bg-muted")}>
+                  {a}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">Zählt als unproduktive Zeit — nicht auf einem Projekt, nie auf einer Rechnung.</p>
+          </div>
+        ) : (
         <div className="space-y-2">
           <Label htmlFor="z-projekt">Projekt</Label>
           {!eintrag && letzteBuchbar.length > 0 && (
@@ -326,6 +380,7 @@ export function ZeitDialog({
           )}
           <ProjektWahl id="z-projekt" nurInArbeit={art !== "garantie"} wert={projektId} onChange={(id) => setProjektId(id)} />
         </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="z-datum">Datum</Label>
@@ -399,18 +454,18 @@ export function ZeitDialog({
                     <Input type="time" className="h-12" aria-label={`Bis, ${i + 2}. Block`} value={b.bis} onChange={(e) => weiterAendern(b.id, { bis: e.target.value })} />
                     <Input inputMode="numeric" className="h-12" aria-label={`Pause in Minuten, ${i + 2}. Block`} value={b.pause} onChange={(e) => weiterAendern(b.id, { pause: e.target.value })} />
                   </div>
-                  <select aria-label={`Projekt, ${i + 2}. Block`} value={b.projektId} onChange={(e) => weiterAendern(b.id, { projektId: e.target.value })}
+                  {!istIntern && <select aria-label={`Projekt, ${i + 2}. Block`} value={b.projektId} onChange={(e) => weiterAendern(b.id, { projektId: e.target.value })}
                     className="h-11 w-full rounded-md border border-input bg-background px-2 text-base sm:text-sm">
                     {!projekte.some((p) => p.id === b.projektId) && <option value={b.projektId}>Projekt wählen</option>}
                     {projekte.filter((p) => p.status === "aktiv" || (art === "garantie" && p.status !== "angebot") || p.id === b.projektId).map((p) => (
                       <option key={p.id} value={p.id}>{p.id === projektId ? "Gleiches Projekt — " : ""}{p.nummer} {p.name}</option>
                     ))}
-                  </select>
+                  </select>}
                 </div>
               ))}
               {!gesperrt && !nurAnsehen && (
                 <Button type="button" variant="outline" className="col-span-3 h-11 gap-1.5" onClick={blockPlus}>
-                  <Plus className="h-4 w-4" /> Weiterer Block <span className="font-normal text-muted-foreground">(z. B. nach Mittag, anderes Projekt)</span>
+                  <Plus className="h-4 w-4" /> Weiterer Block <span className="font-normal text-muted-foreground">{istIntern ? "(z. B. nach Mittag)" : "(z. B. nach Mittag, anderes Projekt)"}</span>
                 </Button>
               )}
               <p className={cn("col-span-3 text-sm", pauseZuLang ? "text-destructive" : "text-muted-foreground")}>

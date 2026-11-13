@@ -23,7 +23,9 @@ Software für Elektriker — am Handy auf der Baustelle bedienbar.
 |---|---|---|
 | Projekte sehen / anlegen | ✓ | ✓ |
 | Projekt löschen, Projekt-Stundensatz | ✓ | – |
-| Stunden | alle | sieht alle, bucht und ändert eigene; für Kollegen nur als Partie im Regiebericht |
+| Stunden | alle, auch für mehrere auf einmal | sieht alle, bucht und ändert eigene; für Kollegen als Teamleitung (`leitet_team_von`) oder als Partie im Regiebericht |
+| Aufgaben | alle, anlegen für jeden | zugewiesene und selbst angelegte; Status und Kommentar |
+| Mitarbeiter-Dokumente (Lohnzettel …) | alle | nur eigene; selbst hochladen: Krankenschein, Zeugnis, Führerschein, Sonstiges |
 | Material ausfassen / zurückgeben / direkt aufs Projekt | ✓ | ✓ |
 | Regieberichte schreiben + unterschreiben lassen | ✓ | ✓ |
 | Angebote, Rechnungen, verrechnen | ✓ | – (Tabelle per RLS gesperrt) |
@@ -264,6 +266,46 @@ Migration `20261103120000_anlagen.sql`:
 - **Lohnliste** (`lohnSumme`, Auswertung): CSV und Stundennachweis-PDF je Person mit Soll, Ist, Arten,
   Abwesenheit, Taggeld und Kilometergeld. Taggeld ist ein Vorschlag: über 3 h ein Zwölftel je angefangene
   Stunde von `firma.taggeld_satz`; die Sätze müssen zum Kollektivvertrag passen.
+- **Interne Stunden** (`zeiten.intern`, Migration `20261113117000_personal.sql`): im Dialog „Projekt | Intern“,
+  Arten aus `firma.intern_arten` (Einstellungen → Betrieb, `InterneArten.tsx`). Ein Check verbietet Projekt und
+  intern zugleich; `nur_in_arbeit_buchen` lässt Stunden ohne Projekt ohnehin durch. Auswertung, Lohnliste-CSV und
+  Stundennachweis zeigen „Unproduktiv“ mit Prozent (`lohnSumme` → `produktiv`/`unproduktiv`/`jeIntern`,
+  `produktivProzent`).
+- **Für andere buchen**: Chef und Teamleitung wählen im Dialog mehrere Personen oder ein ganzes Team
+  (`PersonenWahl`); je Person und Block eine Zeile, `erstellt_von` merkt, wer gebucht hat („gebucht von …“ in der
+  Liste). Der Trigger `zeit_person_schutz` erlaubt Fremdbuchungen nur Chef, Teamleitung (`teams.leiter_id` →
+  `mitglieder`) und der Regie-Partie.
+- **Monatsansicht** (`lib/monatsKalender.ts`, `MonatsAnsicht.tsx`): Umschalter Woche/Monat auf `/zeiten`
+  (gemerkt in `localStorage`). Kalender mit Farbe je Tag (Soll erreicht / weniger / nichts / abwesend), Σ je
+  Kalenderwoche, Kennzahlen Ist/Soll, Stand bis gestern, Unproduktiv; Tag antippen zeigt die Buchungen.
+  Der Chef sieht unter „Alle“ eine Zeile je Person (`MonatAlle`) und öffnet daraus das Monatsblatt.
+
+### Aufgaben (`lib/aufgaben.ts`, `components/aufgaben/`, Seite `/aufgaben`)
+
+- Tabelle `aufgaben`: Titel, Beschreibung, `zustaendig uuid[]` (mehrere oder niemand), fällig, Priorität
+  (niedrig/normal/hoch = „Dringend“), optional Projekt und Kunde, Status offen → in_arbeit → erledigt
+  (`erledigt_am`/`erledigt_von` setzt der Server), Wiederholung täglich … jährlich.
+- **Wiederkehrend**: beim Erledigen legt der Trigger `aufgabe_regeln` die nächste Runde an (nie in der
+  Vergangenheit) und nimmt die Wiederholung vom alten Datensatz.
+- **Verlauf** (`aufgabe_verlauf`): Anlegen, Statuswechsel und Änderungen schreibt `aufgabe_protokoll` lesbar
+  mit; Kommentare mit Foto (Bucket `aufgaben`) schreibt jeder Beteiligte selbst.
+- **Rechte**: Chef alles; Monteur sieht zugewiesene und selbst angelegte, ändert nur den Status (der Trigger
+  verwirft andere Felder), bearbeitet und löscht nur, was er selbst angelegt hat.
+- Startseite: „Meine Aufgaben“ zum Abhaken; Chef: „Aufgaben überfällig“ unter „Zu erledigen“. Die
+  Projekt-Übersicht zeigt seine Aufgaben (`ProjektAufgaben`). Filter: Kacheln Offen/Überfällig/Erledigt/Alle,
+  Person (auch „Niemand zugeteilt“), Projekt.
+
+### Dokumente (`lib/dokumente.ts`, `components/dokumente/`, Seite `/dokumente`)
+
+- **Firma** (`firmen_dokumente`, Bucket `firmen-dokumente`): Ordner (Vorschläge: Vorlagen, Zertifikate,
+  Versicherungen, Prüfberichte, Sicherheit …), Suche ohne Umlaute, „gültig bis“ mit Hinweis „läuft ab“ /
+  „abgelaufen“, Schalter „Nur für den Chef“ (Polizzen) — auch der Speicher liest nur über die Tabelle.
+- **Mitarbeiter** (`personal_dokumente`, Bucket `personal`, Pfad `<user_id>/…`): Lohnzettel (mit Monat),
+  An-/Abmeldung, Krankenschein, Vertrag, Zeugnis, Führerschein, Sonstiges. Chef sieht alles, jeder nur seine.
+  Neuer, ungelesener Lohnzettel → Hinweis „Neu für dich“ auf der Startseite; Öffnen setzt `gelesen_am`
+  (`personal_dokument_gelesen`).
+- Demo: `supabase/demo/04-personal.sql` (Aufgaben, interne Stunden, Dokument-Zeilen) und
+  `personal-dokumente.mjs` (DEMO-PDFs), beide am Ende von `demo-zuruecksetzen.sh`.
 
 ### Einsätze am Handy (`components/einsatz/EinsatzBereich.tsx`)
 

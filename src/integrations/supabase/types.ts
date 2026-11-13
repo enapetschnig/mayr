@@ -1179,6 +1179,7 @@ export type Database = {
           fibu_konten: Json
           firmenbuch: string | null
           fusszeile: string | null
+          intern_arten: string[]
           iban: string | null
           id: number
           inhaber: string | null
@@ -1219,6 +1220,7 @@ export type Database = {
           fibu_konten?: Json
           firmenbuch?: string | null
           fusszeile?: string | null
+          intern_arten?: string[]
           iban?: string | null
           id?: number
           inhaber?: string | null
@@ -1259,6 +1261,7 @@ export type Database = {
           fibu_konten?: Json
           firmenbuch?: string | null
           fusszeile?: string | null
+          intern_arten?: string[]
           iban?: string | null
           id?: number
           inhaber?: string | null
@@ -2312,6 +2315,218 @@ export type Database = {
           },
         ]
       }
+      aufgabe_verlauf: {
+        Row: {
+          aufgabe_id: string
+          art: string
+          created_at: string
+          foto_pfad: string | null
+          id: string
+          text: string | null
+          user_id: string | null
+        }
+        Insert: {
+          aufgabe_id: string
+          art: string
+          created_at?: string
+          foto_pfad?: string | null
+          id?: string
+          text?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          aufgabe_id?: string
+          art?: string
+          created_at?: string
+          foto_pfad?: string | null
+          id?: string
+          text?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aufgabe_verlauf_aufgabe_id_fkey"
+            columns: ["aufgabe_id"]
+            isOneToOne: false
+            referencedRelation: "aufgaben"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aufgabe_verlauf_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aufgaben: {
+        Row: {
+          beschreibung: string | null
+          created_at: string
+          erledigt_am: string | null
+          erledigt_von: string | null
+          erstellt_von: string | null
+          faellig_am: string | null
+          id: string
+          kunde_id: string | null
+          prioritaet: string
+          projekt_id: string | null
+          status: string
+          titel: string
+          updated_at: string
+          wiederholung: string | null
+          zustaendig: string[]
+        }
+        Insert: {
+          beschreibung?: string | null
+          created_at?: string
+          erledigt_am?: string | null
+          erledigt_von?: string | null
+          erstellt_von?: string | null
+          faellig_am?: string | null
+          id?: string
+          kunde_id?: string | null
+          prioritaet?: string
+          projekt_id?: string | null
+          status?: string
+          titel: string
+          updated_at?: string
+          wiederholung?: string | null
+          zustaendig?: string[]
+        }
+        Update: {
+          beschreibung?: string | null
+          created_at?: string
+          erledigt_am?: string | null
+          erledigt_von?: string | null
+          erstellt_von?: string | null
+          faellig_am?: string | null
+          id?: string
+          kunde_id?: string | null
+          prioritaet?: string
+          projekt_id?: string | null
+          status?: string
+          titel?: string
+          updated_at?: string
+          wiederholung?: string | null
+          zustaendig?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aufgaben_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aufgaben_kunde_id_fkey"
+            columns: ["kunde_id"]
+            isOneToOne: false
+            referencedRelation: "kunden"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      firmen_dokumente: {
+        Row: {
+          beschreibung: string | null
+          created_at: string
+          groesse: number | null
+          gueltig_bis: string | null
+          hochgeladen_von: string | null
+          id: string
+          mime: string | null
+          name: string
+          nur_chef: boolean
+          ordner: string
+          pfad: string
+          titel: string
+        }
+        Insert: {
+          beschreibung?: string | null
+          created_at?: string
+          groesse?: number | null
+          gueltig_bis?: string | null
+          hochgeladen_von?: string | null
+          id?: string
+          mime?: string | null
+          name: string
+          nur_chef?: boolean
+          ordner?: string
+          pfad: string
+          titel: string
+        }
+        Update: {
+          beschreibung?: string | null
+          created_at?: string
+          groesse?: number | null
+          gueltig_bis?: string | null
+          hochgeladen_von?: string | null
+          id?: string
+          mime?: string | null
+          name?: string
+          nur_chef?: boolean
+          ordner?: string
+          pfad?: string
+          titel?: string
+        }
+        Relationships: []
+      }
+      personal_dokumente: {
+        Row: {
+          art: string
+          created_at: string
+          gelesen_am: string | null
+          groesse: number | null
+          hochgeladen_von: string | null
+          id: string
+          mime: string | null
+          monat: string | null
+          name: string
+          pfad: string
+          titel: string | null
+          user_id: string
+        }
+        Insert: {
+          art: string
+          created_at?: string
+          gelesen_am?: string | null
+          groesse?: number | null
+          hochgeladen_von?: string | null
+          id?: string
+          mime?: string | null
+          monat?: string | null
+          name: string
+          pfad: string
+          titel?: string | null
+          user_id: string
+        }
+        Update: {
+          art?: string
+          created_at?: string
+          gelesen_am?: string | null
+          groesse?: number | null
+          hochgeladen_von?: string | null
+          id?: string
+          mime?: string | null
+          monat?: string | null
+          name?: string
+          pfad?: string
+          titel?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personal_dokumente_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zeiten: {
         Row: {
           art: string
@@ -2320,6 +2535,7 @@ export type Database = {
           datum: string
           erstellt_von: string | null
           id: string
+          intern: string | null
           km: number | null
           pause_minuten: number
           projekt_id: string | null
@@ -2337,6 +2553,7 @@ export type Database = {
           datum?: string
           erstellt_von?: string | null
           id?: string
+          intern?: string | null
           km?: number | null
           pause_minuten?: number
           projekt_id?: string | null
@@ -2354,6 +2571,7 @@ export type Database = {
           datum?: string
           erstellt_von?: string | null
           id?: string
+          intern?: string | null
           km?: number | null
           pause_minuten?: number
           projekt_id?: string | null
@@ -2597,6 +2815,8 @@ export type Database = {
         Returns: string
       }
       ist_aktiv: { Args: never; Returns: boolean }
+      leitet_team_von: { Args: { p_user: string }; Returns: boolean }
+      personal_dokument_gelesen: { Args: { p_id: string }; Returns: undefined }
       ist_chef: { Args: never; Returns: boolean }
       kreditor_konten_holen: {
         Args: { p_namen: string[] }

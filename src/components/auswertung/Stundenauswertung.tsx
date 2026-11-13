@@ -78,7 +78,7 @@ export function Stundenauswertung() {
     enabled: gueltig,
     placeholderData: keepPreviousData,
     queryFn: () => alleZeilen((a, b) => supabase.from("zeiten")
-      .select("id, user_id, projekt_id, datum, stunden, von, bis, pause_minuten, taetigkeit, rechnung_id, art, km, projekte(nummer, name), profiles(vorname, nachname, farbe), regieberichte(nummer, rechnung_id)")
+      .select("id, user_id, projekt_id, intern, datum, stunden, von, bis, pause_minuten, taetigkeit, rechnung_id, art, km, projekte(nummer, name), profiles(vorname, nachname, farbe), regieberichte(nummer, rechnung_id)")
       .gte("datum", von).lte("datum", bis).order("id").range(a, b)),
   });
   const roh = useMemo(() => zeitenQ.data ?? [], [zeitenQ.data]);
@@ -86,7 +86,7 @@ export function Stundenauswertung() {
     id: z.id, user_id: z.user_id, person: name(z.profiles), projekt_id: z.projekt_id,
     projekt: z.projekte ? `${z.projekte.nummer} ${z.projekte.name}` : null, datum: z.datum, stunden: Number(z.stunden),
     art: z.art ?? "arbeit", km: z.km == null ? null : Number(z.km), verrechnet: !!(z.rechnung_id || z.regieberichte?.rechnung_id),
-    von: z.von, bis: z.bis, pause_minuten: z.pause_minuten, taetigkeit: z.taetigkeit,
+    von: z.von, bis: z.bis, pause_minuten: z.pause_minuten, taetigkeit: z.taetigkeit, intern: z.intern,
   })), [roh]);
   const gefiltert = useMemo(() => filtern(zeilen, { personen, projekte: projekt ? [projekt] : [], arten, verrechnet }), [zeilen, personen, projekt, arten, verrechnet]);
   const gruppen = useMemo(() => (nach === "zeiten" ? [] : gruppieren(gefiltert, nach, (a) => STUNDEN_ART[a as StundenArt]?.text ?? a)), [gefiltert, nach]);
@@ -94,6 +94,10 @@ export function Stundenauswertung() {
   const gesamt = gruppieren(gefiltert, "art").reduce((s, g) => s + g.stunden, 0);
   const jeArtGesamt = Object.fromEntries(gruppieren(gefiltert, "art").map((g) => [g.schluessel, g.stunden]));
   const kmGesamt = gefiltert.reduce((s, z) => s + (z.km ?? 0), 0);
+  // Produktiv = auf Projekte, unproduktiv = intern (Büro, Lager …) — eigene Spalte
+  const unprodGesamt = Math.round(gefiltert.filter((z) => !z.projekt_id).reduce((s, z) => s + z.stunden, 0) * 100) / 100;
+  const prodProzent = gesamt > 0 ? Math.round(((gesamt - unprodGesamt) / gesamt) * 100) : null;
+  const mitUnprod = unprodGesamt > 0 && nach !== "projekt";
   const sichtbareArten = ARTEN.filter((a) => jeArtGesamt[a]);
   const leute = mitarbeiter.filter((m) => m.aktiv || zeilen.some((z) => z.user_id === m.id));
   const nachId = new Map(roh.map((z) => [z.id, z]));
@@ -110,11 +114,11 @@ export function Stundenauswertung() {
       return;
     }
     csvHerunterladen(`stunden-${von}-bis-${bis}.csv`, [
-      ["Mitarbeiter", "Datum", "Von", "Bis", "Pause (Min.)", "Stunden", "Art", "km", "Projekt", "Tätigkeit", "Verrechnet"],
+      ["Mitarbeiter", "Datum", "Von", "Bis", "Pause (Min.)", "Stunden", "Art", "km", "Projekt", "Intern (unproduktiv)", "Tätigkeit", "Verrechnet"],
       ...gefiltert.sort((a, b) => a.person.localeCompare(b.person, "de") || a.datum.localeCompare(b.datum)).map((z) => {
         const r = nachId.get(z.id);
         return [z.person, datum(z.datum), r?.von?.slice(0, 5) ?? "", r?.bis?.slice(0, 5) ?? "", r?.pause_minuten || null, z.stunden,
-          STUNDEN_ART[z.art as StundenArt]?.text ?? z.art, z.km, z.projekt ?? "", r?.taetigkeit ?? "", z.verrechnet ? "ja" : "nein"];
+          STUNDEN_ART[z.art as StundenArt]?.text ?? z.art, z.km, z.projekt ?? "", z.projekt_id ? "" : z.intern ?? "ohne Projekt", r?.taetigkeit ?? "", z.verrechnet ? "ja" : "nein"];
       }),
     ]);
   };
@@ -139,7 +143,7 @@ export function Stundenauswertung() {
           abwesend: abw.flatMap((a) => abwesenheitsTage(a, von, bis).map((d) => ({ datum: d, art: a.art, stunden: abwesenheitStunden(a, d, wochen) }))),
           zeilen: eigene.map((z) => ({
             datum: z.datum, von: z.von, bis: z.bis, pause_minuten: z.pause_minuten, stunden: Number(z.stunden), taetigkeit: z.taetigkeit, art: z.art,
-            projekt: z.projekte ? `${z.projekte.nummer} ${z.projekte.name}` : "", regiebericht: z.regieberichte?.nummer ?? "",
+            projekt: z.projekte ? `${z.projekte.nummer} ${z.projekte.name}` : z.intern ? `Intern · ${z.intern}` : "", regiebericht: z.regieberichte?.nummer ?? "",
           })),
         };
       }).sort((a, b) => a.name.localeCompare(b.name, "de"));
@@ -206,7 +210,7 @@ export function Stundenauswertung() {
             <select value={projekt} onChange={(e) => setProjekt(e.target.value)} aria-label="Projekt"
               className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm lg:w-72">
               <option value="">Alle Projekte</option>
-              <option value="-">Ohne Projekt (Lager, Werkstatt …)</option>
+              <option value="-">Intern / ohne Projekt (Büro, Lager …)</option>
               {projekte.map((p) => <option key={p.id} value={p.id}>{p.nummer} {p.name}</option>)}
             </select>
           </div>
@@ -242,6 +246,7 @@ export function Stundenauswertung() {
                   <th className="px-4 py-2.5 font-medium">{GRUPPEN.find(([w]) => w === nach)?.[1]}</th>
                   {sichtbareArten.map((a) => <th key={a} className="hidden px-3 py-2.5 text-right font-medium sm:table-cell">{ART_KURZ[a]}</th>)}
                   {kmGesamt > 0 && <th className="hidden px-3 py-2.5 text-right font-medium sm:table-cell">km</th>}
+                  {mitUnprod && <th className="hidden px-3 py-2.5 text-right font-medium sm:table-cell" title="ohne Projekt: Büro, Lager …">Unproduktiv</th>}
                   <th className="px-4 py-2.5 text-right font-medium">Stunden</th>
                 </tr>
               </thead>
@@ -267,6 +272,11 @@ export function Stundenauswertung() {
                         </td>
                         {sichtbareArten.map((a) => <td key={a} className="zahl hidden px-3 py-2.5 text-right text-muted-foreground sm:table-cell">{g.jeArt[a] ? zahl(g.jeArt[a]) : ""}</td>)}
                         {kmGesamt > 0 && <td className="zahl hidden px-3 py-2.5 text-right text-muted-foreground sm:table-cell">{g.km ? zahl(g.km) : ""}</td>}
+                        {mitUnprod && (
+                          <td className="zahl hidden px-3 py-2.5 text-right text-muted-foreground sm:table-cell">
+                            {g.unproduktiv ? `${zahl(g.unproduktiv)} · ${Math.round((g.unproduktiv / g.stunden) * 100)} %` : ""}
+                          </td>
+                        )}
                         <td className="zahl whitespace-nowrap px-4 py-2.5 text-right font-semibold">{stunden(g.stunden)}</td>
                       </tr>
                       {auf && g.zeilen.map((z) => {
@@ -277,12 +287,12 @@ export function Stundenauswertung() {
                               <span className="zahl">{datum(z.datum)}</span>
                               {r?.von && <span className="zahl text-muted-foreground"> {r.von.slice(0, 5)}–{r.bis?.slice(0, 5)}</span>}
                               {nach !== "person" && <> · {z.person}</>}
-                              {nach !== "projekt" && <> · {z.projekt ?? "ohne Projekt"}</>}
+                              {nach !== "projekt" && <> · {z.projekt ?? (z.intern ? `intern: ${z.intern}` : "ohne Projekt")}</>}
                               {nach !== "art" && z.art !== "arbeit" && <> · {ART_KURZ[z.art as StundenArt] ?? z.art}</>}
                               {r?.taetigkeit && <span className="text-muted-foreground"> · {r.taetigkeit}</span>}
                               {z.verrechnet && <span className="text-muted-foreground"> · verrechnet</span>}
                             </td>
-                            {sichtbareArten.length + (kmGesamt > 0 ? 1 : 0) > 0 && <td className="hidden sm:table-cell" colSpan={sichtbareArten.length + (kmGesamt > 0 ? 1 : 0)} />}
+                            {sichtbareArten.length + (kmGesamt > 0 ? 1 : 0) + (mitUnprod ? 1 : 0) > 0 && <td className="hidden sm:table-cell" colSpan={sichtbareArten.length + (kmGesamt > 0 ? 1 : 0) + (mitUnprod ? 1 : 0)} />}
                             <td className="zahl px-4 py-2 text-right align-top">{stunden(z.stunden)}</td>
                           </tr>
                         );
@@ -296,8 +306,16 @@ export function Stundenauswertung() {
                   <td className="px-4 py-2.5">Summe · {gefiltert.length} Buchungen</td>
                   {sichtbareArten.map((a) => <td key={a} className="zahl hidden px-3 py-2.5 text-right sm:table-cell">{zahl(jeArtGesamt[a])}</td>)}
                   {kmGesamt > 0 && <td className="zahl hidden px-3 py-2.5 text-right sm:table-cell">{zahl(kmGesamt)}</td>}
+                  {mitUnprod && <td className="zahl hidden px-3 py-2.5 text-right sm:table-cell">{zahl(unprodGesamt)}</td>}
                   <td className="zahl whitespace-nowrap px-4 py-2.5 text-right">{stunden(gesamt)}</td>
                 </tr>
+                {prodProzent != null && unprodGesamt > 0 && (
+                  <tr className="text-xs text-muted-foreground" data-produktiv>
+                    <td className="px-4 pb-2.5" colSpan={99}>
+                      Produktiv (auf Projekten) {stunden(Math.round((gesamt - unprodGesamt) * 100) / 100)} · {prodProzent} % — unproduktiv (intern) {stunden(unprodGesamt)} · {100 - prodProzent} %
+                    </td>
+                  </tr>
+                )}
               </tfoot>
             </table>
           </div>

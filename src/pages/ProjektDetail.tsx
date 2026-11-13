@@ -27,6 +27,7 @@ import { ZeitenListe, useZeitenListe, type ZeitMitInfo } from "@/components/zeit
 import { ProjektMaterial } from "@/components/material/ProjektMaterial";
 import { ProjektRegie } from "@/components/regie/ProjektRegie";
 import { ProjektBelege } from "@/components/belege/ProjektBelege";
+import { ProjektAufgaben } from "@/components/aufgaben/ProjektAufgaben";
 import { useProjektEingang } from "@/components/eingang/eingangDaten";
 import { mailLink, telLink } from "@/components/stamm/KundeDetail";
 import { fehlerText } from "@/components/stamm/stammDaten";
@@ -387,6 +388,8 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
           ? <Kennzahl titel="Verrechnet" wert={euro(verrechnet)} unter="netto" />
           : <Kennzahl titel="Personen" wert={String(personen.length)} unter="auf dem Projekt" />}
       </div>
+
+      <ProjektAufgaben projektId={projektId} />
 
       {istChef && (angebot > 0 || geleistet > 0 || einkauf !== 0) && (
         <Karte titel="Nachkalkulation">

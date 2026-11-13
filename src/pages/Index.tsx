@@ -5,7 +5,7 @@ import {
   CalendarOff, CalendarPlus, CheckCircle2, FilePlus2, FolderPlus,
   BellRing, AlertTriangle, Banknote, Bus, Camera, ChevronRight, ClipboardSignature, Clock, FileText, FolderKanban, Inbox, Mic, Plus, Receipt,
   ScanBarcode, Search, ShieldCheck, ShoppingCart, UserCheck, Wrench,
-  PhoneCall,
+  ListTodo, PhoneCall,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { WunschKnopf } from "@/components/wunsch/WunschMelden";
@@ -13,6 +13,9 @@ import { KontoMenue } from "@/components/KontoMenue";
 import { StartListe } from "@/components/rahmen/StartListe";
 import { sucheOeffnen } from "@/components/rahmen/Suchpalette";
 import { EinsatzBereich } from "@/components/einsatz/EinsatzBereich";
+import { MeineAufgaben } from "@/components/aufgaben/MeineAufgaben";
+import { useAufgabenZaehler } from "@/components/aufgaben/aufgabenDaten";
+import { NeueDokumente } from "@/components/dokumente/NeueDokumente";
 import { useAntraege } from "@/components/zeiten/personalDaten";
 import { FotoDialog } from "@/components/dialoge/FotoDialog";
 import { ZeitDialog } from "@/components/dialoge/ZeitDialog";
@@ -190,7 +193,9 @@ export default function Index() {
     return z && (Number(z.stunden_offen) > 0 || Number(z.regie_offen) > 0);
   });
 
+  const aufgabenZahl = useAufgabenZaehler(istChef);
   const offenePunkte: Punkt[] = istChef && buero ? ([
+    aufgabenZahl.ueberfaellig > 0 && { icon: ListTodo, text: `${aufgabenZahl.ueberfaellig} ${aufgabenZahl.ueberfaellig === 1 ? "Aufgabe ist" : "Aufgaben sind"} überfällig`, to: "/aufgaben?filter=ueberfaellig", warn: true },
     antraege.length > 0 && { icon: CalendarOff, text: `${antraege.length} ${antraege.length === 1 ? "Antrag wartet" : "Anträge warten"} auf Entscheidung`, to: "/zeiten" },
     erledigtOffen.length > 0 && {
       icon: CheckCircle2,
@@ -286,7 +291,9 @@ export default function Index() {
         {/* Handy: erst der Einsatz und die Handgriffe. PC: oben laufende Projekte, darunter Zu erledigen */}
         {!pc && (
           <>
+            <NeueDokumente />
             <EinsatzBereich onStunden={(id) => { setZeitProjekt(id); setZeitOffen(true); }} />
+            <MeineAufgaben />
 
             {/* Die häufigsten Handgriffe — groß, mit dem Daumen erreichbar */}
             <section>
@@ -399,7 +406,9 @@ export default function Index() {
 
         {pc && (
           <>
+            <NeueDokumente />
             <EinsatzBereich onStunden={(id) => { setZeitProjekt(id); setZeitOffen(true); }} />
+            <MeineAufgaben />
 
             {/* Die häufigsten Handgriffe — groß, mit dem Daumen erreichbar */}
             <section>
