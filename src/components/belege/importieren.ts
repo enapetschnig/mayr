@@ -40,7 +40,7 @@ export type ImportMaterial = {
   bezeichnung: string;
   einheit: string;
   artikel_id: string | null;
-  artikel: Pick<Artikel, "vk_preis" | "ek_preis" | "listenpreis"> | null;
+  artikel: (Pick<Artikel, "vk_preis" | "ek_preis" | "listenpreis"> & { aufschlag?: number | null }) | null;
   regiebericht_id: string | null;
   datum: string;
 };
@@ -132,7 +132,7 @@ type ZeitZeile = {
 type MaterialZeile = {
   id: string; art: string; menge: number; ek_preis: number | null; einheit: string | null; bezeichnung: string | null;
   artikel_id: string | null; regiebericht_id: string | null; created_at: string;
-  artikel: { bezeichnung: string; einheit: string; vk_preis: number | null; ek_preis: number | null; listenpreis: number | null } | null;
+  artikel: { bezeichnung: string; einheit: string; vk_preis: number | null; aufschlag: number | null; ek_preis: number | null; listenpreis: number | null } | null;
 };
 
 /**
@@ -151,7 +151,7 @@ export async function importDatenLaden(projektId: string, belegId: string | null
       .select("id, datum, stunden, taetigkeit, user_id, regiebericht_id, art, profiles(vorname, nachname, lohnart)")
       .eq("projekt_id", projektId).or(frei).order("datum").order("created_at"),
     supabase.from("material_buchungen")
-      .select("id, art, menge, ek_preis, einheit, bezeichnung, artikel_id, regiebericht_id, created_at, artikel(bezeichnung, einheit, vk_preis, ek_preis, listenpreis)")
+      .select("id, art, menge, ek_preis, einheit, bezeichnung, artikel_id, regiebericht_id, created_at, artikel(bezeichnung, einheit, vk_preis, aufschlag, ek_preis, listenpreis)")
       .eq("projekt_id", projektId).in("art", ["ausfassung", "rueckgabe", "direkt"]).or(frei).order("created_at"),
     supabase.from("belege").select("id, nummer, betreff, status, netto").eq("projekt_id", projektId).eq("typ", "angebot")
       .in("status", ["offen", "angenommen"]).order("datum"),

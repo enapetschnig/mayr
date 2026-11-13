@@ -114,7 +114,7 @@ function Ueberblick({ zeitraum, setZeitraum }: { zeitraum: Zeitraum; setZeitraum
     queryKey: ["material", "auswertung", vonIso, bisIso],
     placeholderData: keepPreviousData,
     queryFn: () => alleZeilen((a, b) => supabase.from("material_buchungen")
-      .select("id, art, menge, ek_preis, artikel(ek_preis, vk_preis, listenpreis)")
+      .select("id, art, menge, ek_preis, artikel(ek_preis, vk_preis, listenpreis, aufschlag)")
       .in("art", ["ausfassung", "rueckgabe", "direkt"])
       .gte("created_at", von.toISOString()).lt("created_at", bis.toISOString()).order("id").range(a, b)),
   });
@@ -457,7 +457,7 @@ function Nachkalkulation() {
   const { data: material = [] } = useQuery({
     queryKey: ["material", "auswertung-projekte"],
     queryFn: () => alleZeilen((a, b) => supabase.from("material_buchungen")
-      .select("id, projekt_id, art, menge, ek_preis, rechnung_id, regiebericht_id, artikel(ek_preis, vk_preis, listenpreis), regieberichte(rechnung_id)")
+      .select("id, projekt_id, art, menge, ek_preis, rechnung_id, regiebericht_id, artikel(ek_preis, vk_preis, listenpreis, aufschlag), regieberichte(rechnung_id)")
       .not("projekt_id", "is", null).in("art", ["ausfassung", "rueckgabe", "direkt"]).order("id").range(a, b)),
   });
   // Stunden je Person und Tag — für Sätze und Lohnkosten je Mitarbeiter, Regie getrennt

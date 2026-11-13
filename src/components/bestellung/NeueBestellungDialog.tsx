@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FileText, FolderKanban, Loader2, Plus, Warehouse } from "lucide-react";
 import { FormularDialog } from "@/components/FormularDialog";
 import { ProjektWahl } from "@/components/ProjektWahl";
+import { weitereLieferantenLaden } from "@/components/material/artikelDaten";
+import { mitBestemLieferant } from "@/components/material/artikelLogik";
 import { useLagerArtikel, useLagerbestand, runden3 } from "@/components/material/materialDaten";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +53,14 @@ export function NeueBestellungDialog({ open, onOpenChange, startModus = "lager",
   const { data: offen, isLoading: offenLaedt } = useOffeneBestellMengen();
   const { data: lieferanten = [] } = useLieferanten();
 
+  // Weitere Lieferanten: bestellt wird beim bevorzugten, sonst beim günstigsten
+  const mitMindest = useMemo(() => lagerArtikel.filter((a) => a.mindestbestand != null).map((a) => a.id), [lagerArtikel]);
+  const { data: weitere } = useQuery({
+    queryKey: ["artikel", "weitere-lieferanten", mitMindest.join(",")],
+    enabled: open && mitMindest.length > 0,
+    queryFn: () => weitereLieferantenLaden(mitMindest),
+  });
+
   const lager = orte.filter((o) => o.art === "lager");
   const lagerWahl = lager.length ? lager : orte;
   const lagerortId = lagerWahl.some((o) => o.id === lagerId) ? lagerId : lagerWahl[0]?.id ?? "";
@@ -67,12 +78,12 @@ export function NeueBestellungDialog({ open, onOpenChange, startModus = "lager",
       m.set(b.lagerort_id, runden3((m.get(b.lagerort_id) ?? 0) + b.bestand));
       jeArtikel.set(b.artikel_id, m);
     }
-    const zeilen = lagerArtikel
+    const zeilen = mitBestemLieferant(lagerArtikel, weitere ?? new Map())
       .filter((a) => a.mindestbestand != null)
       .map((a) => ({ artikel: a, fehlt: runden3(Number(a.mindestbestand) - bestandFuerMindest(jeArtikel.get(a.id) ?? new Map(), orte)) }))
       .filter((z) => z.fehlt > 0);
     return vorschlagAusLager(zeilen, offen);
-  }, [bestand, lagerArtikel, orte, offen]);
+  }, [bestand, lagerArtikel, orte, offen, weitere]);
 
   const projektWaehlen = async (id: string) => {
     setProjektId(id);

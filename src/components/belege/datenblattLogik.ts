@@ -6,7 +6,7 @@ import type { EditorPosition, KatalogLeistung } from "./editor";
  * `dateien`, Pfad `artikel/<artikel_id>/…`.
  */
 
-export const DATEIEN_BUCKET = "dateien";
+export const DATEIEN_BUCKET = "projekt-dateien"; // Paket F legt Artikel-Dateien unter artikel/<id>/… ab
 
 export type Datenblatt = { id?: string; artikel_id?: string; name: string; pfad: string; artikel?: string | null };
 

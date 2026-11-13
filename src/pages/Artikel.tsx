@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { BadgePercent, ChevronLeft, ChevronRight, Loader2, Package, Plus, ScanBarcode, Search, SearchX, Sparkles, Upload } from "lucide-react";
+import { BadgePercent, ChevronLeft, Percent, ChevronRight, Loader2, Package, Plus, ScanBarcode, Search, SearchX, Sparkles, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
 import { Leer, StatusPille } from "@/components/Bausteine";
@@ -20,6 +20,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useSitzung } from "@/hooks/useSitzung";
 import { euro, zahl } from "@/lib/format";
 import { artikelVk } from "@/lib/preise";
+import { useHauptbilder } from "@/components/material/artikelDaten";
+import { ArtikelVorschau } from "@/components/material/ArtikelVorschau";
+import { AufschlagDialog } from "@/components/material/AufschlagDialog";
 import { codeVarianten, normalisieren } from "@/lib/strichcode";
 import { KATEGORIEN_ARTIKEL, type Artikel, type StatusEintrag } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -47,6 +50,7 @@ export default function ArtikelSeite() {
   const [lieferant, setLieferant] = useState("alle");
   const [hersteller, setHersteller] = useState("alle");
   const [rabatteOffen, setRabatteOffen] = useState(false);
+  const [aufschlagOffen, setAufschlagOffen] = useState(false);
   const navigate = useNavigate();
   const [nurLager, setNurLager] = useState(false);
   const [inaktive, setInaktive] = useState(false);
@@ -133,6 +137,8 @@ export default function ArtikelSeite() {
   const gesamt = sucheAktiv ? treffer.length : liste.data?.gesamt ?? 0;
   const laedt = sucheAktiv ? suche.isLoading : liste.isLoading;
   const holt = sucheAktiv ? suche.isFetching : liste.isFetching;
+  const { data: bilder } = useHauptbilder(zeilen.map((a) => a.id));
+  const oeffnen = (a: Artikel) => navigate(`/artikel/${a.id}`);
   const gekappt = sucheAktiv && (suche.data?.length ?? 0) >= SUCHE_MAX;
   const gefiltert = !!q || kategorie !== "alle" || lieferant !== "alle" || hersteller !== "alle" || nurLager || inaktive;
 
@@ -165,7 +171,7 @@ export default function ArtikelSeite() {
       return;
     }
     if (a) {
-      setDialog({ artikel: a });
+      oeffnen(a);
       return;
     }
     const ean = normalisieren(code);
@@ -205,6 +211,11 @@ export default function ArtikelSeite() {
           {istChef && (
             <Button variant="outline" className="h-11 px-3" onClick={() => setRabatteOffen(true)} aria-label="Rabatte beim Großhandel">
               <BadgePercent className="h-4 w-4" /><span className="hidden sm:inline">Rabatte</span>
+            </Button>
+          )}
+          {istChef && (
+            <Button variant="outline" className="h-11 px-3" onClick={() => setAufschlagOffen(true)} aria-label="Aufschlag für mehrere Artikel">
+              <Percent className="h-4 w-4" /><span className="hidden sm:inline">Aufschläge</span>
             </Button>
           )}
           {istChef && (
@@ -291,6 +302,7 @@ export default function ArtikelSeite() {
           <table className="w-full text-sm">
             <thead className="border-b bg-muted/60 text-left text-xs text-muted-foreground">
               <tr>
+                <th className="w-14 py-2.5 pl-4 pr-0 font-medium"><span className="sr-only">Bild</span></th>
                 <th className="px-4 py-2.5 font-medium">Bezeichnung</th>
                 <th className="px-3 py-2.5 font-medium">Hersteller · Nr.</th>
                 <th className="px-3 py-2.5 font-medium">EAN</th>
@@ -302,14 +314,15 @@ export default function ArtikelSeite() {
             </thead>
             <tbody className="divide-y">
               {zeilen.map((a) => (
-                <tr key={a.id} tabIndex={0} onClick={() => setDialog({ artikel: a })}
+                <tr key={a.id} tabIndex={0} onClick={() => oeffnen(a)}
                   onKeyDown={(e) => {
                     if (e.key !== "Enter" || e.repeat) return;
                     // Sonst „klickt“ dieselbe Enter-Taste den Knopf, der im eben geöffneten Dialog den Fokus bekommt
                     e.preventDefault();
-                    setDialog({ artikel: a });
+                    oeffnen(a);
                   }}
                   className={cn("cursor-pointer transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none", !a.aktiv && "text-muted-foreground")}>
+                  <td className="py-1.5 pl-4 pr-0"><ArtikelVorschau url={bilder?.get(a.id)} groesse="klein" /></td>
                   <td className="max-w-[28rem] px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">{a.bezeichnung}</span>{pillen(a)}
@@ -325,7 +338,8 @@ export default function ArtikelSeite() {
                   {istChef && <td className="zahl px-3 py-2.5 text-right">{a.ek_preis != null ? euro(a.ek_preis) : "–"}</td>}
                   {istChef && (
                     <td className="zahl px-3 py-2.5 text-right font-medium text-foreground">
-                      {euro(artikelVk(a, firma))}{a.vk_preis != null && <span className="ml-1 text-xs font-normal text-muted-foreground">fest</span>}
+                      {euro(artikelVk(a, firma))}{a.vk_preis != null ? <span className="ml-1 text-xs font-normal text-muted-foreground">fest</span>
+                        : a.aufschlag != null && a.ek_preis != null ? <span className="ml-1 text-xs font-normal text-muted-foreground">+{zahl(a.aufschlag)} %</span> : null}
                     </td>
                   )}
                   <td className="zahl px-4 py-2.5 text-right">{bestandText(a)}</td>
@@ -338,8 +352,9 @@ export default function ArtikelSeite() {
         <ul className="grid gap-2 sm:grid-cols-2">
           {zeilen.map((a) => (
             <li key={a.id}>
-              <button type="button" onClick={() => setDialog({ artikel: a })}
+              <button type="button" onClick={() => oeffnen(a)}
                 className="flex h-full w-full items-start gap-3 rounded-lg border bg-card p-3.5 text-left transition-colors hover:border-primary/50 active:bg-muted/40">
+                <ArtikelVorschau url={bilder?.get(a.id)} />
                 <div className="min-w-0 flex-1">
                   <p className={cn("line-clamp-2 font-medium leading-snug", !a.aktiv && "text-muted-foreground")}>{a.bezeichnung}</p>
                   <p className="truncate text-xs text-muted-foreground">
@@ -376,7 +391,12 @@ export default function ArtikelSeite() {
         </div>
       )}
 
-      <ArtikelDialog open={dialogOffen} onOpenChange={setDialogOffen} artikel={auswahl.artikel} vorgabe={auswahl.vorgabe} />
+      <ArtikelDialog open={dialogOffen} onOpenChange={setDialogOffen} artikel={auswahl.artikel} vorgabe={auswahl.vorgabe}
+        onGespeichert={(a) => { if (!auswahl.artikel) oeffnen(a); }} />
+      {istChef && (
+        <AufschlagDialog open={aufschlagOffen} onOpenChange={setAufschlagOffen}
+          vorgabe={{ kategorie: kategorie === "alle" || kategorie === "ohne" ? null : kategorie, hersteller: hersteller === "alle" || hersteller === "-" ? null : hersteller, lieferant: lieferant === "alle" ? null : lieferant }} />
+      )}
       {istChef && <ImportDialog open={importOffen} onOpenChange={setImportOffen} />}
       {istChef && <RabatteDialog open={rabatteOffen} onOpenChange={setRabatteOffen} />}
       <ScanDialog open={scanOffen} onOpenChange={setScanOffen} onCode={gescannt} titel="Artikel per Strichcode finden" />
@@ -394,3 +414,4 @@ function Umschalter({ aktiv, onClick, children }: { aktiv: boolean; onClick: () 
     </button>
   );
 }
+

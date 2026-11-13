@@ -187,7 +187,7 @@ export function useBestandAmLagerort(lagerortId: string | null | undefined) {
 // ── Projektmaterial ────────────────────────────────────────────────────
 
 export type ProjektMaterialZeile = ProjektMaterial & {
-  artikel: Pick<Artikel, "id" | "vk_preis" | "ek_preis" | "listenpreis" | "hersteller" | "hersteller_nr" | "artikelnummer"> | null;
+  artikel: Pick<Artikel, "id" | "vk_preis" | "ek_preis" | "listenpreis" | "aufschlag" | "hersteller" | "hersteller_nr" | "artikelnummer"> | null;
 };
 
 /** View projekt_material eines Projekts (ohne Material aus Regieberichten). */
@@ -197,7 +197,7 @@ export function useProjektMaterial(projektId: string | null | undefined) {
     enabled: !!projektId,
     queryFn: async () => {
       const { data, error } = await supabase.from("projekt_material")
-        .select("*, artikel(id, vk_preis, ek_preis, listenpreis, hersteller, hersteller_nr, artikelnummer)")
+        .select("*, artikel(id, vk_preis, ek_preis, listenpreis, aufschlag, hersteller, hersteller_nr, artikelnummer)")
         .eq("projekt_id", projektId!)
         .order("bezeichnung");
       if (error) throw error;

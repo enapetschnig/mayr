@@ -89,8 +89,8 @@ Monteure bis gestern und plant die Teams acht Wochen voraus (Plantafel).
 Einzeln: `scripts/demo-dateien-loeschen.mjs`, dann `supabase/demo/01-stamm.sql`,
 danach `demo-dateien-loeschen.mjs --archiv` (abgelegte Rechnungs-PDFs — erst
 löschbar, wenn die Rechnung weg ist), `02-artikel.sql` (aus `artikel_sql.py`
-erzeugt), `03-verlauf.sql` je mit `scripts/sql.sh -f`, zuletzt
-`supabase/demo/unterschriften.py` und `lieferscheine.py` (Fotos der Demo-Lieferscheine),
+erzeugt), `03-verlauf.sql`, `04-artikel.sql` (Lagerplätze, zweite Lieferanten, Bewegungen, offener Lieferschein SN-20931) je mit `scripts/sql.sh -f`, zuletzt
+`supabase/demo/unterschriften.py` und `lieferscheine.py` (Fotos der Demo-Lieferscheine), `artikel_dateien.py` (Platzhalter-Bilder, DEMO-DATENBLÄTTER),
 dann `DEMO_CHEF_PASSWORT=… node supabase/demo/eingangsrechnungen.mjs` (erzeugt je
 Demo-Eingangsrechnung ohne Datei ein PDF mit Positionen und „DEMO-BELEG“ im Fuß).
 Demo-Artikel: 158 Sonepar-Artikel aus `artikel-sonepar.json` (Artikelnummer, EAN,

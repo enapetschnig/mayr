@@ -136,8 +136,9 @@ export function ArtikelDialog({
   const ek = dezimalLesen(f.ek_preis);
   const liste = dezimalLesen(f.listenpreis);
   const vk = dezimalLesen(f.vk_preis);
-  const vkBerechnet = artikelVk({ vk_preis: null, ek_preis: ek, listenpreis: liste }, firma);
-  const aufschlag = Number(firma?.material_aufschlag ?? 0);
+  // eigener Aufschlag des Artikels (Artikel-Detail → Preis) gilt auch hier
+  const vkBerechnet = artikelVk({ vk_preis: null, ek_preis: ek, listenpreis: liste, aufschlag: artikel?.aufschlag }, firma);
+  const aufschlag = artikel?.aufschlag != null ? Number(artikel.aufschlag) : Number(firma?.material_aufschlag ?? 0);
   const vkHinweis = vk != null
     ? ek ? `Aufschlag auf den EK: ${zahl(((vk - ek) / ek) * 100)} %` : null
     : ek != null ? `Leer = ${euro(vkBerechnet)} (EK + ${zahl(aufschlag)} %)`
