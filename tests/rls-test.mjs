@@ -788,6 +788,383 @@ console.log("\n— Kategorien und Altrechnungen —");
   ok(reKat && reKat.kategorie_id === null, "gelöschte Kategorie verschwindet aus der Rechnung, die Rechnung bleibt");
 }
 
+// ── SETEC-Pakete: B Terminplaner, C Kontakte, D Förderung/Lohnkosten,
+//    E Angebot online, F Artikel/Lager, G Personal ─────────────────────────────
+const anonym = neuerClient();
+
+console.log("\n— B Terminplaner-Gruppe —");
+{
+  const { error: e1 } = await monteur.from("profiles").update({ gruppe: "Geschäftsführung" }).eq("id", monteurId);
+  ok(!!e1, "Monteur setzt seine Gruppe nicht selbst" + abgelehnt(e1));
+  const { error: e2 } = await chef.from("profiles").update({ gruppe: "Lager" }).eq("id", monteurId);
+  ok(!e2, "Chef setzt die Gruppe" + (e2 ? abgelehnt(e2) : ""));
+  const { error: e3 } = await chef.from("profiles").update({ gruppe: "x".repeat(41) }).eq("id", monteurId);
+  ok(!!e3, "Gruppe höchstens 40 Zeichen" + abgelehnt(e3));
+  await chef.from("profiles").update({ gruppe: null }).eq("id", monteurId);
+}
+
+console.log("\n— C Kontakte und Lieferanten —");
+{
+  const { data: kt, error: e1 } = await chef.from("kunden").insert({ name: "RLS-Test Großhandel C", art: "lieferant", namen: ["RLS-Test GH  C"] }).select("id").single();
+  ok(!e1, "Chef legt einen Lieferanten an" + (e1 ? abgelehnt(e1) : ""));
+  const { error: e2 } = await chef.from("kunden").insert({ name: "RLS-Test Falsch", art: "bank" });
+  ok(!!e2, "nur Kunde, Lieferant oder Partner" + abgelehnt(e2));
+  const { data: er } = await chef.from("eingangsrechnungen").insert({ lieferant: "rls-test gh c", nummer: "RLS-C1", netto: 10, ust_satz: 20, ust: 2, brutto: 12 }).select("id").single();
+  const { data: ls } = await monteur.from("lieferscheine").insert({ datei_pfad: `${monteurId}/rls-c.jpg`, lieferant: "RLS-Test Großhandel C", nummer: "RLS-LS-C", erstellt_von: monteurId }).select("id").single();
+  const { data: bc, error: e3 } = await chef.rpc("kontakt_belege", { p_kontakt: kt.id });
+  ok(!e3 && bc?.some((b) => b.quelle === "rechnung") && bc?.some((b) => b.quelle === "lieferschein"),
+    "Chef sieht Rechnung (andere Schreibweise) und Lieferschein beim Lieferanten" + (e3 ? abgelehnt(e3) : ""));
+  const { data: bm } = await monteur.rpc("kontakt_belege", { p_kontakt: kt.id });
+  ok(!bm?.some((b) => b.quelle === "rechnung") && bm?.some((b) => b.quelle === "lieferschein"), "Monteur sieht dort nur seinen Lieferschein, keine Rechnung");
+  const { data: bn } = await neu.rpc("kontakt_belege", { p_kontakt: kt.id });
+  ok(!bn?.length, "Nicht freigeschaltet sieht keine Belege");
+  const { data: kd } = await monteur.from("kunden").delete().eq("id", kt.id).select("id");
+  ok(!kd?.length, "Monteur löscht keinen Kontakt");
+  await chef.from("lieferscheine").delete().eq("id", ls?.id ?? "");
+  await chef.from("eingangsrechnungen").delete().eq("id", er?.id ?? "");
+  await chef.from("kunden").delete().eq("id", kt.id);
+}
+
+console.log("\n— D Förderung, Projekt-Verlauf, Lohnkosten —");
+{
+  const { data: s, error: e1 } = await chef.from("mitarbeiter_saetze").insert({ user_id: monteurId, gueltig_ab: "2030-01-01", lohnkosten: 35, verrechnungssatz: 72 }).select("id").single();
+  ok(!e1, "Chef trägt Lohnkosten und Verrechnungssatz ein" + (e1 ? abgelehnt(e1) : ""));
+  const { data: sM } = await monteur.from("mitarbeiter_saetze").select("id");
+  ok(!sM?.length, "Monteur sieht keine Lohnkosten (auch nicht die eigenen)");
+  const { error: e2 } = await monteur.from("mitarbeiter_saetze").insert({ user_id: monteurId, gueltig_ab: "2030-02-01", lohnkosten: 1 });
+  ok(!!e2, "Monteur trägt keine Lohnkosten ein" + abgelehnt(e2));
+  const { data: sN } = await neu.from("mitarbeiter_saetze").select("id");
+  ok(!sN?.length, "Nicht freigeschaltet sieht keine Lohnkosten");
+
+  const { error: e3 } = await monteur.from("projekt_verlauf").insert({ projekt_id: projekt.id, art: "whatsapp", text: "RLS-Test Termin morgen", an: "+43 664 0000000", user_id: monteurId });
+  ok(!e3, "Monteur vermerkt eine WhatsApp an den Kunden" + (e3 ? abgelehnt(e3) : ""));
+  const { error: e4 } = await monteur.from("projekt_verlauf").insert({ projekt_id: projekt.id, art: "foerderung", text: "RLS-Test gefälscht", user_id: monteurId });
+  ok(!!e4, "Förderschritte schreibt nur der Server" + abgelehnt(e4));
+  const { error: e5 } = await monteur.from("projekt_verlauf").insert({ projekt_id: projekt.id, art: "notiz", text: "RLS-Test im Namen des Chefs", user_id: chefId });
+  ok(!!e5, "Verlauf nur im eigenen Namen" + abgelehnt(e5));
+  const { data: vD } = await monteur.from("projekt_verlauf").delete().eq("projekt_id", projekt.id).select("id");
+  ok(!vD?.length, "Monteur löscht keinen Verlauf");
+  const { data: vN } = await neu.from("projekt_verlauf").select("id");
+  ok(!vN?.length, "Nicht freigeschaltet sieht keinen Verlauf");
+  const { error: e6 } = await chef.from("projekte").update({ foerder_status: "eingereicht", foerder_stelle: "RLS-Test Land", foerder_betrag: 1500 }).eq("id", projekt.id);
+  const { data: vF } = await chef.from("projekt_verlauf").select("text").eq("projekt_id", projekt.id).eq("art", "foerderung");
+  ok(!e6 && vF?.length === 1 && /eingereicht/.test(vF[0].text), `Förderstatus landet im Verlauf: ${vF?.[0]?.text ?? e6?.message}`);
+  const { error: e7 } = await chef.from("projekte").update({ foerder_status: "irgendwas" }).eq("id", projekt.id);
+  ok(!!e7, "nur bekannte Förderschritte" + abgelehnt(e7));
+  const { error: e8 } = await monteur.rpc("foerderung_verlauf");
+  ok(!!e8, "Trigger-Funktion ist nicht per RPC aufrufbar" + abgelehnt(e8));
+  await chef.from("mitarbeiter_saetze").delete().eq("id", s?.id ?? "");
+}
+
+console.log("\n— E Angebot online bestätigen —");
+{
+  const { data: an, error: eA } = await chef.from("belege").insert({ typ: "angebot", projekt_id: projekt.id, empf_name: "RLS-Test Kunde E" }).select("id").single();
+  await chef.from("beleg_positionen").insert({ beleg_id: an.id, pos: 1, art: "arbeit", bezeichnung: "RLS-Test Montage", menge: 2, einheit: "h", einzelpreis: 100, ek_preis: 61.17, minuten: 37 });
+  ok(!eA, "Chef legt ein Angebot an" + (eA ? abgelehnt(eA) : ""));
+  const { error: e0 } = await chef.rpc("angebot_link_erstellen", { p_beleg: an.id });
+  ok(!!e0, "Link nur für fertige Angebote" + abgelehnt(e0));
+  await chef.rpc("beleg_fertigstellen", { p_id: an.id });
+  const { error: e1 } = await monteur.rpc("angebot_link_erstellen", { p_beleg: an.id });
+  ok(!!e1, "Monteur erzeugt keinen Bestätigungslink" + abgelehnt(e1));
+  const { error: e1a } = await anonym.rpc("angebot_link_erstellen", { p_beleg: an.id });
+  ok(!!e1a, "ohne Anmeldung auch nicht" + abgelehnt(e1a));
+  const { data: token, error: e2 } = await chef.rpc("angebot_link_erstellen", { p_beleg: an.id });
+  ok(!e2 && /^[A-Za-z0-9_-]{32}$/.test(token ?? ""), "Chef erzeugt einen Link mit 192-Bit-Token" + (e2 ? abgelehnt(e2) : ""));
+
+  for (const t of ["angebot_links", "angebot_verlauf", "angebot_vorlagen"]) {
+    const { data: a } = await anonym.from(t).select("*").limit(5);
+    const { data: m } = await monteur.from(t).select("*").limit(5);
+    ok(!a?.length && !m?.length, `${t}: weder ohne Anmeldung noch für den Monteur lesbar`);
+  }
+  const { error: e3 } = await anonym.rpc("angebot_link_zu", { p_token: token });
+  ok(!!e3, "interne Hilfsfunktion angebot_link_zu nicht aufrufbar" + abgelehnt(e3));
+  const { error: e4 } = await anonym.rpc("angebot_datenblaetter", { p_beleg: an.id });
+  ok(!!e4, "angebot_datenblaetter nicht direkt aufrufbar" + abgelehnt(e4));
+
+  const { data: geraten } = await anonym.rpc("angebot_oeffentlich", { p_token: crypto.randomBytes(24).toString("base64url") });
+  ok(geraten?.zustand === "unbekannt" && !geraten.beleg && !geraten.positionen, "geratenes Token: nur „unbekannt“ und der Briefkopf");
+  const { data: kurz } = await anonym.rpc("angebot_oeffentlich", { p_token: "%" });
+  ok(kurz?.zustand === "unbekannt" && !kurz.beleg, "Platzhalter/kurze Tokens finden nichts");
+
+  const { data: oe, error: e5 } = await anonym.rpc("angebot_oeffentlich", { p_token: token });
+  const json = JSON.stringify(oe ?? {});
+  ok(!e5 && oe?.zustand === "offen" && oe.positionen?.length === 1, "Kunde sieht das Angebot über den Link" + (e5 ? abgelehnt(e5) : ""));
+  ok(!/ek_preis|minuten|aufschlag|quelle|61\.17|stundensatz/.test(json), "im öffentlichen JSON keine EK, Minuten, Aufschläge, Stundensätze");
+  ok(JSON.stringify(Object.keys(oe?.positionen?.[0] ?? {}).sort()) === JSON.stringify(["art", "bezeichnung", "einheit", "einzelpreis", "langtext", "menge"]),
+    "Positionen nur mit Art, Text, Menge, Einheit, Preis");
+  const { data: vg } = await chef.from("angebot_verlauf").select("art").eq("beleg_id", an.id);
+  ok(vg?.some((v) => v.art === "geoeffnet"), "Chef sieht: Kunde hat geöffnet");
+
+  // Unterschrift hochladen: nur PNG, klein, nur unter dem eigenen Token, höchstens 5
+  const png = (n = 200) => new Blob([new Uint8Array(n)], { type: "image/png" });
+  const hoch = (pfad, blob = png(), typ = "image/png") => anonym.storage.from("angebot-bestaetigung").upload(pfad, blob, { contentType: typ });
+  const { error: u1 } = await hoch(`${crypto.randomBytes(24).toString("base64url")}/${crypto.randomUUID()}.png`);
+  ok(!!u1, "Upload unter geratenem Token abgelehnt" + abgelehnt(u1));
+  const { error: u2 } = await hoch(`${token}/${crypto.randomUUID()}.png`, new Blob(["<script>"], { type: "text/html" }), "text/html");
+  ok(!!u2, "nur PNG" + abgelehnt(u2));
+  const { error: u3 } = await hoch(`${token}/${crypto.randomUUID()}.png`, png(600 * 1024));
+  ok(!!u3, "höchstens 512 KB" + abgelehnt(u3));
+  const { error: u4 } = await hoch(`${token}/sub/${crypto.randomUUID()}.png`);
+  ok(!!u4, "keine Unterordner" + abgelehnt(u4));
+  const unterschrift = `${token}/${crypto.randomUUID()}.png`;
+  const { error: u5 } = await hoch(unterschrift);
+  ok(!u5, "Kunde lädt seine Unterschrift hoch" + (u5 ? abgelehnt(u5) : ""));
+  const { data: url } = await anonym.storage.from("angebot-bestaetigung").createSignedUrl(unterschrift, 60);
+  ok(!url?.signedUrl, "hochgeladene Unterschriften kann niemand ohne Anmeldung lesen");
+  const { error: u6 } = await anonym.storage.from("angebot-bestaetigung").upload(unterschrift, png(), { contentType: "image/png", upsert: true });
+  ok(!!u6, "eine Unterschrift lässt sich nicht überschreiben" + abgelehnt(u6));
+  let weitere = 0;
+  for (let i = 0; i < 6; i++) if (!(await hoch(`${token}/${crypto.randomUUID()}.png`)).error) weitere++;
+  ok(weitere === 4, `höchstens 5 Dateien je Link (noch ${weitere} angenommen)`);
+
+  // Rückfragen: gedeckelt
+  const { error: r1 } = await anonym.rpc("angebot_rueckfrage", { p_token: token, p_name: "RLS-Test Kunde", p_text: "Geht es auch in Schwarz?" });
+  ok(!r1, "Kunde stellt eine Rückfrage" + (r1 ? abgelehnt(r1) : ""));
+  const { error: r2 } = await anonym.rpc("angebot_rueckfrage", { p_token: token, p_name: "X", p_text: "?" });
+  ok(!!r2, "leere Rückfrage abgelehnt" + abgelehnt(r2));
+  let rueckfragen = 1;
+  for (let i = 0; i < 25; i++) if (!(await anonym.rpc("angebot_rueckfrage", { p_token: token, p_name: "RLS-Test Spam", p_text: `Spam ${i}` })).error) rueckfragen++;
+  ok(rueckfragen === 20, `Rückfragen je Link gedeckelt (${rueckfragen} angenommen)`);
+  const { error: r3 } = await anonym.rpc("angebot_rueckfrage", { p_token: crypto.randomBytes(24).toString("base64url"), p_name: "RLS-Test", p_text: "Hallo Welt" });
+  ok(!!r3, "Rückfrage mit geratenem Token abgelehnt" + abgelehnt(r3));
+
+  // Annehmen
+  const annehmen = (p) => anonym.rpc("angebot_annehmen", { p_token: token, p_name: "RLS-Test Kunde", p_stand: oe.stand, p_unterschrift: unterschrift, p_akzeptiert: true, ...p });
+  const { error: a1 } = await annehmen({ p_stand: "2000-01-01T00:00:00Z" });
+  ok(!!a1, "Annehmen eines älteren Stands abgelehnt" + abgelehnt(a1));
+  const { error: a2 } = await annehmen({ p_unterschrift: `${crypto.randomBytes(24).toString("base64url")}/x.png` });
+  ok(!!a2, "Unterschrift muss unter diesem Link liegen" + abgelehnt(a2));
+  const { error: a3 } = await annehmen({ p_akzeptiert: false });
+  ok(!!a3, "ohne Haken kein Annehmen" + abgelehnt(a3));
+  // Chef ändert das Angebot nach dem Öffnen → der alte Stand gilt nicht mehr
+  await chef.from("belege").update({ schlusstext: "RLS-Test geändert" }).eq("id", an.id);
+  const { error: a4 } = await annehmen({});
+  ok(!!a4, "nach einer Änderung muss der Kunde neu laden" + abgelehnt(a4));
+  const { data: oe2 } = await anonym.rpc("angebot_oeffentlich", { p_token: token });
+  const { error: a5 } = await annehmen({ p_stand: oe2?.stand });
+  const { data: st } = await chef.from("belege").select("status").eq("id", an.id).single();
+  ok(!a5 && st?.status === "angenommen", "Kunde nimmt an → Angebot angenommen" + (a5 ? abgelehnt(a5) : ""));
+  const { error: a6 } = await annehmen({ p_stand: oe2?.stand });
+  ok(!!a6, "zweites Annehmen abgelehnt" + abgelehnt(a6));
+  const { error: r4 } = await anonym.rpc("angebot_rueckfrage", { p_token: token, p_name: "RLS-Test Kunde", p_text: "Noch eine Frage" });
+  ok(!!r4, "nach der Annahme keine Rückfragen mehr" + abgelehnt(r4));
+  const { error: u7 } = await hoch(`${token}/${crypto.randomUUID()}.png`);
+  ok(!!u7, "nach der Annahme keine Uploads mehr" + abgelehnt(u7));
+  const { data: urlC } = await chef.storage.from("angebot-bestaetigung").createSignedUrl(unterschrift, 60);
+  ok(!!urlC?.signedUrl, "Chef öffnet die Unterschrift");
+  const { data: urlM } = await monteur.storage.from("angebot-bestaetigung").createSignedUrl(unterschrift, 60);
+  ok(!urlM?.signedUrl, "Monteur nicht");
+  await chef.storage.from("angebot-bestaetigung").remove([unterschrift]);
+  const { data: noch } = await chef.storage.from("angebot-bestaetigung").list(token);
+  ok(noch?.some((o) => unterschrift.endsWith(o.name)), "Unterschrift bleibt, solange der Verlauf darauf zeigt");
+  await chef.rpc("angebot_link_sperren", { p_beleg: an.id });
+  const { data: gs } = await anonym.rpc("angebot_oeffentlich", { p_token: token });
+  ok(gs?.zustand === "gesperrt" && !gs.beleg, "gesperrter Link zeigt nur noch „nicht mehr gültig“");
+
+  // Material laut Angebot: Monteur bekommt Mengen ohne Preise
+  const { data: am, error: e6 } = await monteur.rpc("angebot_material", { p_projekt: projekt.id });
+  ok(!e6 && !!am && !/einzelpreis|ek_preis|brutto|netto/.test(JSON.stringify(am)), "Monteur: Material laut Angebot ohne Preise" + (e6 ? abgelehnt(e6) : ""));
+  const { data: amN } = await neu.rpc("angebot_material", { p_projekt: projekt.id });
+  ok(amN === null, "Nicht freigeschaltet: nichts");
+
+  // Vorlagen
+  const { error: v1 } = await monteur.from("angebot_vorlagen").insert({ name: "RLS-Test Vorlage M" });
+  ok(!!v1, "Monteur legt keine Angebotsvorlage an" + abgelehnt(v1));
+  const { error: v2 } = await chef.from("angebot_vorlagen").insert({ name: "RLS-Test Vorlage", positionen: [{ art: "arbeit", bezeichnung: "x", ek_preis: 1 }] });
+  ok(!v2, "Chef speichert eine Vorlage" + (v2 ? abgelehnt(v2) : ""));
+  const { error: v3 } = await chef.from("angebot_vorlagen").insert({ name: " rls-test vorlage" });
+  ok(!!v3, "Vorlagenname nur einmal" + abgelehnt(v3));
+  await chef.from("angebot_vorlagen").delete().like("name", "RLS-Test%");
+
+  // Aufräumen: Angebot (samt Link und Verlauf), dann die Dateien
+  const { data: anWeg } = await chef.from("belege").delete().eq("id", an.id).select("id");
+  ok(anWeg?.length === 1, "angenommenes, nicht verrechnetes Angebot lässt sich löschen");
+  const { data: liste } = await chef.storage.from("angebot-bestaetigung").list(token);
+  await chef.storage.from("angebot-bestaetigung").remove((liste ?? []).map((o) => `${token}/${o.name}`));
+  const { data: rest } = await chef.storage.from("angebot-bestaetigung").list(token);
+  ok(!rest?.length, "danach sind auch die Unterschriften weg");
+}
+
+console.log("\n— F Artikel und Lager —");
+{
+  const { data: art, error: e1 } = await chef.from("artikel").insert({ bezeichnung: "RLS-Test Artikel", lieferant: "RLS-Test", artikelnummer: `RLS-${Date.now()}`, ek_preis: 10, einheit: "Stk" }).select("id").single();
+  ok(!e1, "Chef legt einen Artikel an" + (e1 ? abgelehnt(e1) : ""));
+  const { error: e2 } = await monteur.rpc("artikel_aufschlag_setzen", { p_aufschlag: 99, p_lieferant: "RLS-Test" });
+  ok(!!e2, "Monteur ändert keine Aufschläge" + abgelehnt(e2));
+  const { data: n1, error: e3 } = await chef.rpc("artikel_aufschlag_setzen", { p_aufschlag: 25, p_lieferant: "RLS-Test" });
+  ok(!e3 && n1 === 1, `Chef setzt Aufschlag je Lieferant (${n1 ?? e3?.message})`);
+  const { error: e4 } = await chef.rpc("artikel_aufschlag_setzen", { p_aufschlag: 25 });
+  ok(!!e4, "ohne Kategorie/Hersteller/Lieferant nicht alle auf einmal" + abgelehnt(e4));
+
+  const { error: e5 } = await chef.from("artikel_lieferanten").insert({ artikel_id: art.id, lieferant: "RLS-Test Zweit", ek_preis: 9 });
+  ok(!e5, "Chef trägt einen zweiten Lieferanten ein" + (e5 ? abgelehnt(e5) : ""));
+  const { data: alM } = await monteur.from("artikel_lieferanten").select("id").eq("artikel_id", art.id);
+  ok(!alM?.length, "Monteur sieht keine Lieferantenpreise");
+  const { error: e6 } = await monteur.from("artikel_lieferanten").insert({ artikel_id: art.id, lieferant: "RLS-Test M" });
+  ok(!!e6, "und trägt keine ein" + abgelehnt(e6));
+
+  const { error: e7 } = await chef.from("artikel_dateien").insert({ artikel_id: art.id, art: "datenblatt", pfad: `fremd/${art.id}/x.pdf` });
+  ok(!!e7, "Artikel-Dateien nur unter artikel/<id>/" + abgelehnt(e7));
+  const { error: e8 } = await chef.from("artikel_dateien").insert({ artikel_id: art.id, art: "datenblatt", pfad: `artikel/${art.id}/rlstest.pdf`, name: "RLS-Test.pdf" });
+  ok(!e8, "Chef hängt ein Datenblatt an" + (e8 ? abgelehnt(e8) : ""));
+  const { data: adM } = await monteur.from("artikel_dateien").select("id").eq("artikel_id", art.id);
+  ok(adM?.length === 1, "Monteur sieht das Datenblatt");
+  const { error: e9 } = await monteur.from("artikel_dateien").insert({ artikel_id: art.id, art: "bild", pfad: `artikel/${art.id}/m.jpg` });
+  ok(!!e9, "Monteur hängt nichts an" + abgelehnt(e9));
+  const { data: adN } = await neu.from("artikel_dateien").select("id");
+  ok(!adN?.length, "Nicht freigeschaltet sieht keine Artikel-Dateien");
+
+  const { data: bus } = await chef.from("lagerorte").insert({ name: "RLS-Test Bus", art: "fahrzeug", user_id: monteurId }).select("id").single();
+  const { data: haupt } = await chef.from("lagerorte").insert({ name: "RLS-Test Lager", art: "lager" }).select("id").single();
+  const { error: e10 } = await monteur.from("artikel_lagerplaetze").insert({ artikel_id: art.id, lagerort_id: bus.id, platz: "Kiste links" });
+  ok(!e10, "Monteur setzt den Platz in seinem Bus" + (e10 ? abgelehnt(e10) : ""));
+  const { error: e11 } = await monteur.from("artikel_lagerplaetze").insert({ artikel_id: art.id, lagerort_id: haupt.id, platz: "Regal 1" });
+  ok(!!e11, "aber nicht im Hauptlager" + abgelehnt(e11));
+  const { error: e12 } = await chef.from("artikel_lagerplaetze").insert({ artikel_id: art.id, lagerort_id: haupt.id, platz: "Regal 3, Fach B" });
+  ok(!e12, "Chef setzt den Platz im Hauptlager" + (e12 ? abgelehnt(e12) : ""));
+  const { data: lpU } = await monteur.from("artikel_lagerplaetze").update({ platz: "weg" }).eq("lagerort_id", haupt.id).select("platz");
+  ok(!lpU?.length, "Monteur ändert den Platz im Hauptlager nicht");
+  const { data: lpN } = await neu.from("artikel_lagerplaetze").select("platz");
+  ok(!lpN?.length, "Nicht freigeschaltet sieht keine Lagerplätze");
+
+  // Wareneingang aus dem Lieferschein: genau einmal, nur der Chef
+  const { data: ls } = await monteur.from("lieferscheine").insert({ datei_pfad: `${monteurId}/rls-f.jpg`, lieferant: "RLS-Test", nummer: "RLS-LS-F", erstellt_von: monteurId }).select("id").single();
+  const zeilen = [{ art: "zugang", artikel_id: art.id, menge: 2, lagerort_id: haupt.id, ek_preis: 10 }];
+  const { error: e13 } = await monteur.rpc("lieferschein_einbuchen", { p_lieferschein: ls.id, p_zeilen: zeilen });
+  ok(!!e13, "Monteur bucht keinen Lieferschein ein" + abgelehnt(e13));
+  const { error: e14 } = await monteur.from("lieferscheine").update({ eingebucht_am: new Date().toISOString() }).eq("id", ls.id);
+  ok(!!e14, "und stempelt ihn nicht als eingebucht" + abgelehnt(e14));
+  const { error: e15 } = await chef.rpc("lieferschein_einbuchen", { p_lieferschein: ls.id, p_zeilen: [{ ...zeilen[0], art: "abgang" }] });
+  ok(!!e15, "Einbuchen nur als Zugang oder direkt" + abgelehnt(e15));
+  const { data: n2, error: e16 } = await chef.rpc("lieferschein_einbuchen", { p_lieferschein: ls.id, p_zeilen: zeilen });
+  ok(!e16 && n2 === 1, "Chef bucht den Lieferschein ein" + (e16 ? abgelehnt(e16) : ""));
+  const { error: e17 } = await chef.rpc("lieferschein_einbuchen", { p_lieferschein: ls.id, p_zeilen: zeilen });
+  ok(!!e17, "ein zweites Mal nicht" + abgelehnt(e17));
+  const { error: e18 } = await monteur.from("lieferscheine").update({ nummer: "RLS-LS-anders" }).eq("id", ls.id);
+  ok(!!e18, "eingebucht: Monteur ändert ihn nicht mehr" + abgelehnt(e18));
+  const { error: e19 } = await monteur.from("lieferscheine").delete().eq("id", ls.id);
+  const { data: lsDa } = await chef.from("lieferscheine").select("id").eq("id", ls.id);
+  ok(lsDa?.length === 1, "eingebucht: Monteur löscht ihn nicht" + (e19 ? ` — ${e19.message}` : ""));
+  const { error: e20 } = await chef.from("artikel").delete().eq("id", art.id);
+  ok(e20?.code === "23503", "Artikel mit Lagerbewegungen lässt sich nicht löschen (App: „wird noch verwendet“)" + abgelehnt(e20));
+  const { error: e21 } = await chef.from("lagerorte").delete().eq("id", haupt.id);
+  ok(e21?.code === "23503", "Lagerort mit Bewegungen auch nicht" + abgelehnt(e21));
+  // Rest (Buchungen, Lieferschein, Artikel, Lagerorte) räumt rls-aufraeumen.sql weg
+}
+
+console.log("\n— G Personal: interne Stunden, Teamleitung, Aufgaben, Dokumente —");
+{
+  const { error: e1 } = await monteur.from("zeiten").insert({ projekt_id: projekt.id, intern: "Büro", stunden: 1, taetigkeit: "RLS-Test" });
+  ok(!!e1, "interne Stunde nicht zugleich auf einem Projekt" + abgelehnt(e1));
+  const { error: e2 } = await monteur.from("zeiten").insert({ intern: "Lager/Werkstatt", stunden: 1, taetigkeit: "RLS-Test intern" });
+  ok(!e2, "Monteur bucht eine interne Stunde" + (e2 ? abgelehnt(e2) : ""));
+  const { data: tm } = await chef.from("teams").insert({ name: "RLS-Test Team G", leiter_id: monteurId, mitglieder: [monteurId, chefId] }).select("id").single();
+  const { error: e3 } = await monteur.from("zeiten").insert({ user_id: chefId, projekt_id: projekt.id, stunden: 1, taetigkeit: "RLS-Test Teamleitung" });
+  ok(!e3, "Teamleitung bucht für ihr Team" + (e3 ? abgelehnt(e3) : ""));
+  await chef.from("teams").update({ aktiv: false }).eq("id", tm.id);
+  const { error: e4 } = await monteur.from("zeiten").insert({ user_id: chefId, projekt_id: projekt.id, stunden: 1, taetigkeit: "RLS-Test Team aus" });
+  ok(!!e4, "inaktives Team: nicht mehr" + abgelehnt(e4));
+  await chef.from("teams").delete().eq("id", tm.id);
+
+  // Aufgaben
+  const { data: a1, error: e5 } = await chef.from("aufgaben").insert({ titel: "RLS-Test Aufgabe Monteur", zustaendig: [monteurId] }).select("id").single();
+  const { data: a2 } = await chef.from("aufgaben").insert({ titel: "RLS-Test Aufgabe Chef", zustaendig: [chefId] }).select("id").single();
+  ok(!e5, "Chef legt eine Aufgabe an" + (e5 ? abgelehnt(e5) : ""));
+  const { data: sicht } = await monteur.from("aufgaben").select("id").in("id", [a1.id, a2.id]);
+  ok(sicht?.length === 1 && sicht[0].id === a1.id, "Monteur sieht nur die ihm zugewiesene");
+  const { data: sN } = await neu.from("aufgaben").select("id");
+  ok(!sN?.length, "Nicht freigeschaltet sieht keine Aufgaben");
+  const { error: e6 } = await monteur.from("aufgaben").update({ titel: "RLS-Test umbenannt" }).eq("id", a1.id);
+  ok(!!e6, "Zuständiger ändert den Titel nicht" + abgelehnt(e6));
+  const { data: erl, error: e7 } = await monteur.from("aufgaben").update({ status: "erledigt", erledigt_von: chefId }).eq("id", a1.id).select("erledigt_von, erledigt_am").single();
+  ok(!e7 && erl?.erledigt_von === monteurId && !!erl.erledigt_am, "Zuständiger erledigt — Stempel vom Server, nicht fälschbar" + (e7 ? abgelehnt(e7) : ""));
+  const { data: fremdU } = await monteur.from("aufgaben").update({ status: "erledigt" }).eq("id", a2.id).select("id");
+  ok(!fremdU?.length, "fremde Aufgabe nicht änderbar");
+  const { data: fremdD } = await monteur.from("aufgaben").delete().eq("id", a1.id).select("id");
+  ok(!fremdD?.length, "Zuständiger löscht die Aufgabe des Chefs nicht");
+  const { error: e8 } = await monteur.from("aufgabe_verlauf").insert({ aufgabe_id: a1.id, art: "kommentar", text: "RLS-Test erledigt", user_id: monteurId });
+  ok(!e8, "Monteur kommentiert" + (e8 ? abgelehnt(e8) : ""));
+  const { error: e9 } = await monteur.from("aufgabe_verlauf").insert({ aufgabe_id: a1.id, art: "status", text: "erledigt", user_id: monteurId });
+  ok(!!e9, "Statuszeilen schreibt nur der Server" + abgelehnt(e9));
+  const { error: e10 } = await monteur.from("aufgabe_verlauf").insert({ aufgabe_id: a2.id, art: "kommentar", text: "RLS-Test", user_id: monteurId });
+  ok(!!e10, "keine Kommentare an fremden Aufgaben" + abgelehnt(e10));
+  const { data: vl } = await monteur.from("aufgabe_verlauf").select("art").eq("aufgabe_id", a2.id);
+  ok(!vl?.length, "Verlauf fremder Aufgaben unsichtbar");
+  const fotoOk = `${a1.id}/rlstest-${Date.now()}.jpg`;
+  const { error: e11 } = await monteur.storage.from("aufgaben").upload(fotoOk, new Blob(["x"]), { contentType: "image/jpeg" });
+  ok(!e11, "Monteur lädt ein Foto zu seiner Aufgabe hoch" + (e11 ? abgelehnt(e11) : ""));
+  const { error: e12 } = await monteur.storage.from("aufgaben").upload(`${a2.id}/rlstest.jpg`, new Blob(["x"]), { contentType: "image/jpeg" });
+  ok(!!e12, "nicht zu fremden Aufgaben" + abgelehnt(e12));
+  const { data: fN } = await neu.storage.from("aufgaben").createSignedUrl(fotoOk, 60);
+  ok(!fN?.signedUrl, "Nicht freigeschaltet öffnet das Foto nicht");
+  await chef.storage.from("aufgaben").remove([fotoOk]);
+
+  // Mitarbeiter-Dokumente
+  const lohn = `${monteurId}/rlstest-lohnzettel-${Date.now()}.pdf`;
+  await chef.storage.from("personal").upload(lohn, new Blob(["%PDF"]), { contentType: "application/pdf" });
+  const { data: pd, error: e13 } = await chef.from("personal_dokumente").insert({ user_id: monteurId, art: "lohnzettel", monat: "2030-01-01", pfad: lohn, name: "RLS-Test Lohnzettel.pdf" }).select("id, gelesen_am").single();
+  ok(!e13 && pd.gelesen_am === null, "Chef legt einen Lohnzettel ab (ungelesen)" + (e13 ? abgelehnt(e13) : ""));
+  const { data: pdM } = await monteur.from("personal_dokumente").select("id").eq("id", pd.id);
+  ok(pdM?.length === 1, "Monteur sieht seinen Lohnzettel");
+  const { data: urlM } = await monteur.storage.from("personal").createSignedUrl(lohn, 60);
+  ok(!!urlM?.signedUrl, "und öffnet ihn");
+  await monteur.rpc("personal_dokument_gelesen", { p_id: pd.id });
+  const { data: pdG } = await chef.from("personal_dokumente").select("gelesen_am").eq("id", pd.id).single();
+  ok(!!pdG?.gelesen_am, "Chef sieht: gelesen");
+  const { data: pdD } = await monteur.from("personal_dokumente").delete().eq("id", pd.id).select("id");
+  ok(!pdD?.length, "Monteur löscht den Lohnzettel nicht");
+  await monteur.storage.from("personal").remove([lohn]);
+  const { data: urlNoch } = await chef.storage.from("personal").createSignedUrl(lohn, 60);
+  ok(!!urlNoch?.signedUrl, "und auch nicht die Datei");
+  const { error: e15 } = await monteur.from("personal_dokumente").insert({ user_id: monteurId, art: "lohnzettel", pfad: `${monteurId}/rls-m.pdf`, name: "x.pdf" });
+  ok(!!e15, "Lohnzettel legt nur das Büro ab" + abgelehnt(e15));
+  const krank = `${monteurId}/rlstest-krank-${Date.now()}.jpg`;
+  const { error: e16 } = await monteur.storage.from("personal").upload(krank, new Blob(["x"]), { contentType: "image/jpeg" });
+  const { data: kr, error: e17 } = await monteur.from("personal_dokumente").insert({ user_id: monteurId, art: "krankenschein", pfad: krank, name: "RLS-Test Krankenschein.jpg" }).select("gelesen_am, hochgeladen_von").single();
+  ok(!e16 && !e17 && !!kr.gelesen_am && kr.hochgeladen_von === monteurId, "Monteur lädt seinen Krankenschein hoch" + (e16 || e17 ? abgelehnt(e16 ?? e17) : ""));
+  const { error: e18 } = await monteur.from("personal_dokumente").insert({ user_id: chefId, art: "krankenschein", pfad: `${chefId}/rls.jpg`, name: "x.jpg" });
+  ok(!!e18, "nicht für einen Kollegen" + abgelehnt(e18));
+  const { error: e19 } = await monteur.storage.from("personal").upload(`${chefId}/rlstest.jpg`, new Blob(["x"]), { contentType: "image/jpeg" });
+  ok(!!e19, "keine Dateien in fremde Ordner" + abgelehnt(e19));
+  const fremd = `${chefId}/rlstest-chef-${Date.now()}.pdf`;
+  await chef.storage.from("personal").upload(fremd, new Blob(["%PDF"]), { contentType: "application/pdf" });
+  const { data: urlF } = await monteur.storage.from("personal").createSignedUrl(fremd, 60);
+  ok(!urlF?.signedUrl, "fremde Personal-Dateien nicht lesbar");
+  const { data: pdF } = await monteur.from("personal_dokumente").select("id").neq("user_id", monteurId);
+  ok(!pdF?.length, "fremde Mitarbeiter-Dokumente unsichtbar");
+  const { data: pdN } = await neu.from("personal_dokumente").select("id");
+  ok(!pdN?.length, "Nicht freigeschaltet sieht keine");
+  const { error: e20 } = await neu.storage.from("personal").upload(`${neuId}/rlstest.jpg`, new Blob(["x"]), { contentType: "image/jpeg" });
+  ok(!!e20, "und lädt auch nichts hoch" + abgelehnt(e20));
+  await chef.storage.from("personal").remove([lohn, krank, fremd]);
+
+  // Firmendokumente
+  const fdAlle = `rlstest/${Date.now()}-alle.pdf`;
+  const fdChef = `rlstest/${Date.now()}-chef.pdf`;
+  await chef.storage.from("firmen-dokumente").upload(fdAlle, new Blob(["%PDF"]), { contentType: "application/pdf" });
+  await chef.storage.from("firmen-dokumente").upload(fdChef, new Blob(["%PDF"]), { contentType: "application/pdf" });
+  const { error: e21 } = await chef.from("firmen_dokumente").insert([
+    { ordner: "RLS-Test", titel: "RLS-Test Zertifikat", nur_chef: false, pfad: fdAlle, name: "z.pdf", beschreibung: null, gueltig_bis: null },
+    { ordner: "RLS-Test", titel: "RLS-Test Polizze", nur_chef: true, pfad: fdChef, name: "p.pdf", beschreibung: null, gueltig_bis: null },
+  ]);
+  ok(!e21, "Chef legt Firmendokumente ab" + (e21 ? abgelehnt(e21) : ""));
+  const { data: fdM } = await monteur.from("firmen_dokumente").select("titel").eq("ordner", "RLS-Test");
+  ok(fdM?.length === 1 && fdM[0].titel === "RLS-Test Zertifikat", "Monteur sieht nur, was nicht „nur Chef“ ist");
+  const { data: u1 } = await monteur.storage.from("firmen-dokumente").createSignedUrl(fdAlle, 60);
+  const { data: u2 } = await monteur.storage.from("firmen-dokumente").createSignedUrl(fdChef, 60);
+  ok(!!u1?.signedUrl && !u2?.signedUrl, "Datei „nur Chef“ auch im Speicher gesperrt");
+  const { data: fdN } = await neu.from("firmen_dokumente").select("id");
+  ok(!fdN?.length, "Nicht freigeschaltet sieht keine Firmendokumente");
+  const { error: e22 } = await monteur.from("firmen_dokumente").insert({ titel: "RLS-Test M", pfad: "rlstest/m.pdf", name: "m.pdf" });
+  ok(!!e22, "Monteur legt keine Firmendokumente ab" + abgelehnt(e22));
+  const { data: fdU } = await monteur.from("firmen_dokumente").update({ nur_chef: false }).eq("pfad", fdChef).select("id");
+  ok(!fdU?.length, "und gibt keine frei");
+  const { error: e23 } = await monteur.storage.from("firmen-dokumente").upload(`rlstest/m-${Date.now()}.pdf`, new Blob(["x"]), { contentType: "application/pdf" });
+  ok(!!e23, "und lädt keine Datei hoch" + abgelehnt(e23));
+  await chef.from("firmen_dokumente").delete().eq("ordner", "RLS-Test");
+  await chef.storage.from("firmen-dokumente").remove([fdAlle, fdChef]);
+}
+
 console.log(fehlgeschlagen ? `\n✗ ${fehlgeschlagen} Prüfung(en) fehlgeschlagen` : "\n✓ Alle Prüfungen bestanden");
 console.log("Jetzt tests/rls-aufraeumen.sql ausführen.");
 process.exit(fehlgeschlagen ? 1 : 0);

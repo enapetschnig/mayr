@@ -50,11 +50,13 @@ npm run check        # Absturz-Wächter
 npm test             # vitest (Parser)
 ```
 
-Regeln in der Datenbank prüfen (223 Prüfungen: nicht freigeschaltet, Monteur,
+Regeln in der Datenbank prüfen (378 Prüfungen: nicht freigeschaltet, Monteur,
 Chef, Festschreiben, Offene Posten, Stornorechnung, Korrektur, Eingangsrechnungen
 mit Freigabe und Positionen, Teil-/Schlussrechnung, Anlagen und Prüfprotokolle,
 Bestellungen, Regiebericht, Material, Konten, Rechnungsarchiv, Abwesenheiten,
-Zeitkonto, Einsätze, Buchhaltung, Fuhrpark und Teams, Lieferscheine, Rabatte, Buchen nur „In Arbeit“) — legt echte Daten und Nummern an, danach **immer** aufräumen:
+Zeitkonto, Einsätze, Buchhaltung, Fuhrpark und Teams, Lieferscheine, Rabatte, Buchen nur „In Arbeit“, Kategorien/Altrechnungen,
+Terminplaner-Gruppe, Kontakte, Förderung/Lohnkosten, Angebot online bestätigen
+als anon samt Upload/Rückfragen, Artikel/Lager, Aufgaben, Personal- und Firmendokumente) — legt echte Daten und Nummern an, danach **immer** aufräumen:
 
 ```bash
 node tests/rls-test.mjs anlegen                  # 3 Testkonten, dann die ausgegebenen SQL-Zeilen

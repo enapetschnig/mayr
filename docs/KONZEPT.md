@@ -40,8 +40,10 @@ direkte API-Aufrufe kommen nicht weiter (Migration `20261025190000_rechte_monteu
 `rechnung_id` setzen oder lösen nur der Chef; `erstellt_von` setzt der Server,
 Stunden auf einen Kollegen umbuchen nur der Chef; Projektnummer fest,
 Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
-(`korrektur`) nur der Chef; wer gebucht hat, bleibt; Pause nie negativ.
-`tests/rls-test.mjs` prüft jede dieser Regeln mit echten Konten.
+(`korrektur`) nur der Chef; wer gebucht hat, bleibt; Pause nie negativ;
+Gruppe im Terminplaner (`profiles.gruppe`) nur der Chef.
+`tests/rls-test.mjs` prüft jede dieser Regeln mit echten Konten — auch die der
+SETEC-Pakete (Lohnkosten, Angebot online als anon, Lager, Aufgaben, Dokumente).
 
 **Konten** (`lib/konto.ts`, Migration `20261025150000_konten.sql`):
 - Anmelden mit Benutzername: „Jürgen Maier“ → `juergen.maier@<loginDomain>`;
@@ -819,7 +821,8 @@ Migration `20261113114000_projekte_foerderung_planung_saetze.sql`, Bausteine in 
   bucht ins Lager (mit Lagerplatz) oder direkt aufs Projekt und hakt offene
   Bestellpositionen ab. RPC `lieferschein_einbuchen` bucht einmal —
   `eingebucht_am` und `material_buchungen.lieferschein_id` verhindern die
-  Doppelbuchung, eingebuchte Lieferscheine sind nicht mehr löschbar.
+  Doppelbuchung; eingebuchte Lieferscheine kann nur noch der Chef ändern oder
+  löschen (Trigger `lieferschein_eingebucht_schutz`).
 - **Ausfassen laut Angebot**: beim Ausfassen zeigt die Scan-Seite das Material
   aus dem angenommenen (sonst offenen) Angebot des Projekts mit „noch X von Y“
   (RPC `angebot_material`, auch für Monteure, die keine Belege lesen) —

@@ -59,6 +59,12 @@ begin
   delete from termine;
   delete from abwesenheiten;
   delete from konto_buchungen;
+  -- Aufgaben (samt Verlauf) und Dokumente: ihre Dateien hat
+  -- demo-dateien-loeschen.mjs schon aus dem Speicher genommen — sonst blieben
+  -- Zeilen, die ins Leere zeigen (04-personal legt die Demo-Zeilen neu an)
+  delete from aufgaben;
+  delete from personal_dokumente;
+  delete from firmen_dokumente;
   delete from projekte;
   delete from kunden;
   delete from leistung_material;
@@ -69,7 +75,11 @@ begin
   delete from fahrzeuge;
   -- der eingespielte Datanorm-Katalog (scripts/datanorm-einspielen.ts) bleibt
   delete from artikel where quelle is distinct from 'datanorm';
-  update artikel set aktiv = true, vk_preis = null, kategorie = null where quelle = 'datanorm';
+  update artikel set aktiv = true, vk_preis = null, kategorie = null, aufschlag = null
+   where quelle = 'datanorm' and (not aktiv or vk_preis is not null or kategorie is not null or aufschlag is not null);
+  -- Bilder/Datenblätter (Dateien sind weg) und weitere Lieferanten am Katalog
+  delete from artikel_dateien;
+  delete from artikel_lieferanten;
   delete from lagerorte;
   delete from nummernkreise;
   alter table beleg_positionen enable trigger user;

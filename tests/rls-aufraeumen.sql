@@ -36,6 +36,13 @@ begin
   delete from public.regieberichte where projekt_id = any(v_projekte) or erstellt_von = any(v_user);
   delete from public.termine where projekt_id = any(v_projekte) or user_id = any(v_user);
   delete from public.dateien where projekt_id = any(v_projekte) or user_id = any(v_user);
+  -- SETEC-Pakete (Aufgaben samt Verlauf, Firmendokumente, Vorlagen, Kontakte, Artikel und Lager)
+  delete from public.aufgaben where titel like 'RLS-Test%' or erstellt_von = any(v_user);
+  delete from public.firmen_dokumente where ordner = 'RLS-Test' or titel like 'RLS-Test%';
+  delete from public.angebot_vorlagen where name like 'RLS-Test%';
+  delete from public.kunden where name like 'RLS-Test%';
+  delete from public.lagerorte where name like 'RLS-Test%';
+  delete from public.artikel where bezeichnung like 'RLS-Test%';
   delete from public.projekte where id = any(v_projekte);
   delete from public.abwesenheiten where user_id = any(v_user);
   delete from public.konto_buchungen where user_id = any(v_user);
