@@ -81,6 +81,6 @@ WebKit (`BROWSER=webkit`), 378 Datenbank-Regeln, Einladung am Android-Emulator.
 - Teilen am iPhone (abgebrochen/nicht erlaubt) mit klarer Meldung,
   In-App-Browser-Hinweis auf der Angebotsseite.
 
-Fragen an Stefan dazu: Demo-Hinweis auf der Anmeldeseite weglassen? Darf der
+Demo-Hinweis auf der Anmeldeseite entfernt (Christoph, 13.11.). Fragen an Stefan dazu: Darf der
 Monteur den Förderstatus ändern und EK-Preise sehen? Gruppen der Startseite,
 Rechte für „Büro“.

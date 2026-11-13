@@ -157,7 +157,6 @@ export default function Auth() {
             </form>
           )}
         </div>
-        <p className="mx-auto mt-6 max-w-sm text-center text-xs text-muted-foreground">Demo-Version · alle Daten sind Beispieldaten</p>
       </div>
     </div>
   );
