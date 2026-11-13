@@ -48,7 +48,7 @@ const ERSATZ = {
 /** Kopf je Lieferant: Adresse, UID, Bank — alles Demo */
 function lieferantKopf(name, nr) {
   const n = name.replace(/\s*\(Demo\)\s*$/, "");
-  const ort = ["4020 Linz", "4600 Wels", "4400 Steyr", "5020 Salzburg", "4810 Gmunden"][nr % 5];
+  const ort = ["8020 Graz", "8700 Leoben", "8605 Kapfenberg", "5020 Salzburg", "1230 Wien"][nr % 5];
   return { name: n, zeile: `Industriestraße ${10 + nr * 7} · ${ort} · Demo-Adresse`, uid: `ATU${String(10000000 + nr * 1234567).slice(0, 8)}` };
 }
 

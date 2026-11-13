@@ -44,7 +44,7 @@ begin
 
   -- ── Älteres, abgeschlossenes Projekt (Nummer 2026-0006) ─────────────────
   insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von, created_at)
-  values ('Sonnenhof Stiege 1 – Stiegenhaus LED', k_sonnenhof, 'abgeschlossen', 'Sonnenweg 6', '4040', 'Linz',
+  values ('Sonnenhof Stiege 1 – Stiegenhaus LED', k_sonnenhof, 'abgeschlossen', 'Sonnenweg 6', '8700', 'Leoben',
           'Stiegenhausbeleuchtung auf LED mit Bewegungsmeldern umgebaut.', v_chef,
           timestamptz '2026-09-15 10:00 Europe/Vienna')
   returning id into p6;
@@ -360,19 +360,19 @@ begin
 
   -- ── Kalender ─────────────────────────────────────────────────────────────
   insert into termine (titel, beschreibung, ort, datum, bis_datum, von, bis, ganztags, projekt_id, mitarbeiter, user_id) values
-    ('Kirchenwirt – Gastgarten', null, 'Kirchenplatz 1, 4320 Perg', '2026-10-21', null, '08:00', '13:30', false, p5, array[v_max, v_lisa], v_chef),
-    ('Berger – Aufmaß Bad/WC', null, 'Am Bach 4, 4210 Gallneukirchen', '2026-10-22', null, '16:00', '18:00', false, p4, array[v_chef], v_chef),
-    ('Huber – Installation OG und Dachboden', 'Leitungen Dachboden fertig, Dosen OG setzen', 'Musterstraße 12, 4020 Linz', '2026-10-26', '2026-10-28', '07:00', '15:30', false, p1, array[v_max], v_chef),
-    ('Kirchenwirt – Saalbeleuchtung', 'Notlicht-Akku tauschen', 'Kirchenplatz 1, 4320 Perg', '2026-10-27', null, '15:45', '17:15', false, p5, array[v_max], v_chef),
-    ('Gruber – Backstube fertigstellen', null, 'Hauptplatz 3, 4600 Wels', '2026-10-29', null, '07:00', '15:30', false, p2, array[v_chef, v_max], v_chef),
-    ('Berger – Angebot besprechen', 'Angebot AN-2026-001 mitnehmen', 'Am Bach 4, 4210 Gallneukirchen', '2026-10-30', null, '09:00', '10:00', false, p4, array[v_chef], v_chef),
-    ('Huber – Verteiler fertig verdrahten', null, 'Musterstraße 12, 4020 Linz', '2026-11-02', '2026-11-03', '07:00', '15:30', false, p1, array[v_max], v_chef),
-    ('Sonnenhof – Abnahme Zählerplatz mit Netzbetreiber', null, 'Sonnenweg 8, 4040 Linz', '2026-11-04', null, '10:00', '11:00', false, p3, array[v_chef], v_chef);
+    ('Kirchenwirt – Gastgarten', null, 'Kirchplatz 1, 8670 Krieglach', '2026-10-21', null, '08:00', '13:30', false, p5, array[v_max, v_lisa], v_chef),
+    ('Berger – Aufmaß Bad/WC', null, 'Am Bach 4, 8662 Mitterdorf im Mürztal', '2026-10-22', null, '16:00', '18:00', false, p4, array[v_chef], v_chef),
+    ('Huber – Installation OG und Dachboden', 'Leitungen Dachboden fertig, Dosen OG setzen', 'Lindenweg 12, 8605 Kapfenberg', '2026-10-26', '2026-10-28', '07:00', '15:30', false, p1, array[v_max], v_chef),
+    ('Kirchenwirt – Saalbeleuchtung', 'Notlicht-Akku tauschen', 'Kirchplatz 1, 8670 Krieglach', '2026-10-27', null, '15:45', '17:15', false, p5, array[v_max], v_chef),
+    ('Gruber – Backstube fertigstellen', null, 'Mittergasse 3, 8600 Bruck an der Mur', '2026-10-29', null, '07:00', '15:30', false, p2, array[v_chef, v_max], v_chef),
+    ('Berger – Angebot besprechen', 'Angebot AN-2026-001 mitnehmen', 'Am Bach 4, 8662 Mitterdorf im Mürztal', '2026-10-30', null, '09:00', '10:00', false, p4, array[v_chef], v_chef),
+    ('Huber – Verteiler fertig verdrahten', null, 'Lindenweg 12, 8605 Kapfenberg', '2026-11-02', '2026-11-03', '07:00', '15:30', false, p1, array[v_max], v_chef),
+    ('Sonnenhof – Abnahme Zählerplatz mit Netzbetreiber', null, 'Sonnenweg 8, 8700 Leoben', '2026-11-04', null, '10:00', '11:00', false, p3, array[v_chef], v_chef);
 
   -- Max hat immer einen Termin heute — die Startseite zeigt, wo es hingeht
   if not exists (select 1 from termine where v_max = any(mitarbeiter) and current_date between datum and coalesce(bis_datum, datum)) then
     insert into termine (titel, beschreibung, ort, datum, von, bis, ganztags, projekt_id, mitarbeiter, user_id) values
-      ('Huber – Installation OG', 'Dosen setzen, Leitungen einziehen', 'Musterstraße 12, 4020 Linz', current_date, '07:00', '15:30', false, p1, array[v_max], v_chef);
+      ('Huber – Installation OG', 'Dosen setzen, Leitungen einziehen', 'Lindenweg 12, 8605 Kapfenberg', current_date, '07:00', '15:30', false, p1, array[v_max], v_chef);
   end if;
 
   -- ── Personal: Sollzeit, Konto, Abwesenheiten ─────────────────────────────
@@ -401,7 +401,7 @@ begin
     erledigt_am = (coalesce(bis_datum, datum) + time '15:20') at time zone 'Europe/Vienna', erledigt_von = v_max
     where coalesce(bis_datum, datum) < current_date;
   insert into termine (titel, beschreibung, ort, datum, von, bis, ganztags, projekt_id, mitarbeiter, dringend, user_id) values
-    ('Kirchenwirt – FI löst aus', 'Küche ohne Strom, Kunde ruft um Rückruf', 'Kirchenplatz 1, 4320 Perg', current_date, '15:45', '17:00', false, p5, array[v_max], true, v_chef);
+    ('Kirchenwirt – FI löst aus', 'Küche ohne Strom, Kunde ruft um Rückruf', 'Kirchplatz 1, 8670 Krieglach', current_date, '15:45', '17:00', false, p5, array[v_max], true, v_chef);
 
   -- Subunternehmer: Bauleistung mit Reverse Charge, zeigt die Buchhaltung
   insert into eingangsrechnungen (lieferant, nummer, datum, faellig_am, netto, ust_satz, ust, brutto, kategorie, reverse_charge, betrieb, notiz, erstellt_von) values
@@ -441,16 +441,16 @@ begin
        where v_max = any(mitarbeiter) and not v_chef = any(mitarbeiter);
 
       insert into termine (titel, beschreibung, ort, datum, bis_datum, von, bis, ganztags, projekt_id, mitarbeiter, fahrzeuge, team_id, user_id) values
-        ('Gruber – LED Verkaufsraum', 'Panels tauschen, Notlicht prüfen', 'Hauptplatz 3, 4600 Wels', w, w + 2, '07:00', '15:30', false, p2, array[v_tom, v_jonas], array[f_bus3], t_tom, v_chef),
-        ('Sonnenhof – Steigleitung Stiege 2', 'Steigleitung tauschen, Lichthof mit Steiger', 'Sonnenweg 8, 4040 Linz', w + 3, w + 4, '07:00', '15:30', false, p3, array[v_tom], array[f_bus3, f_steiger], t_tom, v_chef),
-        ('Kirchenwirt – Gastgarten Beleuchtung', 'Strahler an der Fassade, Steiger vom Hof aus', 'Kirchenplatz 1, 4320 Perg', w + 3, null, '10:00', '14:00', false, p5, array[v_eva, v_stefan], array[f_bus2, f_steiger], t_eva, v_chef),
-        ('Huber – Kernbohrungen Keller', 'Durchführungen Hausanschluss', 'Musterstraße 12, 4020 Linz', w + 1, null, '07:00', '12:00', false, p1, array[v_eva, v_stefan], array[f_bus2, f_kern], t_eva, v_chef),
-        ('Huber – Netzwerk und Medien', 'Netzwerkdosen OG, Patchfeld', 'Musterstraße 12, 4020 Linz', w + 1, null, '12:30', '15:30', false, p1, array[v_eva, v_stefan], array[f_bus2], t_eva, v_chef),
-        ('Berger – Bad Leerverrohrung', null, 'Am Bach 4, 4210 Gallneukirchen', w + 7, w + 8, '07:00', '15:30', false, p4, array[v_eva, v_stefan], array[f_bus2], t_eva, v_chef),
-        ('Gruber – Backstube Abnahme', null, 'Hauptplatz 3, 4600 Wels', w + 9, null, '08:00', '11:00', false, p2, array[v_tom, v_jonas], array[f_bus3], t_tom, v_chef),
-        ('Störung Bäckerei Gruber – Kühlraum', 'Kühlraum ohne Strom, sofort hin', 'Hauptplatz 3, 4600 Wels', current_date, null, '08:00', '10:00', false, p2, array[v_sarah], array[f_pkw], t_kd, v_chef),
-        ('E-Check Kirchenwirt', 'Prüfprotokoll mitnehmen', 'Kirchenplatz 1, 4320 Perg', w + 2, null, '08:00', '12:00', false, p5, array[v_sarah], array[f_pkw], t_kd, v_chef),
-        ('Sonnenhof – Notlicht Prüfung', null, 'Sonnenweg 8, 4040 Linz', w + 4, null, '08:00', '11:00', false, p3, array[v_sarah], array[f_pkw], t_kd, v_chef);
+        ('Gruber – LED Verkaufsraum', 'Panels tauschen, Notlicht prüfen', 'Mittergasse 3, 8600 Bruck an der Mur', w, w + 2, '07:00', '15:30', false, p2, array[v_tom, v_jonas], array[f_bus3], t_tom, v_chef),
+        ('Sonnenhof – Steigleitung Stiege 2', 'Steigleitung tauschen, Lichthof mit Steiger', 'Sonnenweg 8, 8700 Leoben', w + 3, w + 4, '07:00', '15:30', false, p3, array[v_tom], array[f_bus3, f_steiger], t_tom, v_chef),
+        ('Kirchenwirt – Gastgarten Beleuchtung', 'Strahler an der Fassade, Steiger vom Hof aus', 'Kirchplatz 1, 8670 Krieglach', w + 3, null, '10:00', '14:00', false, p5, array[v_eva, v_stefan], array[f_bus2, f_steiger], t_eva, v_chef),
+        ('Huber – Kernbohrungen Keller', 'Durchführungen Hausanschluss', 'Lindenweg 12, 8605 Kapfenberg', w + 1, null, '07:00', '12:00', false, p1, array[v_eva, v_stefan], array[f_bus2, f_kern], t_eva, v_chef),
+        ('Huber – Netzwerk und Medien', 'Netzwerkdosen OG, Patchfeld', 'Lindenweg 12, 8605 Kapfenberg', w + 1, null, '12:30', '15:30', false, p1, array[v_eva, v_stefan], array[f_bus2], t_eva, v_chef),
+        ('Berger – Bad Leerverrohrung', null, 'Am Bach 4, 8662 Mitterdorf im Mürztal', w + 7, w + 8, '07:00', '15:30', false, p4, array[v_eva, v_stefan], array[f_bus2], t_eva, v_chef),
+        ('Gruber – Backstube Abnahme', null, 'Mittergasse 3, 8600 Bruck an der Mur', w + 9, null, '08:00', '11:00', false, p2, array[v_tom, v_jonas], array[f_bus3], t_tom, v_chef),
+        ('Störung Bäckerei Gruber – Kühlraum', 'Kühlraum ohne Strom, sofort hin', 'Mittergasse 3, 8600 Bruck an der Mur', current_date, null, '08:00', '10:00', false, p2, array[v_sarah], array[f_pkw], t_kd, v_chef),
+        ('E-Check Kirchenwirt', 'Prüfprotokoll mitnehmen', 'Kirchplatz 1, 8670 Krieglach', w + 2, null, '08:00', '12:00', false, p5, array[v_sarah], array[f_pkw], t_kd, v_chef),
+        ('Sonnenhof – Notlicht Prüfung', null, 'Sonnenweg 8, 8700 Leoben', w + 4, null, '08:00', '11:00', false, p3, array[v_sarah], array[f_pkw], t_kd, v_chef);
       update termine set dringend = true where titel like 'Störung Bäckerei%';
 
       insert into abwesenheiten (user_id, art, von, bis, status, entschieden_von, entschieden_am, erstellt_von) values
@@ -486,18 +486,18 @@ begin
 
       -- ── Zwei größere Baustellen, auf denen die Monate davor gearbeitet wurde ──
       insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
-        values ('Wohnbau Leonding (Demo)', 'DI Karin Moser', 'Welser Straße 40', '4060', 'Leonding', '+43 000 0000107', 'bau@wohnbau-leonding.demo', 'ATU00000007', 'Bauleitung jeden Dienstag vor Ort')
+        values ('Wohnbau Kapfenberg (Demo)', 'DI Karin Moser', 'Grazer Straße 40', '8605', 'Kapfenberg', '+43 000 0000107', 'bau@wohnbau-kapfenberg.demo', 'ATU00000007', 'Bauleitung jeden Dienstag vor Ort')
         returning id into k7;
       insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
-        values ('Autohaus Steyr (Demo)', 'Markus Brandl', 'Industriestraße 5', '4400', 'Steyr', '+43 000 0000108', 'werkstatt@autohaus-steyr.demo', 'ATU00000008', null)
+        values ('Autohaus Bruck (Demo)', 'Markus Brandl', 'Industriestraße 5', '8600', 'Bruck an der Mur', '+43 000 0000108', 'werkstatt@autohaus-bruck.demo', 'ATU00000008', null)
         returning id into k8;
       insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von, created_at)
-        values ('Wohnanlage Leonding – 12 Wohnungen', k7, 'aktiv', 'Welser Straße 40', '4060', 'Leonding',
+        values ('Wohnanlage Kapfenberg – 12 Wohnungen', k7, 'aktiv', 'Grazer Straße 40', '8605', 'Kapfenberg',
                 'Elektroinstallation 12 Wohnungen, Tiefgarage mit Wallbox-Vorbereitung, Stiegenhaus, Photovoltaik am Dach.', v_chef,
                 (s + time '09:00') at time zone 'Europe/Vienna')
         returning id into p7;
       insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von, created_at)
-        values ('Autohaus Steyr – Werkstatt und Schauraum', k8, 'aktiv', 'Industriestraße 5', '4400', 'Steyr',
+        values ('Autohaus Bruck – Werkstatt und Schauraum', k8, 'aktiv', 'Industriestraße 5', '8600', 'Bruck an der Mur',
                 'Werkstatt: Hallenbeleuchtung LED, Kraftsteckdosen, Hebebühnen anschließen. Schauraum: Lichtsteuerung.', v_chef,
                 (s + 20 + time '09:00') at time zone 'Europe/Vienna')
         returning id into p8;
@@ -574,34 +574,34 @@ begin
       select x.titel, x.text, x.ort, w + x.ab, w + x.bis, '07:00', '15:30', false, x.p, x.leute, x.fz, x.team, v_chef
         from (values
           -- Team Max mit Bus 1
-          ('Huber – Feininstallation', 'Schalter, Steckdosen, Leuchtenauslässe', 'Musterstraße 12, 4020 Linz', 14, 18, p1, array[v_max, v_lisa], array[f_bus1], t_max),
-          ('Wohnanlage – Verteiler Top 1–6', 'Unterverteiler bestücken und beschriften', 'Welser Straße 40, 4060 Leonding', 21, 25, p7, array[v_max, v_lisa], array[f_bus1], t_max),
-          ('Huber – Fertigstellung und Messung', 'Messprotokoll, Übergabe an den Bauherrn', 'Musterstraße 12, 4020 Linz', 28, 30, p1, array[v_max, v_lisa], array[f_bus1], t_max),
-          ('Wohnanlage – Tiefgarage', 'Wallbox-Vorbereitung, Beleuchtung', 'Welser Straße 40, 4060 Leonding', 31, 39, p7, array[v_max, v_lisa], array[f_bus1], t_max),
-          ('Wohnanlage – Stiegenhaus', null, 'Welser Straße 40, 4060 Leonding', 42, 53, p7, array[v_max, v_lisa], array[f_bus1], t_max),
+          ('Huber – Feininstallation', 'Schalter, Steckdosen, Leuchtenauslässe', 'Lindenweg 12, 8605 Kapfenberg', 14, 18, p1, array[v_max, v_lisa], array[f_bus1], t_max),
+          ('Wohnanlage – Verteiler Top 1–6', 'Unterverteiler bestücken und beschriften', 'Grazer Straße 40, 8605 Kapfenberg', 21, 25, p7, array[v_max, v_lisa], array[f_bus1], t_max),
+          ('Huber – Fertigstellung und Messung', 'Messprotokoll, Übergabe an den Bauherrn', 'Lindenweg 12, 8605 Kapfenberg', 28, 30, p1, array[v_max, v_lisa], array[f_bus1], t_max),
+          ('Wohnanlage – Tiefgarage', 'Wallbox-Vorbereitung, Beleuchtung', 'Grazer Straße 40, 8605 Kapfenberg', 31, 39, p7, array[v_max, v_lisa], array[f_bus1], t_max),
+          ('Wohnanlage – Stiegenhaus', null, 'Grazer Straße 40, 8605 Kapfenberg', 42, 53, p7, array[v_max, v_lisa], array[f_bus1], t_max),
           -- Team Tom mit Bus 3, im Autohaus mit Steiger
-          ('Autohaus – Hallenbeleuchtung', 'Hallendecke 7 m, Steiger mitnehmen', 'Industriestraße 5, 4400 Steyr', 14, 16, p8, array[v_tom, v_jonas], array[f_bus3, f_steiger], t_tom),
-          ('Autohaus – Kraftsteckdosen Werkstatt', null, 'Industriestraße 5, 4400 Steyr', 17, 25, p8, array[v_tom, v_jonas], array[f_bus3], t_tom),
-          ('Gruber – Backstube Restarbeiten', null, 'Hauptplatz 3, 4600 Wels', 28, 29, p2, array[v_tom, v_jonas], array[f_bus3], t_tom),
-          ('Autohaus – Schauraum Lichtsteuerung', 'DALI programmieren', 'Industriestraße 5, 4400 Steyr', 30, 39, p8, array[v_tom, v_jonas], array[f_bus3], t_tom),
-          ('Autohaus – Hebebühnen anschließen', null, 'Industriestraße 5, 4400 Steyr', 42, 46, p8, array[v_tom, v_jonas], array[f_bus3], t_tom),
+          ('Autohaus – Hallenbeleuchtung', 'Hallendecke 7 m, Steiger mitnehmen', 'Industriestraße 5, 8600 Bruck an der Mur', 14, 16, p8, array[v_tom, v_jonas], array[f_bus3, f_steiger], t_tom),
+          ('Autohaus – Kraftsteckdosen Werkstatt', null, 'Industriestraße 5, 8600 Bruck an der Mur', 17, 25, p8, array[v_tom, v_jonas], array[f_bus3], t_tom),
+          ('Gruber – Backstube Restarbeiten', null, 'Mittergasse 3, 8600 Bruck an der Mur', 28, 29, p2, array[v_tom, v_jonas], array[f_bus3], t_tom),
+          ('Autohaus – Schauraum Lichtsteuerung', 'DALI programmieren', 'Industriestraße 5, 8600 Bruck an der Mur', 30, 39, p8, array[v_tom, v_jonas], array[f_bus3], t_tom),
+          ('Autohaus – Hebebühnen anschließen', null, 'Industriestraße 5, 8600 Bruck an der Mur', 42, 46, p8, array[v_tom, v_jonas], array[f_bus3], t_tom),
           -- Team Eva mit Bus 2
-          ('Wohnanlage – Leitungen Top 7–12', null, 'Welser Straße 40, 4060 Leonding', 14, 25, p7, array[v_eva, v_stefan], array[f_bus2], t_eva),
-          ('Wohnanlage – PV am Dach', 'Module und Wechselrichter, Steiger für den Kran-Hub', 'Welser Straße 40, 4060 Leonding', 28, 32, p7, array[v_eva, v_stefan], array[f_bus2, f_miet], t_eva),
-          ('Wohnanlage – Top 7–12 Feininstallation', null, 'Welser Straße 40, 4060 Leonding', 35, 46, p7, array[v_eva, v_stefan], array[f_bus2], t_eva)
+          ('Wohnanlage – Leitungen Top 7–12', null, 'Grazer Straße 40, 8605 Kapfenberg', 14, 25, p7, array[v_eva, v_stefan], array[f_bus2], t_eva),
+          ('Wohnanlage – PV am Dach', 'Module und Wechselrichter, Steiger für den Kran-Hub', 'Grazer Straße 40, 8605 Kapfenberg', 28, 32, p7, array[v_eva, v_stefan], array[f_bus2, f_miet], t_eva),
+          ('Wohnanlage – Top 7–12 Feininstallation', null, 'Grazer Straße 40, 8605 Kapfenberg', 35, 46, p7, array[v_eva, v_stefan], array[f_bus2], t_eva)
         ) as x(titel, text, ort, ab, bis, p, leute, fz, team);
       -- Kundendienst: einzelne Tage mit dem PKW
       insert into termine (titel, beschreibung, ort, datum, von, bis, ganztags, projekt_id, mitarbeiter, fahrzeuge, team_id, user_id)
       select x.titel, null, x.ort, w + x.tag, x.von::time, x.bis::time, false, x.p, array[v_sarah], array[f_pkw], t_kd, v_chef
         from (values
-          ('E-Check Sonnenhof Stiege 1', 'Sonnenweg 6, 4040 Linz', 8, '08:00', '12:00', p3),
-          ('Wartung Notlicht Autohaus', 'Industriestraße 5, 4400 Steyr', 10, '08:00', '11:00', p8),
-          ('Kirchenwirt – Küche Herd anschließen', 'Kirchenplatz 1, 4320 Perg', 15, '13:00', '15:00', p5),
-          ('E-Check Bäckerei Gruber', 'Hauptplatz 3, 4600 Wels', 17, '07:00', '11:00', p2),
-          ('Sonnenhof – Zählerplatz Abnahme Netz', 'Sonnenweg 8, 4040 Linz', 22, '09:00', '10:30', p3),
-          ('Kirchenwirt – Gastgarten winterfest', 'Kirchenplatz 1, 4320 Perg', 24, '08:00', '10:00', p5),
-          ('E-Check Wohnanlage Baustrom', 'Welser Straße 40, 4060 Leonding', 29, '07:00', '09:00', p7),
-          ('Autohaus – Wallbox Kundenparkplatz', 'Industriestraße 5, 4400 Steyr', 31, '08:00', '14:00', p8)
+          ('E-Check Sonnenhof Stiege 1', 'Sonnenweg 6, 8700 Leoben', 8, '08:00', '12:00', p3),
+          ('Wartung Notlicht Autohaus', 'Industriestraße 5, 8600 Bruck an der Mur', 10, '08:00', '11:00', p8),
+          ('Kirchenwirt – Küche Herd anschließen', 'Kirchplatz 1, 8670 Krieglach', 15, '13:00', '15:00', p5),
+          ('E-Check Bäckerei Gruber', 'Mittergasse 3, 8600 Bruck an der Mur', 17, '07:00', '11:00', p2),
+          ('Sonnenhof – Zählerplatz Abnahme Netz', 'Sonnenweg 8, 8700 Leoben', 22, '09:00', '10:30', p3),
+          ('Kirchenwirt – Gastgarten winterfest', 'Kirchplatz 1, 8670 Krieglach', 24, '08:00', '10:00', p5),
+          ('E-Check Wohnanlage Baustrom', 'Grazer Straße 40, 8605 Kapfenberg', 29, '07:00', '09:00', p7),
+          ('Autohaus – Wallbox Kundenparkplatz', 'Industriestraße 5, 8600 Bruck an der Mur', 31, '08:00', '14:00', p8)
         ) as x(titel, ort, tag, von, bis, p);
     end if;
 

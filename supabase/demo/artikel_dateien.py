@@ -178,7 +178,7 @@ def lieferschein(ls: dict) -> bytes:
     s = Image.new("RGB", (1240, 1754), "white")
     z = ImageDraw.Draw(s)
     z.text((80, 80), ls["lieferant"], font=schrift(44, True), fill=(20, 20, 20))
-    z.text((80, 140), "Musterweg 1 · 4000 Musterstadt · DEMO", font=schrift(26), fill=GRAU)
+    z.text((80, 140), "Musterweg 1 · 8644 Mürzhofen · DEMO", font=schrift(26), fill=GRAU)
     z.text((80, 260), "LIEFERSCHEIN", font=schrift(56, True), fill=(20, 20, 20))
     d = ls["datum"]
     z.text((80, 340), f"Nr. {ls['nummer']}      Datum {d[8:10]}.{d[5:7]}.{d[:4]}", font=schrift(30), fill=(20, 20, 20))

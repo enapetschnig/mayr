@@ -34,7 +34,7 @@ def foto(ls: dict) -> bytes:
     blatt = Image.new("RGB", (1240, 1754), "white")
     z = ImageDraw.Draw(blatt)
     z.text((80, 80), ls["lieferant"] or "Großhandel", font=schrift(44, True), fill=(20, 20, 20))
-    z.text((80, 140), "Musterweg 1 · 4000 Musterstadt · DEMO", font=schrift(26), fill=(90, 90, 90))
+    z.text((80, 140), "Musterweg 1 · 8644 Mürzhofen · DEMO", font=schrift(26), fill=(90, 90, 90))
     z.text((80, 260), "LIEFERSCHEIN", font=schrift(56, True), fill=(20, 20, 20))
     z.text((80, 340), f"Nr. {ls['nummer']}      Datum {ls['datum'][8:10]}.{ls['datum'][5:7]}.{ls['datum'][:4]}", font=schrift(30), fill=(20, 20, 20))
     z.text((80, 390), "Lieferadresse: SETEC GmbH, Baustelle", font=schrift(28), fill=(20, 20, 20))

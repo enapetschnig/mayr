@@ -140,24 +140,24 @@ begin
 
   -- ── Fuhrpark (Fälligkeiten relativ zu heute: etwas ist immer fällig) ────
   insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, km_stand, pickerl_bis, service_bis, pruefung_bis, lagerort_id, reihenfolge, notiz)
-    values ('Bus 1', 'bus', 'L-100 EM', 'VW Crafter 35', 2021, 84210, current_date + 140, current_date + 9, null, l_bus1, 1, 'Regalsystem, Kabeltrommelhalter')
+    values ('Bus 1', 'bus', 'BM-100 SE', 'VW Crafter 35', 2021, 84210, current_date + 140, current_date + 9, null, l_bus1, 1, 'Regalsystem, Kabeltrommelhalter')
     returning id into f_bus1;
   insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, km_stand, pickerl_bis, service_bis, pruefung_bis, lagerort_id, reihenfolge, notiz)
-    values ('Bus 2', 'bus', 'L-200 EM', 'Ford Transit Custom', 2019, 131540, current_date - 6, current_date + 60, null, l_bus2, 2, null)
+    values ('Bus 2', 'bus', 'BM-200 SE', 'Ford Transit Custom', 2019, 131540, current_date - 6, current_date + 60, null, l_bus2, 2, null)
     returning id into f_bus2;
   insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, km_stand, pickerl_bis, service_bis, pruefung_bis, lagerort_id, reihenfolge, notiz)
-    values ('Bus 3', 'bus', 'L-300 EM', 'Renault Master', 2023, 38900, current_date + 300, current_date + 200, null, l_bus3, 3, null)
+    values ('Bus 3', 'bus', 'BM-300 SE', 'Renault Master', 2023, 38900, current_date + 300, current_date + 200, null, l_bus3, 3, null)
     returning id into f_bus3;
   insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, km_stand, pickerl_bis, service_bis, pruefung_bis, reihenfolge, notiz)
-    values ('Kundendienst-PKW', 'pkw', 'L-400 EM', 'Škoda Octavia Combi', 2022, 56200, current_date + 220, current_date + 110, null, 4, 'Messkoffer und Ersatzteile an Bord')
+    values ('Kundendienst-PKW', 'pkw', 'BM-400 SE', 'Škoda Octavia Combi', 2022, 56200, current_date + 220, current_date + 110, null, 4, 'Messkoffer und Ersatzteile an Bord')
     returning id into f_pkw;
   insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, pruefung_bis, reihenfolge, notiz)
-    values ('Steiger 14 m', 'steiger', 'L-500 EM', 'Anhänger-Arbeitsbühne 14 m', 2018, current_date + 21, 5, 'Nur mit Unterweisung bedienen')
+    values ('Steiger 14 m', 'steiger', 'BM-500 SE', 'Anhänger-Arbeitsbühne 14 m', 2018, current_date + 21, 5, 'Nur mit Unterweisung bedienen')
     returning id into f_steiger;
   insert into fahrzeuge (name, art, typ, gemietet, reihenfolge, notiz) values
     ('Miet-Steiger 20 m', 'steiger', 'Teleskopbühne LKW 20 m', true, 6, 'Bei Bedarf beim Verleih reservieren, 2 Tage Vorlauf');
   insert into fahrzeuge (name, art, kennzeichen, typ, baujahr, pickerl_bis, reihenfolge) values
-    ('Anhänger', 'anhaenger', 'L-600 EM', 'Kastenanhänger 750 kg', 2015, current_date + 75, 7);
+    ('Anhänger', 'anhaenger', 'BM-600 SE', 'Kastenanhänger 750 kg', 2015, current_date + 75, 7);
   insert into fahrzeuge (name, art, typ, baujahr, service_bis, reihenfolge) values
     ('Kernbohrgerät', 'maschine', 'Diamant-Kernbohrgerät bis 162 mm', 2020, current_date + 400, 8),
     ('Mauernutfräse', 'maschine', 'Mauernutfräse 2-Scheiben', 2022, null, 9);
@@ -186,19 +186,19 @@ begin
 
   -- ── Kunden ───────────────────────────────────────────────────────────────
   insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
-    values ('Familie Huber', 'Thomas Huber', 'Musterstraße 12', '4020', 'Linz', '+43 000 0000101', 'huber@beispiel.demo', null, 'Neubau, Bauherr erreichbar ab 17 Uhr')
+    values ('Familie Huber', 'Thomas Huber', 'Lindenweg 12', '8605', 'Kapfenberg', '+43 000 0000101', 'huber@beispiel.demo', null, 'Neubau, Bauherr erreichbar ab 17 Uhr')
     returning id into k_huber;
   insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
-    values ('Bäckerei Gruber GmbH', 'Anna Gruber', 'Hauptplatz 3', '4600', 'Wels', '+43 000 0000102', 'office@baeckerei-gruber.demo', 'ATU00000001', null)
+    values ('Bäckerei Gruber GmbH', 'Anna Gruber', 'Mittergasse 3', '8600', 'Bruck an der Mur', '+43 000 0000102', 'office@baeckerei-gruber.demo', 'ATU00000001', null)
     returning id into k_gruber;
   insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
-    values ('Hausverwaltung Sonnenhof', 'Ing. Peter Leitner', 'Sonnenweg 8', '4040', 'Linz', '+43 000 0000103', 'office@sonnenhof-hv.demo', 'ATU00000002', 'Rechnungen bitte per E-Mail')
+    values ('Hausverwaltung Sonnenhof', 'Ing. Peter Leitner', 'Sonnenweg 8', '8700', 'Leoben', '+43 000 0000103', 'office@sonnenhof-hv.demo', 'ATU00000002', 'Rechnungen bitte per E-Mail')
     returning id into k_sonnenhof;
   insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
-    values ('Familie Berger', 'Julia Berger', 'Am Bach 4', '4210', 'Gallneukirchen', '+43 000 0000104', 'berger@beispiel.demo', null, null)
+    values ('Familie Berger', 'Julia Berger', 'Am Bach 4', '8662', 'Mitterdorf im Mürztal', '+43 000 0000104', 'berger@beispiel.demo', null, null)
     returning id into k_berger;
   insert into kunden (name, ansprechpartner, strasse, plz, ort, telefon, email, uid, notiz)
-    values ('Gasthaus Zum Kirchenwirt', 'Josef Kern', 'Kirchenplatz 1', '4320', 'Perg', '+43 000 0000105', 'kirchenwirt@beispiel.demo', 'ATU00000003', 'Ruhetag Montag')
+    values ('Gasthaus Zum Kirchenwirt', 'Josef Kern', 'Kirchplatz 1', '8670', 'Krieglach', '+43 000 0000105', 'kirchenwirt@beispiel.demo', 'ATU00000003', 'Ruhetag Montag')
     returning id into k_kirchenwirt;
 
   -- ── Anlagen mit Prüfintervall (eine überfällig, eine bald fällig) ─────────
@@ -211,19 +211,19 @@ begin
 
   -- ── Projekte (Nummer vergibt der Trigger: 2026-0001 …) ────────────────────
   insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von) values
-    ('Neubau EFH Huber', k_huber, 'aktiv', 'Musterstraße 12', '4020', 'Linz',
+    ('Neubau EFH Huber', k_huber, 'aktiv', 'Lindenweg 12', '8605', 'Kapfenberg',
      'Komplette Elektroinstallation Neubau: Verteiler, Leerverrohrung, Schalterprogramm, Netzwerk.', v_chef);
   insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von) values
-    ('Bäckerei Gruber – LED-Umrüstung', k_gruber, 'aktiv', 'Hauptplatz 3', '4600', 'Wels',
+    ('Bäckerei Gruber – LED-Umrüstung', k_gruber, 'aktiv', 'Mittergasse 3', '8600', 'Bruck an der Mur',
      'Verkaufsraum und Backstube auf LED umrüsten, Notbeleuchtung prüfen.', v_chef);
   insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von) values
-    ('Sonnenhof Stiege 2 – Zählerplatz', k_sonnenhof, 'verrechnen', 'Sonnenweg 8', '4040', 'Linz',
+    ('Sonnenhof Stiege 2 – Zählerplatz', k_sonnenhof, 'verrechnen', 'Sonnenweg 8', '8700', 'Leoben',
      'Zählerplatz erneuern, Steigleitung tauschen, Hauptleitungsabzweiger.', v_chef);
   insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von) values
-    ('Badsanierung Berger', k_berger, 'angebot', 'Am Bach 4', '4210', 'Gallneukirchen',
+    ('Badsanierung Berger', k_berger, 'angebot', 'Am Bach 4', '8662', 'Mitterdorf im Mürztal',
      'Bad und WC: Steckdosen, Spiegelleuchte, Spots, Lüfter, Potentialausgleich.', v_chef);
   insert into projekte (name, kunde_id, status, strasse, plz, ort, beschreibung, erstellt_von) values
-    ('Kirchenwirt – Regiearbeiten', k_kirchenwirt, 'aktiv', 'Kirchenplatz 1', '4320', 'Perg',
+    ('Kirchenwirt – Regiearbeiten', k_kirchenwirt, 'aktiv', 'Kirchplatz 1', '8670', 'Krieglach',
      'Laufende Störungen und Kleinaufträge nach Regie.', v_chef);
 
   -- ── Leistungskatalog (Preis leer = Material-VK + Minuten × Stundensatz) ──
