@@ -18,6 +18,7 @@ import { passtSuche } from "@/components/regie/regieLogik";
 import { datum, euro, isoTag } from "@/lib/format";
 import { EINGANG_STATUS, FREIGABE_STATUS } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useKategorien } from "@/components/buchhaltung/buchhaltungDaten";
 
 type Filter = "alle" | "pruefen" | "freigegeben" | "ueberwiesen" | "abgelehnt" | "zuzuordnen";
 
@@ -60,6 +61,8 @@ export default function Eingang() {
   const [suche, setSuche] = useState("");
   const [offen, setOffen] = useState<EingangMitAnteilen | "neu" | null>(null);
   const { data: alle = [], isLoading, error, refetch } = useEingangsrechnungen();
+  const { data: kategorien = [] } = useKategorien();
+  const katName = (r: EingangMitAnteilen) => kategorien.find((k) => k.id === r.kategorie_id)?.name ?? kategorieText(r.kategorie);
   const { data: kontakte = [] } = useKunden();
 
   // ?offen=<id> aus dem Lieferanten-Kontakt: diese Rechnung gleich öffnen
@@ -87,7 +90,7 @@ export default function Eingang() {
   }, [alle]);
 
   const liste = useMemo(() => alle.filter((r) => passt(r, filter) && passtSuche([
-    r.lieferant, r.nummer, r.notiz, kategorieText(r.kategorie), ...r.eingang_anteile.flatMap((a) => [a.text, a.projekte?.nummer, a.projekte?.name]),
+    r.lieferant, r.nummer, r.notiz, katName(r), ...r.eingang_anteile.flatMap((a) => [a.text, a.projekte?.nummer, a.projekte?.name]),
   ], suche)).sort((a, b) => (filter === "freigegeben" ? (zuZahlen(a, heute).bis ?? a.faellig_am ?? "9").localeCompare(zuZahlen(b, heute).bis ?? b.faellig_am ?? "9") : 0)),
   [alle, filter, suche, heute]);
 
@@ -216,7 +219,7 @@ export default function Eingang() {
                       </div>
                       <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
                         {r.datei_pfad && <Paperclip className="h-3 w-3 shrink-0" aria-label="mit Beleg" />}
-                        {[r.nummer, datum(r.datum), kategorieText(r.kategorie)].filter(Boolean).join(" · ")}
+                        {[r.nummer, datum(r.datum), katName(r)].filter(Boolean).join(" · ")}
                       </p>
                       {wohin && <p className="truncate text-xs">{wohin}</p>}
                     </div>

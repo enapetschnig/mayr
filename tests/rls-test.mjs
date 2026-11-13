@@ -730,6 +730,64 @@ console.log("\n— Buchhaltung —");
   await chef.from("rabatte").delete().eq("id", r.id);
 }
 
+// Buchhaltung: Kategorien und Altrechnungen aus dem alten Programm (nur der Chef)
+console.log("\n— Kategorien und Altrechnungen —");
+{
+  const { error: e1 } = await monteur.from("rechnung_kategorien").insert({ richtung: "ausgang", name: "RLS-Test Monteur" });
+  ok(!!e1, "Monteur legt keine Kategorie an" + abgelehnt(e1));
+  const { data: ka, error: e2 } = await chef.from("rechnung_kategorien").insert({ richtung: "ausgang", name: "RLS-Test Ausgang", konto: 4125 }).select("id").single();
+  ok(!e2, "Chef legt eine Ausgangs-Kategorie an" + (e2 ? abgelehnt(e2) : ""));
+  const { error: e3 } = await chef.from("rechnung_kategorien").insert({ richtung: "eingang", name: "RLS-Test Eingang ohne Art" });
+  ok(!!e3, "Eingangs-Kategorie braucht die Art für die Buchhaltung" + abgelehnt(e3));
+  const { data: ke } = await chef.from("rechnung_kategorien").insert({ richtung: "eingang", name: "RLS-Test Eingang", art: "werkzeug" }).select("id").single();
+  const { error: e4 } = await chef.from("rechnung_kategorien").insert({ richtung: "ausgang", name: "rls-test ausgang " });
+  ok(!!e4, "Name je Richtung nur einmal" + abgelehnt(e4));
+  const { data: kM } = await monteur.from("rechnung_kategorien").select("id");
+  ok(!kM?.length, "Monteur sieht keine Kategorien");
+  // fertige Rechnung: Kategorie ist frei (steht auf keinem PDF), eine Eingangs-Kategorie passt nicht
+  const { error: e5 } = await chef.from("belege").update({ kategorie_id: ka.id }).eq("id", re.id);
+  ok(!e5, "Kategorie an einer fertigen Rechnung änderbar" + (e5 ? abgelehnt(e5) : ""));
+  const { error: e6 } = await chef.from("belege").update({ kategorie_id: ke.id }).eq("id", re.id);
+  ok(!!e6, "Eingangs-Kategorie nicht an einer Ausgangsrechnung" + abgelehnt(e6));
+
+  const alt = { typ: "rechnung", status: "offen", altbestand: true, nummer: `RLS-ALT-${Date.now()}`, datum: "2025-12-01", faellig_am: "2025-12-15", empf_name: "RLS-Test Kunde", netto: 100, ust: 20, brutto: 120, ust_satz: 20 };
+  const { error: e7 } = await monteur.from("belege").insert(alt);
+  ok(!!e7, "Monteur erfasst keine Altrechnung" + abgelehnt(e7));
+  const { error: e8 } = await chef.from("belege").insert({ ...alt, nummer: `${alt.nummer}-x`, brutto: 130 });
+  ok(!!e8, "Altrechnung: Netto + USt muss Brutto ergeben" + abgelehnt(e8));
+  const { error: e9 } = await chef.from("belege").insert({ ...alt, nummer: `${alt.nummer}-y`, status: "bezahlt" });
+  ok(!!e9, "Altrechnung wird offen angelegt, bezahlt nur über eine Zahlung" + abgelehnt(e9));
+  const { error: e10 } = await chef.from("belege").insert({ ...alt, nummer: " " });
+  ok(!!e10, "Altrechnung braucht ihre alte Nummer" + abgelehnt(e10));
+  const { data: ar, error: e11 } = await chef.from("belege").insert({ ...alt, kategorie_id: ka.id }).select("id, fertig_am").single();
+  ok(!e11 && !!ar?.fertig_am, "Chef erfasst eine Altrechnung (ohne Nummernkreis)" + (e11 ? abgelehnt(e11) : ""));
+  const { error: e12 } = await chef.from("belege").update({ netto: 200, ust: 40, brutto: 240 }).eq("id", ar.id);
+  ok(!e12, "Altrechnung ist nicht festgeschrieben (Tippfehler korrigieren)" + (e12 ? abgelehnt(e12) : ""));
+  const { error: e13 } = await chef.from("belege").update({ altbestand: false }).eq("id", ar.id);
+  ok(!!e13, "Altrechnung bleibt Altrechnung" + abgelehnt(e13));
+  const { error: e14 } = await chef.rpc("beleg_stornieren", { p_id: ar.id });
+  ok(!!e14, "Altrechnung wird nicht storniert" + abgelehnt(e14));
+  await chef.from("zahlungen").insert({ beleg_id: ar.id, betrag: 140, datum: "2026-01-10" });
+  const { error: e15 } = await chef.from("zahlungen").insert({ beleg_id: ar.id, betrag: 100, datum: "2026-01-20", art: "ausbuchung", notiz: "RLS-Test uneinbringlich" });
+  const { data: a1 } = await chef.from("belege").select("status, bezahlt_am").eq("id", ar.id).single();
+  ok(!e15 && a1?.status === "bezahlt" && a1.bezahlt_am === "2026-01-20", `Teilzahlung + Ausbuchen → erledigt (${a1?.status})`);
+  const { error: e16 } = await chef.from("belege").update({ netto: 250, ust: 50, brutto: 300 }).eq("id", ar.id);
+  const { data: a2 } = await chef.from("belege").select("status, bezahlt_am").eq("id", ar.id).single();
+  ok(!e16 && a2?.status === "offen" && !a2.bezahlt_am, `höherer Betrag → wieder offen (${a2?.status})`);
+  const { error: e17 } = await chef.from("belege").update({ netto: 100, ust: 20, brutto: 120 }).eq("id", ar.id);
+  ok(!!e17, "Betrag nicht unter das schon Bezahlte" + abgelehnt(e17));
+  const { error: e18 } = await chef.rpc("fibu_uebergeben", { p_von: "2025-12-01", p_bis: "2025-12-31", p_format: "bmd", p_belege: [ar.id], p_eingaenge: [] });
+  ok(!!e18, "Altrechnung geht nicht an die Kanzlei" + abgelehnt(e18));
+  const { data: arWeg } = await chef.from("belege").delete().eq("id", ar.id).select("id");
+  ok(arWeg?.length === 1, "Altrechnung lässt sich löschen (samt Zahlungen)");
+  const { data: zRest } = await chef.from("zahlungen").select("id").eq("beleg_id", ar.id);
+  ok(!zRest?.length, "ihre Zahlungen gehen mit");
+
+  await chef.from("rechnung_kategorien").delete().in("id", [ka.id, ke.id]);
+  const { data: reKat } = await chef.from("belege").select("kategorie_id").eq("id", re.id).single();
+  ok(reKat && reKat.kategorie_id === null, "gelöschte Kategorie verschwindet aus der Rechnung, die Rechnung bleibt");
+}
+
 console.log(fehlgeschlagen ? `\n✗ ${fehlgeschlagen} Prüfung(en) fehlgeschlagen` : "\n✓ Alle Prüfungen bestanden");
 console.log("Jetzt tests/rls-aufraeumen.sql ausführen.");
 process.exit(fehlgeschlagen ? 1 : 0);

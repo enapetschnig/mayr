@@ -31,12 +31,15 @@ import {
 import { EingangPositionen } from "./EingangPositionen";
 import { LieferscheinAbgleich } from "./LieferscheinAbgleich";
 import { supabase } from "@/integrations/supabase/client";
+import { KATEGORIE_ARTEN, useKategorien, useLetzteEingangKategorien } from "@/components/buchhaltung/buchhaltungDaten";
+import { eingangVorschlag, letzteKategorien } from "@/components/buchhaltung/buchhaltungLogik";
+import { KategorieWahl } from "@/components/buchhaltung/KategorieTeile";
 
 const UST_SAETZE = ["20", "13", "10", "0"];
 
 type Kopf = {
   lieferant: string; nummer: string; datum: string; faellig_am: string; netto: string; brutto: string; ust_satz: string;
-  kategorie: string; betrieb: boolean; bezahlt: boolean; bezahlt_am: string; notiz: string; reverse_charge: boolean;
+  kategorie: string; kategorie_id: string | null; betrieb: boolean; bezahlt: boolean; bezahlt_am: string; notiz: string; reverse_charge: boolean;
   iban: string; skonto_prozent: string; skonto_bis: string; ls_nummern: string;
 };
 
@@ -49,6 +52,7 @@ const kopfAus = (r: EingangMitAnteilen | null, heute: string): Kopf => ({
   brutto: r ? zahlFeld(r.brutto) : "",
   ust_satz: r ? String(Number(r.ust_satz)) : "20",
   kategorie: r?.kategorie ?? "material",
+  kategorie_id: r?.kategorie_id ?? null,
   betrieb: r?.betrieb ?? false,
   bezahlt: !!r?.bezahlt_am,
   bezahlt_am: r?.bezahlt_am ?? heute,
@@ -134,6 +138,14 @@ export function EingangDialog({
   const status = rechnung ? ablauf(rechnung) : null;
   const ibanText = k.iban.trim();
   const ibanOk = !ibanText || !!ibanPruefen(ibanText);
+  const { data: alleKat = [] } = useKategorien(open);
+  const { data: letzte = [] } = useLetzteEingangKategorien(open);
+  const kategorien = useMemo(() => alleKat.filter((x) => x.richtung === "eingang"), [alleKat]);
+  // Vorschlag, solange keine Kategorie gewählt ist: was beim Lieferanten zuletzt galt, sonst Stichworte (auch aus den KI-Positionen)
+  const katVorschlag = useMemo(() => (k.kategorie_id ? null
+    : eingangVorschlag(k.lieferant, positionen.map((p) => p.bezeichnung), letzteKategorien(letzte), kategorien)), [k.kategorie_id, k.lieferant, positionen, letzte, kategorien]);
+  const katId = k.kategorie_id ?? katVorschlag;
+  const kat = kategorien.find((x) => x.id === katId);
   const vorschlaege = useMemo(() => {
     const q = k.lieferant.trim().toLowerCase();
     return q ? lieferanten.filter((l) => l.toLowerCase().includes(q) && l.toLowerCase() !== q).slice(0, 4) : [];
@@ -193,7 +205,9 @@ export function EingangDialog({
         ust_satz: satz,
         ust: Math.round((brutto - netto) * 100) / 100,
         brutto,
-        kategorie: k.kategorie,
+        // die Kategorie bestimmt die Art für die Buchhaltung; ohne Kategorie bleibt die gewählte Art
+        kategorie: kat?.art ?? k.kategorie,
+        kategorie_id: kat?.id ?? null,
         reverse_charge: k.reverse_charge,
         betrieb: k.betrieb,
         bezahlt_am: k.bezahlt ? k.bezahlt_am || heute : null,
@@ -203,7 +217,7 @@ export function EingangDialog({
         skonto_bis: skonto ? k.skonto_bis || null : null,
         lieferschein_nummern: k.ls_nummern.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean),
       }, liste, rechnung?.eingang_anteile ?? [], hochgeladen ?? datei, rechnung?.datei_pfad ?? null, positionen, neueId);
-      await neuLaden("eingang");
+      await neuLaden("eingang", "buchhaltung");
       return id;
     } catch (e) {
       toast.error("Nicht gespeichert", { description: fehlerText(e as { message?: string; code?: string }) });
@@ -224,7 +238,7 @@ export function EingangDialog({
     setSpeichert(true);
     try {
       await freigabeSetzen(id, wert, grund);
-      await neuLaden("eingang");
+      await neuLaden("eingang", "buchhaltung");
       toast.success(wert === "freigegeben" ? "Zur Überweisung freigegeben" : wert === "abgelehnt" ? "Abgelehnt" : "Wieder zu prüfen");
       onOpenChange(false);
     } catch (e) {
@@ -299,7 +313,7 @@ export function EingangDialog({
     setSpeichert(true);
     try {
       await eingangLoeschen(rechnung);
-      await neuLaden("eingang");
+      await neuLaden("eingang", "buchhaltung");
       toast.success("Eingangsrechnung gelöscht");
       setLoeschFrage(false);
       onOpenChange(false);
@@ -451,12 +465,19 @@ export function EingangDialog({
         <Feld id="e-nummer" label={<>Rechnungsnummer<Zusatz>(des Lieferanten)</Zusatz></>}>
           <Input id="e-nummer" className="h-11" value={k.nummer} onChange={(e) => setz({ nummer: e.target.value })} />
         </Feld>
-        <Feld id="e-kat" label="Art">
-          <Select value={k.kategorie} onValueChange={(v) => setz({ kategorie: v })}>
-            <SelectTrigger id="e-kat" className="h-11"><SelectValue /></SelectTrigger>
-            <SelectContent>{KATEGORIEN.map((x) => <SelectItem key={x.wert} value={x.wert}>{x.text}</SelectItem>)}</SelectContent>
-          </Select>
-        </Feld>
+        {kategorien.length ? (
+          <Feld id="e-kat" label={<>Kategorie{!k.kategorie_id && katVorschlag ? <Zusatz>(Vorschlag)</Zusatz> : null}</>}
+            hinweis={kat?.art ? `Buchhaltung: ${KATEGORIE_ARTEN.find((a) => a.wert === kat.art)?.text ?? kat.art}` : null}>
+            <KategorieWahl id="e-kat" kategorien={kategorien} wert={katId} onChange={(id) => setz({ kategorie_id: id })} />
+          </Feld>
+        ) : (
+          <Feld id="e-kat" label="Art">
+            <Select value={k.kategorie} onValueChange={(v) => setz({ kategorie: v })}>
+              <SelectTrigger id="e-kat" className="h-11"><SelectValue /></SelectTrigger>
+              <SelectContent>{KATEGORIEN.map((x) => <SelectItem key={x.wert} value={x.wert}>{x.text}</SelectItem>)}</SelectContent>
+            </Select>
+          </Feld>
+        )}
         <Feld id="e-datum" label="Rechnungsdatum">
           <Input id="e-datum" type="date" className="h-11" value={k.datum} onChange={(e) => setz({ datum: e.target.value })} />
         </Feld>
