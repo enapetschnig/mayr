@@ -21,6 +21,7 @@ import { Feld, leerNull, useBeimOeffnen, Zusatz } from "./Felder";
 import { fehlerText } from "./stammDaten";
 import { brauchtGeo, KONTAKT_ART, kontaktArt, namenLesen, type KontaktArt } from "@/components/kontakte/kontaktLogik";
 import { geoSuchen } from "@/components/kontakte/kontaktDaten";
+import { waNummer } from "@/lib/whatsapp";
 
 type Grunddaten = Pick<Kunde, "name" | "strasse" | "plz" | "ort" | "telefon" | "email">;
 type Zusatzdaten = { art: KontaktArt; ansprechpartner: string; uid: string; notiz: string; kundennummer_extern: string; namen: string };
@@ -101,7 +102,11 @@ export function KundeDialog({
   });
 
   const name = grund.name.trim();
-  const doppelt = name ? kunden.find((k) => k.id !== kunde?.id && k.name.trim().toLowerCase() === name.toLowerCase()) : undefined;
+  // Gleicher Name oder gleiche Telefonnummer (0664… = +43 664…) → Hinweis, nicht verboten
+  const nameDoppelt = name ? kunden.find((k) => k.id !== kunde?.id && k.name.trim().toLowerCase() === name.toLowerCase()) : undefined;
+  const telNr = waNummer(grund.telefon);
+  const telDoppelt = !nameDoppelt && telNr ? kunden.find((k) => k.id !== kunde?.id && waNummer(k.telefon) === telNr) : undefined;
+  const doppelt = nameDoppelt ?? telDoppelt;
 
   const speichern = async () => {
     if (!name) return toast.error("Bitte einen Namen eingeben.");
@@ -206,7 +211,7 @@ export function KundeDialog({
             <div className={cn("flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-sm", TON_KLASSE.gelb)}>
               <Info className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                Es gibt schon „{doppelt.name}“ (K{doppelt.nummer}{doppelt.ort ? ` · ${doppelt.ort}` : ""}). Gleicher Kunde? Dann besser den bestehenden nehmen.
+                {telDoppelt ? "Diese Telefonnummer hat schon" : "Es gibt schon"} „{doppelt.name}“ (K{doppelt.nummer}{doppelt.ort ? ` · ${doppelt.ort}` : ""}). Gleicher Kunde? Dann besser den bestehenden nehmen.
               </span>
             </div>
           )}

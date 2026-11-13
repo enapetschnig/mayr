@@ -128,6 +128,7 @@ export default function ProjektDetail() {
     if (buchbar) return los();
     toast(`Projekt ist „${PROJEKT_STATUS[projekt.status as ProjektStatus]?.text ?? projekt.status}“ — gebucht wird nur auf Projekte „In Arbeit“.`, {
       action: istChef ? { label: "Auf „In Arbeit“", onClick: () => void statusSetzen("aktiv") } : undefined,
+      duration: 6000,
     });
   };
 

@@ -71,7 +71,7 @@ export function FilterWahl({ gruppen, wert, onChange, className, alleText = "All
 }) {
   return (
     <select value={wert} onChange={(e) => onChange(e.target.value)} aria-label="Wen zeigen?"
-      className={cn("rounded-md border bg-card px-2 text-sm font-medium", className)}>
+      className={cn("rounded-md border bg-card px-2 text-base font-medium [@media(pointer:fine)]:text-sm", className)}>
       {alleText && <option value="">{alleText}</option>}
       <optgroup label="Gruppe">
         {gruppen.map((g) => <option key={g.schluessel} value={g.schluessel}>{g.titel}</option>)}
@@ -93,6 +93,9 @@ export function gefiltert(gruppen: Gruppe<Profil>[], filter: string): Gruppe<Pro
   return g.length ? g : gruppen;
 }
 
+/** „Rückgängig“ bleibt 8 s stehen (sonst 1,5 s — zu kurz zum Lesen und Tippen) */
+const RUECKGAENGIG_MS = 8000;
+
 /** Speichern mit „Rückgängig“ im Hinweis — sofort gezeichnet, bei Fehler zurück */
 function useAendern(termineKey: unknown[]) {
   const qc = useQueryClient();
@@ -110,6 +113,7 @@ function useAendern(termineKey: unknown[]) {
     if (text) {
       toast.success(text, {
         action: { label: "Rückgängig", onClick: () => void aendern({ ...t, ...neu }, alt) },
+        duration: RUECKGAENGIG_MS,
       });
     }
     void neuLaden();
@@ -119,7 +123,7 @@ function useAendern(termineKey: unknown[]) {
     const { error } = await supabase.from("termine").delete().eq("id", t.id);
     if (error) { toast.error("Nicht gelöscht", { description: fehlerText(error) }); return; }
     const { id: _id, created_at: _c, ...rest } = t;
-    toast(`${t.titel} gelöscht`, { action: { label: "Rückgängig", onClick: () => void supabase.from("termine").insert({ ...rest, id: t.id }).then(() => neuLaden()) } });
+    toast(`${t.titel} gelöscht`, { duration: RUECKGAENGIG_MS, action: { label: "Rückgängig", onClick: () => void supabase.from("termine").insert({ ...rest, id: t.id }).then(() => neuLaden()) } });
     void neuLaden();
   };
   return { aendern, loeschen };
@@ -307,7 +311,14 @@ export function Terminplaner(p: Gemeinsam & { gruppen: Gruppe<Profil>[]; seite?:
     if (!darf) return;
     const r = e.currentTarget.getBoundingClientRect();
     const von = Math.max(ab, Math.min(bis - 60, Math.floor((ab + ((e.clientY - r.top) / STD) * 60) / 30) * 30));
-    p.onNeu({ datum: tag, von: zeitAus(von), bis: zeitAus(Math.min(bis, von + 120)), mitarbeiterId: person });
+    const neu = () => p.onNeu({ datum: tag, von: zeitAus(von), bis: zeitAus(Math.min(bis, von + 120)), mitarbeiterId: person });
+    if (e.pointerType !== "touch") { neu(); return; }
+    // Tablet: erst beim Loslassen ohne Wischen — sonst öffnete jedes Rollen der Tafel ein Formular
+    const x0 = e.clientX, y0 = e.clientY;
+    const weg = () => { window.removeEventListener("pointermove", bew); window.removeEventListener("pointerup", auf); window.removeEventListener("pointercancel", weg); };
+    const bew = (ev: PointerEvent) => { if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 10) weg(); };
+    const auf = () => { weg(); neu(); };
+    window.addEventListener("pointermove", bew); window.addEventListener("pointerup", auf); window.addEventListener("pointercancel", weg);
   };
 
   const vorschau = zug?.bewegt ? ergebnis(zug) : null;

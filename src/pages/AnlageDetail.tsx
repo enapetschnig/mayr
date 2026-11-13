@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ChevronRight, ClipboardCheck, Loader2, Pencil, QrCode, Receipt, ShieldCheck } from "lucide-react";
 import { Seite } from "@/components/PageHeader";
+import { telLink } from "@/components/stamm/KundeDetail";
 import { Karte, Leer, StatusPille } from "@/components/Bausteine";
 import { AnlageDialog } from "@/components/anlagen/AnlageDialog";
 import {
@@ -151,8 +152,8 @@ export default function AnlageDetail() {
           <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1.5 text-sm">
             <dt className="text-muted-foreground">Kunde</dt>
             <dd className="min-w-0">
-              {anlage.kunden ? <Link to={`/kunden?k=${anlage.kunden.id}`} className="font-medium text-primary hover:underline">{anlage.kunden.name}</Link> : "–"}
-              {anlage.kunden?.telefon && <a href={`tel:${anlage.kunden.telefon}`} className="block text-muted-foreground">{anlage.kunden.telefon}</a>}
+              {anlage.kunden ? <Link to={`/kunden?k=${anlage.kunden.id}`} className="-my-2.5 inline-flex min-h-11 items-center font-medium text-primary hover:underline">{anlage.kunden.name}</Link> : "–"}
+              {telLink(anlage.kunden?.telefon) && <a href={telLink(anlage.kunden?.telefon)!} className="-mb-2.5 flex min-h-11 items-center text-primary">{anlage.kunden!.telefon}</a>}
             </dd>
             <dt className="text-muted-foreground">Art</dt><dd>{anlageText(anlage)}</dd>
             {anlageAdresse(anlage) && (<><dt className="text-muted-foreground">Adresse</dt><dd className="min-w-0">{anlageAdresse(anlage)}</dd></>)}

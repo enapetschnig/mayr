@@ -31,6 +31,7 @@ export function ProjektStatusWahl({ projekt, className }: { projekt: { id: strin
     const { error } = await supabase.from("projekte").update({ status: s }).eq("id", projekt.id);
     if (error) return toast.error("Nicht geändert", { description: fehlerText(error) });
     toast.success(`${projekt.nummer ? `${projekt.nummer}: ` : ""}${PROJEKT_STATUS[s].text}`, {
+      duration: 8000, // Zeit zum Lesen und Tippen (Standard 1,5 s ist für „Rückgängig“ zu kurz)
       action: { label: "Rückgängig", onClick: () => void supabase.from("projekte").update({ status: jetzt }).eq("id", projekt.id).then(() => neuLaden("projekte")) },
     });
     await neuLaden("projekte");
@@ -42,7 +43,8 @@ export function ProjektStatusWahl({ projekt, className }: { projekt: { id: strin
       <DropdownMenuTrigger asChild>
         <button type="button" aria-label={`Status: ${PROJEKT_STATUS[jetzt]?.text ?? jetzt} — ändern`} data-status-wahl
           onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
-          className={cn("-m-1.5 inline-flex shrink-0 items-center rounded-full p-1.5 hover:bg-muted", className)}>
+          // sichtbar 32 px, Trefferfläche per before: 48 px hoch — am Handy gut zu treffen
+          className={cn("relative -m-1.5 inline-flex shrink-0 items-center rounded-full p-1.5 before:absolute before:-inset-y-2 before:inset-x-0 before:content-[''] hover:bg-muted", className)}>
           <StatusPille eintrag={PROJEKT_STATUS[jetzt] ?? { ton: "grau", text: jetzt }} className="pr-1" />
           <ChevronDown className="-ml-0.5 h-3.5 w-3.5 text-muted-foreground" />
         </button>

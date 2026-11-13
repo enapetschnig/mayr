@@ -83,7 +83,7 @@ export function ProjektWahl({
     return (
       <button ref={knopf} id={id} type="button" onClick={oeffnen} aria-haspopup="listbox" aria-expanded={false}
         onKeyDown={(e) => { if (e.key === "ArrowDown" || (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey)) { e.preventDefault(); oeffnen(); if (e.key.length === 1) setSuche(e.key); } }}
-        className="flex h-12 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-left text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm">
+        className="flex h-12 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-left text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:[@media(pointer:fine)]:text-sm">
         {gewaehlt ? (
           <span className="flex min-w-0 flex-1 items-baseline gap-2">
             <span className="shrink-0 font-mono text-xs text-muted-foreground">{gewaehlt.nummer}</span>
@@ -116,7 +116,7 @@ export function ProjektWahl({
             else if (e.key === "PageUp") { e.preventDefault(); markieren(markiert - 8); }
             else if (e.key === "Enter") { e.preventDefault(); if (aktiv) waehlen(aktiv); }
           }}
-          className="h-12 w-full rounded-t-md bg-transparent pl-9 pr-11 text-base outline-none md:text-sm" />
+          className="h-12 w-full rounded-t-md bg-transparent pl-9 pr-11 text-base outline-none md:[@media(pointer:fine)]:text-sm" />
         <button type="button" onClick={() => schliessen()} aria-label="Liste schließen"
           className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-muted">
           <X className="h-4 w-4" />

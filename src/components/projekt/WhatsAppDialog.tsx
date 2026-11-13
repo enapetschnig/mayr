@@ -14,7 +14,7 @@ import { useSitzung } from "@/hooks/useSitzung";
 import { isoTag, isoZuDatum, uhrzeit } from "@/lib/format";
 import { istFoerderStatus } from "@/lib/foerderung";
 import { FOERDER_STATUS, name } from "@/lib/types";
-import { nummerText, vorlageFuellen, vorlagenLesen, waLink, waNummer } from "@/lib/whatsapp";
+import { istFestnetz, nummerText, vorlageFuellen, vorlagenLesen, waLink, waNummer } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
 
 const TAG = new Intl.DateTimeFormat("de-AT", { weekday: "long", day: "numeric", month: "numeric", year: "numeric" });
@@ -33,6 +33,7 @@ export function WhatsAppDialog({ open, onOpenChange, projekt }: { open: boolean;
   const [vorlage, setVorlage] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [nummer, setNummer] = useState("");
+  const [laeuft, setLaeuft] = useState(false);
   const heute = isoTag();
 
   // Nächster Einsatz: ab heute, frühester zuerst
@@ -85,6 +86,8 @@ export function WhatsAppDialog({ open, onOpenChange, projekt }: { open: boolean;
   const senden = async () => {
     if (!nr) return toast.error("Bitte eine Handynummer eintragen (z. B. 0664 1234567).");
     if (!text.trim()) return toast.error("Bitte einen Text eingeben.");
+    if (laeuft) return; // Doppeltipp: nur einmal öffnen und vermerken
+    setLaeuft(true);
     // Erst öffnen (sonst blockt der Browser das Fenster), dann vermerken
     window.open(waLink(nr, text.trim()), "_blank", "noopener");
     const { error } = await supabase.from("projekt_verlauf").insert({
@@ -93,6 +96,7 @@ export function WhatsAppDialog({ open, onOpenChange, projekt }: { open: boolean;
     if (error) toast.error("WhatsApp geöffnet, aber nicht im Verlauf vermerkt", { description: error.message });
     else toast.success("Im Projekt-Verlauf vermerkt", { description: "Gesendet ist erst, wenn Sie in WhatsApp auf Senden tippen." });
     await neuLaden("projekt_verlauf");
+    setLaeuft(false);
     onOpenChange(false);
   };
 
@@ -102,7 +106,7 @@ export function WhatsAppDialog({ open, onOpenChange, projekt }: { open: boolean;
       fuss={
         <>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          <Button onClick={senden} disabled={!nr || !text.trim()} className="gap-2"><Send className="h-4 w-4" /> In WhatsApp öffnen</Button>
+          <Button onClick={senden} disabled={!nr || !text.trim() || laeuft} className="gap-2"><Send className="h-4 w-4" /> In WhatsApp öffnen</Button>
         </>
       }>
       <div className="max-w-xl space-y-5">
@@ -112,6 +116,7 @@ export function WhatsAppDialog({ open, onOpenChange, projekt }: { open: boolean;
           <p className={cn("text-xs", nummer && !nr ? "text-destructive" : "text-muted-foreground")}>
             {nr ? `WhatsApp an ${nummerText(nr)}` : nummer ? "Diese Nummer kann WhatsApp nicht lesen." : "Beim Kunden ist keine Nummer hinterlegt."}
           </p>
+          {istFestnetz(nr) && <p className="text-xs text-status-gelb-fg">Das ist eine Festnetznummer — WhatsApp geht meist nur ans Handy.</p>}
         </div>
         <div className="space-y-2">
           <Label>Vorlage</Label>

@@ -157,7 +157,7 @@ export function Gantt({
     if (error) return toast.error("Nicht gelöscht", { description: fehlerText(error) });
     const { id: _id, created_at: _c, ...rest } = t;
     setRueck((r) => [...r.slice(-29), { text: `${t.titel} gelöscht`, zurueck: async () => { await supabase.from("termine").insert({ ...rest, id: t.id }); void neuLaden(); } }]);
-    toast(`${t.titel} gelöscht`, { action: { label: "Rückgängig", onClick: () => void rueckgaengig() } });
+    toast(`${t.titel} gelöscht`, { duration: 8000, action: { label: "Rückgängig", onClick: () => void rueckgaengig() } });
     setInfo(null);
     void neuLaden();
   };
@@ -918,7 +918,7 @@ function NeuesTeam({ ziehen, onAnlegen }: { ziehen: boolean; onAnlegen: (titel: 
     <form className="flex w-full items-center gap-1 py-1" onSubmit={(e) => { e.preventDefault(); void fertig(); }}>
       <input autoFocus value={titel} onChange={(e) => setTitel(e.target.value)} disabled={laeuft} aria-label="Name des neuen Teams" placeholder="Name, z. B. Lisa"
         onKeyDown={(e) => { if (e.key === "Escape") { setTitel(""); setOffen(false); } }} onBlur={() => { if (!titel.trim()) setOffen(false); }}
-        className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm" />
+        className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-base [@media(pointer:fine)]:text-sm" />
       <Button type="submit" size="sm" className="h-8" disabled={laeuft || !titel.trim()}>Anlegen</Button>
     </form>
   );
@@ -950,7 +950,7 @@ function Streifen({ projekte, eingeplant, darf, onZiehen, rechts }: {
           <label className="relative shrink-0">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Projekt suchen …" aria-label="Projekt suchen"
-              className="h-8 w-40 rounded-md border bg-background pl-7 pr-2 text-sm" />
+              className="h-8 w-40 rounded-md border bg-background pl-7 pr-2 text-base [@media(pointer:fine)]:text-sm" />
           </label>
           <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-0.5">
             {liste.map((p) => {

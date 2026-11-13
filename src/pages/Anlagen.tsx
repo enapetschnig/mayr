@@ -115,6 +115,9 @@ export default function Anlagen() {
           : filter === "faellig" ? "Keine Prüfung fällig — in den nächsten 30 Tagen ist nichts dran."
             : alle.length ? "Keine Anlage in dieser Liste." : "Noch keine Anlagen. Verteiler, E-Check, Blitzschutz, Notlicht — alles, was regelmäßig geprüft wird."}>
           {!alle.length && <Button className="h-11" onClick={() => setNeu(true)}><Plus className="h-4 w-4" /> Erste Anlage anlegen</Button>}
+          {filter === "faellig" && anzahl.alle > 0 && (
+            <Button variant="outline" className="h-11" onClick={() => filterSetzen("alle")}>Alle {anzahl.alle} Anlagen zeigen</Button>
+          )}
         </Leer>
       ) : (
         <ul className="divide-y rounded-lg border bg-card">

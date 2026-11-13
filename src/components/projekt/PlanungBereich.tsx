@@ -5,6 +5,7 @@ import { FotoDialog } from "@/components/dialoge/FotoDialog";
 import { BildBetrachter } from "@/components/projekt/BildBetrachter";
 import { istBild, istPdf, useDateiOeffnen, useProjektDateien } from "@/components/projekt/FotosTab";
 import { useIstPc } from "@/components/AppLayout";
+import { useSitzung } from "@/hooks/useSitzung";
 import { datum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ const PdfVollbild = lazy(() => import("@/components/projekt/PdfAnsicht").then((m
  */
 export function PlanungBereich({ projektId }: { projektId: string }) {
   const pc = useIstPc();
+  const { istChef } = useSitzung();
   const { data } = useProjektDateien(projektId);
   const { bild, setBild, pdf, setPdf, oeffnen } = useDateiOeffnen();
   const [hochladen, setHochladen] = useState(false);
@@ -29,7 +31,9 @@ export function PlanungBereich({ projektId }: { projektId: string }) {
 
   if (!data) return null;
 
+  // Leer: nur das Büro sieht den Hinweis — dem Monteur steht er nur im Weg
   if (plaene.length === 0) {
+    if (!istChef) return null;
     return (
       <section className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed bg-card p-3">
         <PencilRuler className="h-5 w-5 shrink-0 text-primary" />
