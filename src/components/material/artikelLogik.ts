@@ -203,3 +203,11 @@ export function aufschlagAus(ek: number | null | undefined, vk: number | null | 
   if (ek == null || vk == null || !(Number(ek) > 0)) return null;
   return Math.round(((Number(vk) - Number(ek)) / Number(ek)) * 1000) / 10;
 }
+
+/**
+ * Nebenkosten auf dem Lieferschein (Fracht, Verpackung, Maut …) — keine Ware
+ * fürs Lager. Ohne zugeordneten Artikel startet die Zeile deshalb als „nicht
+ * einbuchen“, statt das Einbuchen zu sperren.
+ */
+export const istNebenkosten = (text: string | null | undefined) =>
+  /fracht|versand|porto|verpackung|transport|zustell|anliefer|maut|logistik|mindermengen|kleinmengen|energiezuschlag|palette/i.test(text ?? "");

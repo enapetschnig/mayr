@@ -174,7 +174,8 @@ export function altZeileLesen(e: AltEingabe, heute: string, format: ZahlenFormat
   }
   const b = e.bezahlt.trim().toLowerCase();
   let bezahlt = 0;
-  if (["ja", "j", "x", "bezahlt", "yes", "1"].includes(b)) bezahlt = brutto;
+  // „ja“ oder ein Zahldatum („bezahlt am 12.10.2025“) = ganz bezahlt
+  if (["ja", "j", "x", "bezahlt", "yes", "1"].includes(b) || datumLesen(b)) bezahlt = brutto;
   else if (b && !["nein", "n", "offen", "0", "-"].includes(b)) {
     const z = dezimalLesenFormat(e.bezahlt, format);
     if (z === null || z < 0) return { rechnung: null, fehler: `Bezahlt „${e.bezahlt.trim()}“ nicht lesbar` };
@@ -207,7 +208,8 @@ const SPALTEN_WOERTER: Record<AltSpalte, RegExp> = {
   ust_satz: /^(ust|mwst|steuer)[ -]?(satz|%|prozent)?$|satz/,
   brutto: /brutto|^betrag$|^summe$|gesamt/,
   faellig_am: /f(ä|ae)llig/,
-  bezahlt: /bezahlt|zahlung|^status$/,
+  // nicht „Zahlungsziel“ (14 Tage) oder „Zahlungsart“ — sonst wären 14 € bezahlt
+  bezahlt: /bezahlt|gezahlt|^zahlung(en|sbetrag|seingang)?$|^(zahl(ungs)?)?status$/,
 };
 
 /** Kopfzeile → welche Spalte welches Feld ist (von Hand änderbar) */

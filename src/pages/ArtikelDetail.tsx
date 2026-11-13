@@ -584,7 +584,7 @@ function Bewegungen({
         <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5" role="group" aria-label="Art der Bewegung">
           {FILTER.map((f) => (
             <button key={f.wert} type="button" aria-pressed={filter === f.wert} onClick={() => { setFilter(f.wert); setZeigen(SEITE); }}
-              className={cn("h-9 shrink-0 rounded-full border px-3 text-sm transition-colors",
+              className={cn("h-11 shrink-0 rounded-full border px-3.5 text-sm transition-colors lg:h-9",
                 filter === f.wert ? "border-primary bg-primary-soft font-medium text-primary" : "bg-card text-muted-foreground hover:text-foreground")}>
               {f.text}
             </button>

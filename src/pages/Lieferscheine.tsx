@@ -37,6 +37,8 @@ export default function Lieferscheine() {
   // Einbuchen (Chef): Auswahl bleibt beim Schließen stehen, damit der Dialog nicht mitten in der Animation leer wird
   const [einbuchen, setEinbuchen] = useState<LieferscheinMitProjekt | null>(null);
   const [einbuchenOffen, setEinbuchenOffen] = useState(false);
+  // Löschen mit zweitem Tipp („Wirklich löschen?“) — ein Fehltipp kostet sonst das Foto
+  const [loeschFrage, setLoeschFrage] = useState<string | null>(null);
   const einbuchenStarten = (l: LieferscheinMitProjekt) => { setEinbuchen(l); setEinbuchenOffen(true); };
 
   /** KI liest das Foto und schreibt Kopf und Zeilen in den Lieferschein */
@@ -175,15 +177,17 @@ export default function Lieferscheine() {
                           <PackagePlus className="h-4 w-4" /> Einbuchen
                         </Button>
                       )}
-                      <Button variant="outline" className="h-11 gap-1.5" onClick={() => void ansehen(l)}><ExternalLink className="h-4 w-4" /> Foto</Button>
+                      <Button variant="outline" className="h-11 gap-1.5" onClick={() => void ansehen(l)}><ExternalLink className="h-4 w-4" /> {/pdf/i.test(l.datei_pfad) ? "PDF" : "Foto"}</Button>
                       {!l.eingangsrechnung_id && !l.eingebucht_am && (
                         <Button variant="outline" className="h-11 gap-1.5" disabled={!!laeuft} onClick={() => void nochmalLesen(l)}>
                           <Sparkles className="h-4 w-4" /> {l.gelesen_am ? "Nochmal lesen" : "Mit KI lesen"}
                         </Button>
                       )}
                       {!l.eingangsrechnung_id && !l.eingebucht_am && (
-                        <Button variant="ghost" className="h-11 gap-1.5 text-destructive hover:text-destructive" onClick={() => void loeschen(l)}>
-                          <Trash2 className="h-4 w-4" /> Löschen
+                        <Button variant={loeschFrage === l.id ? "destructive" : "ghost"} className={cn("h-11 gap-1.5", loeschFrage !== l.id && "text-destructive hover:text-destructive")}
+                          onClick={() => { if (loeschFrage === l.id) { setLoeschFrage(null); void loeschen(l); } else setLoeschFrage(l.id); }}
+                          onBlur={() => setLoeschFrage((x) => (x === l.id ? null : x))}>
+                          <Trash2 className="h-4 w-4" /> {loeschFrage === l.id ? "Wirklich löschen?" : "Löschen"}
                         </Button>
                       )}
                     </div>

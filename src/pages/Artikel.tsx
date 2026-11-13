@@ -204,12 +204,12 @@ export default function ArtikelSeite() {
       aktionen={
         <>
           {istChef && (
-            <Button variant="outline" className="h-11 px-3" onClick={() => navigate("/belege/neu?typ=angebot&ki=1")} aria-label="Material per KI zusammenstellen">
+            <Button variant="outline" className="hidden h-11 px-3 sm:inline-flex" onClick={() => navigate("/belege/neu?typ=angebot&ki=1")} aria-label="Material per KI zusammenstellen">
               <Sparkles className="h-4 w-4" /><span className="hidden sm:inline">KI-Angebot</span>
             </Button>
           )}
           {istChef && (
-            <Button variant="outline" className="h-11 px-3" onClick={() => setRabatteOffen(true)} aria-label="Rabatte beim Großhandel">
+            <Button variant="outline" className="hidden h-11 px-3 sm:inline-flex" onClick={() => setRabatteOffen(true)} aria-label="Rabatte beim Großhandel">
               <BadgePercent className="h-4 w-4" /><span className="hidden sm:inline">Rabatte</span>
             </Button>
           )}
@@ -219,7 +219,7 @@ export default function ArtikelSeite() {
             </Button>
           )}
           {istChef && (
-            <Button variant="outline" className="h-11 px-3" onClick={() => setImportOffen(true)} aria-label="Datanorm- oder CSV-Import">
+            <Button variant="outline" className="hidden h-11 px-3 sm:inline-flex" onClick={() => setImportOffen(true)} aria-label="Datanorm- oder CSV-Import">
               <Upload className="h-4 w-4" /><span className="hidden sm:inline">Import</span>
             </Button>
           )}

@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { ArtikelSuche } from "./ArtikelSuche";
 import { ArtikelVorschau } from "./ArtikelVorschau";
 import { lagerplatzSetzen, platzSchluessel, useHauptbilder, useLagerplaetze } from "./artikelDaten";
-import { lieferantPasst, nummerNorm, zeileZuordnen, type ZuordnungKandidat } from "./artikelLogik";
+import { istNebenkosten, lieferantPasst, nummerNorm, zeileZuordnen, type ZuordnungKandidat } from "./artikelLogik";
 import { ARTIKEL_KURZ, MENGE_MAX, artikelInfo, fehlerText, runden3, standardLagerort, zuArtikelKurz, type ArtikelKurz } from "./materialDaten";
 
 type Zeile = {
@@ -77,7 +77,8 @@ export function LieferscheinEinbuchen({ ls, open, onOpenChange }: { ls: Liefersc
     void (async () => {
       try {
         const zugeordnet = await zuordnen(roh, ls.lieferant);
-        if (!weg) setZeilen(zugeordnet);
+        // Fracht, Verpackung … ohne Artikel: gleich „nicht einbuchen“ (mit einem Tipp wieder zurück)
+        if (!weg) setZeilen(zugeordnet.map((z) => (!z.artikel && istNebenkosten(z.text) ? { ...z, aus: true } : z)));
       } catch (e) {
         if (!weg) toast.error("Artikel nicht zugeordnet", { description: fehlerText(e) });
       } finally {
@@ -243,7 +244,7 @@ export function LieferscheinEinbuchen({ ls, open, onOpenChange }: { ls: Liefersc
                     </div>
                   ) : !z.aus ? (
                     <StatusPille eintrag={{ ton: "gelb", text: "Artikel zuordnen" }} />
-                  ) : null}
+                  ) : <p className="text-sm text-muted-foreground">Wird nicht eingebucht{istNebenkosten(z.text) ? " (Nebenkosten)" : ""}</p>}
                   {z.artikel && <p className="truncate text-xs text-muted-foreground">{artikelInfo(z.artikel)}</p>}
                 </div>
                 <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-muted-foreground"
