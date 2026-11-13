@@ -724,6 +724,7 @@ export type Database = {
       }
       dateien: {
         Row: {
+          planung: boolean
           art: string
           beschreibung: string | null
           created_at: string
@@ -736,6 +737,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          planung?: boolean
           art?: string
           beschreibung?: string | null
           created_at?: string
@@ -748,6 +750,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          planung?: boolean
           art?: string
           beschreibung?: string | null
           created_at?: string
@@ -1216,6 +1219,7 @@ export type Database = {
       }
       firma: {
         Row: {
+          whatsapp_vorlagen: Json | null
           angebot_einleitung: string | null
           angebot_gueltig_tage: number
           angebot_schluss: string | null
@@ -1256,6 +1260,7 @@ export type Database = {
           zusatz: string | null
         }
         Insert: {
+          whatsapp_vorlagen?: Json | null
           angebot_einleitung?: string | null
           angebot_gueltig_tage?: number
           angebot_schluss?: string | null
@@ -1296,6 +1301,7 @@ export type Database = {
           zusatz?: string | null
         }
         Update: {
+          whatsapp_vorlagen?: Json | null
           angebot_einleitung?: string | null
           angebot_gueltig_tage?: number
           angebot_schluss?: string | null
@@ -1829,6 +1835,41 @@ export type Database = {
           },
         ]
       }
+      mitarbeiter_saetze: {
+        Row: {
+          created_at: string
+          gueltig_ab: string
+          id: string
+          lohnkosten: number | null
+          user_id: string
+          verrechnungssatz: number | null
+        }
+        Insert: {
+          created_at?: string
+          gueltig_ab?: string
+          id?: string
+          lohnkosten?: number | null
+          user_id: string
+          verrechnungssatz?: number | null
+        }
+        Update: {
+          created_at?: string
+          gueltig_ab?: string
+          id?: string
+          lohnkosten?: number | null
+          user_id?: string
+          verrechnungssatz?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mitarbeiter_saetze_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nummernkreise: {
         Row: {
           jahr: number
@@ -1906,6 +1947,12 @@ export type Database = {
       }
       projekte: {
         Row: {
+          foerder_status: string | null
+          foerder_stelle: string | null
+          foerder_betrag: number | null
+          foerder_datum: string | null
+          foerder_frist: string | null
+          foerder_notiz: string | null
           beschreibung: string | null
           created_at: string
           erstellt_von: string | null
@@ -1921,6 +1968,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          foerder_status?: string | null
+          foerder_stelle?: string | null
+          foerder_betrag?: number | null
+          foerder_datum?: string | null
+          foerder_frist?: string | null
+          foerder_notiz?: string | null
           beschreibung?: string | null
           created_at?: string
           erstellt_von?: string | null
@@ -1936,6 +1989,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          foerder_status?: string | null
+          foerder_stelle?: string | null
+          foerder_betrag?: number | null
+          foerder_datum?: string | null
+          foerder_frist?: string | null
+          foerder_notiz?: string | null
           beschreibung?: string | null
           created_at?: string
           erstellt_von?: string | null
@@ -1956,6 +2015,51 @@ export type Database = {
             columns: ["kunde_id"]
             isOneToOne: false
             referencedRelation: "kunden"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projekt_verlauf: {
+        Row: {
+          an: string | null
+          art: string
+          created_at: string
+          id: string
+          projekt_id: string
+          text: string
+          user_id: string | null
+        }
+        Insert: {
+          an?: string | null
+          art: string
+          created_at?: string
+          id?: string
+          projekt_id: string
+          text: string
+          user_id?: string | null
+        }
+        Update: {
+          an?: string | null
+          art?: string
+          created_at?: string
+          id?: string
+          projekt_id?: string
+          text?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projekt_verlauf_projekt_id_fkey"
+            columns: ["projekt_id"]
+            isOneToOne: false
+            referencedRelation: "projekte"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projekt_verlauf_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

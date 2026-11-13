@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   CalendarDays, CalendarPlus, Camera, ClipboardSignature, Clock, FileText, FolderOpen, Images, LayoutList,
-  Mail, MapPin, MoreVertical, Package, Pencil, Phone, Receipt, ScanBarcode, Trash2,
+  Landmark, Mail, MapPin, MessageCircle, MoreVertical, Package, Pencil, Phone, Receipt, ScanBarcode, Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Seite } from "@/components/PageHeader";
@@ -16,24 +16,30 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Avatar, Karte, Kennzahl, Leer, ProjektStatusBadge } from "@/components/Bausteine";
+import { Avatar, Karte, Kennzahl, Leer, ProjektStatusBadge, StatusPille } from "@/components/Bausteine";
 import { ProjektStatusWahl } from "@/components/ProjektStatusWahl";
 import { ProjektDialog } from "@/components/dialoge/ProjektDialog";
 import { ZeitDialog } from "@/components/dialoge/ZeitDialog";
 import { FotoDialog } from "@/components/dialoge/FotoDialog";
 import { TerminDialog } from "@/components/dialoge/TerminDialog";
 import { FotosTab } from "@/components/projekt/FotosTab";
+import { PlanungBereich } from "@/components/projekt/PlanungBereich";
+import { FoerderDialog, FoerderKarte } from "@/components/projekt/Foerderung";
+import { WhatsAppDialog } from "@/components/projekt/WhatsAppDialog";
+import { ProjektVerlauf } from "@/components/projekt/ProjektVerlauf";
+import { NachkalkulationKarte, useProjektAngebot } from "@/components/projekt/NachkalkulationKarte";
 import { ZeitenListe, useZeitenListe, type ZeitMitInfo } from "@/components/zeiten/ZeitenListe";
 import { ProjektMaterial } from "@/components/material/ProjektMaterial";
 import { ProjektRegie } from "@/components/regie/ProjektRegie";
 import { ProjektBelege } from "@/components/belege/ProjektBelege";
-import { useProjektEingang } from "@/components/eingang/eingangDaten";
 import { mailLink, telLink } from "@/components/stamm/KundeDetail";
 import { fehlerText } from "@/components/stamm/stammDaten";
-import { useNeuLaden, useProjekt, useProjektZahlen } from "@/hooks/useDaten";
+import { useNeuLaden, useProjekt, useProjektZahlen, type ProjektMitKunde } from "@/hooks/useDaten";
 import { useSitzung } from "@/hooks/useSitzung";
 import { datumKurz, euro, isoTag, stunden, uhrzeit } from "@/lib/format";
-import { buchungVk, runden2, stundensatzFuer } from "@/lib/preise";
+import { buchungVk, runden2 } from "@/lib/preise";
+import { foerderPille } from "@/lib/foerderung";
+import { waNummer } from "@/lib/whatsapp";
 import { PROJEKT_STATUS, name, type ProjektStatus, type Termin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ProjektAnlage } from "@/components/kontakte/AnlagePv";
@@ -89,7 +95,7 @@ export default function ProjektDetail() {
   const neuLaden = useNeuLaden();
   const { istChef } = useSitzung();
   const { data: projekt, isLoading } = useProjekt(id);
-  const [dialog, setDialog] = useState<null | "bearbeiten" | "zeit" | "foto" | "termin" | "loeschen">(null);
+  const [dialog, setDialog] = useState<null | "bearbeiten" | "zeit" | "foto" | "termin" | "loeschen" | "foerderung" | "whatsapp">(null);
   const [zeit, setZeit] = useState<ZeitMitInfo | null>(null);
   const [termin, setTermin] = useState<Termin | null>(null);
   const zaehler = useZaehler(id, istChef);
@@ -166,6 +172,8 @@ export default function ProjektDetail() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={() => setDialog("bearbeiten")}><Pencil className="mr-2 h-4 w-4" /> Bearbeiten</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setDialog("whatsapp")}><MessageCircle className="mr-2 h-4 w-4" /> WhatsApp an Kunde</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setDialog("foerderung")}><Landmark className="mr-2 h-4 w-4" /> Förderung</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Status</DropdownMenuLabel>
             {(istChef ? (Object.keys(PROJEKT_STATUS) as ProjektStatus[]) : projekt.status === "abgeschlossen" ? [] : (["aktiv", "verrechnen"] as ProjektStatus[])).map((s) => (
@@ -189,6 +197,11 @@ export default function ProjektDetail() {
       <section className="rounded-lg border bg-card p-4">
         <div className="flex flex-wrap items-center gap-2">
           <ProjektStatusWahl projekt={projekt} />
+          {foerderPille(projekt.foerder_status) && (
+            <button type="button" onClick={() => setDialog("foerderung")} className="min-h-11" aria-label="Förderung ändern">
+              <StatusPille eintrag={foerderPille(projekt.foerder_status)!} />
+            </button>
+          )}
           {Number(projekt.stundensatz) > 0 && istChef && (
             <span className="text-xs text-muted-foreground">eigener Stundensatz {euro(Number(projekt.stundensatz))}</span>
           )}
@@ -202,6 +215,11 @@ export default function ProjektDetail() {
                 <div className="flex flex-wrap gap-x-4">
                   {telLink(kunde.telefon) && (
                     <a href={telLink(kunde.telefon)!} className="inline-flex min-h-11 items-center gap-1.5 text-primary"><Phone className="h-4 w-4" />{kunde.telefon}</a>
+                  )}
+                  {waNummer(kunde.telefon) && (
+                    <button type="button" onClick={() => setDialog("whatsapp")} className="inline-flex min-h-11 items-center gap-1.5 text-primary">
+                      <MessageCircle className="h-4 w-4" />WhatsApp
+                    </button>
                   )}
                   {mailLink(kunde.email) && (
                     <a href={mailLink(kunde.email)!} className="inline-flex min-h-11 min-w-0 items-center gap-1.5 text-primary"><Mail className="h-4 w-4 shrink-0" /><span className="truncate">{kunde.email}</span></a>
@@ -252,8 +270,8 @@ export default function ProjektDetail() {
         })}
       </nav>
 
+      {ordner === "uebersicht" && <Uebersicht projekt={projekt} />}
       {ordner === "uebersicht" && <ProjektAnlage kundeId={projekt.kunde_id} />}
-      {ordner === "uebersicht" && <Uebersicht projektId={projekt.id} beschreibung={projekt.beschreibung} stundensatz={projekt.stundensatz} />}
       {ordner === "fotos" && <FotosTab projektId={projekt.id} art="foto" />}
       {ordner === "dokumente" && <FotosTab projektId={projekt.id} art="dokument" />}
       {ordner === "stunden" && (
@@ -271,6 +289,8 @@ export default function ProjektDetail() {
       <ZeitDialog open={dialog === "zeit"} onOpenChange={zu} projektId={projekt.id} eintrag={zeit} />
       <FotoDialog open={dialog === "foto"} onOpenChange={zu} projektId={projekt.id} />
       <TerminDialog open={dialog === "termin"} onOpenChange={zu} projektId={projekt.id} termin={termin} />
+      <FoerderDialog open={dialog === "foerderung"} onOpenChange={zu} projekt={projekt} />
+      <WhatsAppDialog open={dialog === "whatsapp"} onOpenChange={zu} projekt={projekt} />
 
       <AlertDialog open={dialog === "loeschen"} onOpenChange={zu}>
         <AlertDialogContent>
@@ -304,14 +324,17 @@ function AktionsKnopf({ icon: I, text, onClick, primaer = false, gesperrt = fals
 }
 
 /**
- * Übersicht: Stunden je Person, Material, offene Regieberichte — für den
- * Chef zusätzlich die Nachkalkulation (Angebot gegen bisher geleistet).
+ * Übersicht: Planung, Förderung, Stunden je Person, Material, offene
+ * Regieberichte — für den Chef zusätzlich die Nachkalkulation (Pauschale
+ * und Regie getrennt) und die angebotenen Stunden.
  */
-function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: string; beschreibung: string | null; stundensatz: number | null }) {
+function Uebersicht({ projekt }: { projekt: ProjektMitKunde }) {
+  const projektId = projekt.id;
   const { firma, istChef } = useSitzung();
   const { data: zahlen = {} } = useProjektZahlen();
   const z = zahlen[projektId];
   const { data: zeiten = [] } = useZeitenListe({ projektId });
+  const { data: angebot } = useProjektAngebot(projektId, istChef);
   const heute = isoTag();
 
   const { data: material } = useQuery({
@@ -324,20 +347,6 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
       return data ?? [];
     },
   });
-
-  const { data: belege = [] } = useQuery({
-    queryKey: ["belege", "projekt-summen", projektId],
-    enabled: istChef,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("belege").select("typ, status, netto").eq("projekt_id", projektId);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  // Zugeordnete Eingangsrechnungen (Einkauf, nur Chef)
-  const { data: eingang = [] } = useProjektEingang(projektId, istChef);
-  const einkauf = runden2(eingang.reduce((s, a) => s + Number(a.betrag), 0));
 
   const { data: naechste = [] } = useQuery({
     queryKey: ["termine", "projekt-naechste", projektId, heute],
@@ -357,84 +366,39 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
   });
   const personen = [...jePerson.values()].sort((a, b) => b.h - a.h);
 
-  const satz = stundensatzFuer({ stundensatz }, firma);
-  const materialEk = runden2((material ?? []).reduce((s, m) => {
-    const vz = m.art === "rueckgabe" ? -1 : 1;
-    return s + vz * Number(m.menge) * Number(m.ek_preis ?? m.artikel?.ek_preis ?? 0);
-  }, 0));
-  const fremd = runden2(eingang.filter((a) => a.eingangsrechnungen?.kategorie !== "material").reduce((s, a) => s + Number(a.betrag), 0));
-  const kostensatz = Number(firma?.kostensatz ?? 0);
   const materialVk = runden2((material ?? []).reduce((s, m) => {
     const vz = m.art === "rueckgabe" ? -1 : 1;
     return s + vz * Number(m.menge) * buchungVk(m, firma);
   }, 0));
   const stundenGesamt = Number(z?.stunden ?? 0);
-  const geleistet = runden2(stundenGesamt * satz + materialVk);
-  const angebot = belege.filter((b) => b.typ === "angebot" && (b.status === "offen" || b.status === "angenommen")).reduce((s, b) => s + Number(b.netto), 0);
-  const verrechnet = belege.filter((b) => b.typ === "rechnung" && (b.status === "offen" || b.status === "bezahlt")).reduce((s, b) => s + Number(b.netto), 0);
-  const anteil = angebot > 0 ? Math.min(100, (geleistet / angebot) * 100) : 0;
-  const lohnkosten = runden2(stundenGesamt * kostensatz);
-  const ertrag = runden2(geleistet - materialEk - lohnkosten - fremd);
+  const stundenRegie = runden2(zeiten.filter((t) => t.regiebericht_id).reduce((s, t) => s + Number(t.stunden), 0));
+  const angeboten = istChef ? angebot?.stundenAngeboten ?? 0 : 0;
 
   return (
     <div className="space-y-4">
+      <PlanungBereich projektId={projektId} />
+
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Kennzahl titel="Stunden" wert={stunden(stundenGesamt)} unter={z && Number(z.stunden_offen) > 0 ? `${stunden(Number(z.stunden_offen))} offen` : undefined} />
+        <Kennzahl titel="Stunden" wert={stunden(stundenGesamt)}
+          unter={[
+            angeboten > 0 ? `${stunden(runden2(stundenGesamt - stundenRegie))} von ${stunden(angeboten)} angeboten` : null,
+            z && Number(z.stunden_offen) > 0 ? `${stunden(Number(z.stunden_offen))} offen` : null,
+          ].filter(Boolean).join(" · ") || undefined} />
         {istChef
           ? <Kennzahl titel="Material" wert={euro(materialVk)} unter="Verkaufswert" />
           : <Kennzahl titel="Material" wert={String((material ?? []).length)} unter="Buchungen" />}
         <Kennzahl titel="Regieberichte" wert={String(Number(z?.regie_offen ?? 0) + Number(z?.regie_entwurf ?? 0))}
           unter={z ? `${z.regie_entwurf} Entwurf · ${z.regie_offen} unterschrieben` : undefined} />
         {istChef
-          ? <Kennzahl titel="Verrechnet" wert={euro(verrechnet)} unter="netto" />
+          ? <Kennzahl titel="Verrechnet" wert={euro(angebot?.verrechnet ?? 0)} unter="netto" />
           : <Kennzahl titel="Personen" wert={String(personen.length)} unter="auf dem Projekt" />}
       </div>
 
-      {istChef && (angebot > 0 || geleistet > 0 || einkauf !== 0) && (
-        <Karte titel="Nachkalkulation">
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Angebot (netto)</span><span className="zahl font-medium">{angebot > 0 ? euro(angebot) : "—"}</span></div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Bisher geleistet</span>
-              <span className="zahl font-medium">{euro(geleistet)}</span>
-            </div>
-            <p className="text-xs text-muted-foreground">{stunden(stundenGesamt)} × {euro(satz)} + Material {euro(materialVk)}</p>
-            <div className="space-y-1 border-t pt-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Material (Einkauf)</span>
-                <span className="zahl font-medium">− {euro(materialEk)}</span>
-              </div>
-              {kostensatz > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Lohnkosten ({stunden(stundenGesamt)} × {euro(kostensatz)})</span>
-                  <span className="zahl font-medium">− {euro(lohnkosten)}</span>
-                </div>
-              )}
-              {fremd !== 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Fremdleistung, Sonstiges</span>
-                  <span className="zahl font-medium">− {euro(fremd)}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-t pt-1 font-semibold">
-                <span>{kostensatz > 0 ? "Ertrag" : "Ertrag vor Lohnkosten"}</span>
-                <span className={cn("zahl", ertrag < 0 && "text-destructive")}>{euro(ertrag)}{geleistet > 0 && ` · ${Math.round((ertrag / geleistet) * 100)} %`}</span>
-              </div>
-              {!(kostensatz > 0) && <p className="text-xs text-muted-foreground">Lohnkosten je Stunde in den Einstellungen eintragen, dann zählen sie mit.</p>}
-              {einkauf !== fremd && <p className="text-xs text-muted-foreground">Eingangsrechnungen für Material zählen nicht extra — es zählt, was aufs Projekt gebucht ist.</p>}
-            </div>
-            {angebot > 0 && (
-              <div className="pt-1">
-                <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                  <div className={cn("h-full rounded-full", geleistet > angebot ? "bg-destructive" : "bg-primary")} style={{ width: `${anteil}%` }} />
-                </div>
-                <p className={cn("mt-1 text-xs", geleistet > angebot ? "font-medium text-destructive" : "text-muted-foreground")}>
-                  {geleistet > angebot ? `${euro(geleistet - angebot)} über dem Angebot` : `${Math.round(anteil)} % des Angebots`}
-                </p>
-              </div>
-            )}
-          </div>
-        </Karte>
+      <FoerderKarte projekt={projekt} />
+
+      {istChef && (
+        <NachkalkulationKarte projekt={projekt}
+          zeiten={zeiten.map((t) => ({ user_id: t.user_id, datum: t.datum, stunden: Number(t.stunden), art: t.art, regiebericht_id: t.regiebericht_id }))} />
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -465,8 +429,10 @@ function Uebersicht({ projektId, beschreibung, stundensatz }: { projektId: strin
         </Karte>
       </div>
 
-      {beschreibung && (
-        <Karte titel="Beschreibung"><p className="whitespace-pre-wrap text-sm">{beschreibung}</p></Karte>
+      <ProjektVerlauf projektId={projektId} />
+
+      {projekt.beschreibung && (
+        <Karte titel="Beschreibung"><p className="whitespace-pre-wrap text-sm">{projekt.beschreibung}</p></Karte>
       )}
     </div>
   );

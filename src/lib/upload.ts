@@ -44,6 +44,8 @@ export async function dateienHochladen(
   beschreibung?: string,
   /** "dokument": landet im Ordner Dokumente, auch wenn es ein Bild ist (z. B. abfotografierter Lieferschein) */
   art?: "foto" | "dokument",
+  /** Planung (PV-Plan, Stringplan, Dachbelegung): steht oben im Projekt */
+  planung = false,
 ): Promise<{ ok: number; fehler: string[] }> {
   let ok = 0;
   const fehler: string[] = [];
@@ -63,6 +65,7 @@ export async function dateienHochladen(
       groesse: datei.size,
       art: art ?? (datei.type.startsWith("image/") ? "foto" : "dokument"),
       beschreibung: beschreibung || null,
+      planung,
     });
     if (e2) {
       await supabase.storage.from("projekt-dateien").remove([pfad]);

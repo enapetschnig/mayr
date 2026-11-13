@@ -17,15 +17,17 @@ import { dateienHochladen } from "@/lib/upload";
  * Projekt wählen, Bilder rein, fertig.
  */
 export function FotoDialog({
-  open, onOpenChange, projektId: vorProjekt, art = "foto",
+  open, onOpenChange, projektId: vorProjekt, art = "foto", planung = false,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   projektId?: string;
   /** "dokument": Pläne, PDFs, Lieferscheine — landen im Ordner Dokumente */
   art?: "foto" | "dokument";
+  /** Planung (PV-Plan, Stringplan, Dachbelegung) — immer als Dokument */
+  planung?: boolean;
 }) {
-  const dok = art === "dokument";
+  const dok = art === "dokument" || planung;
   const neuLaden = useNeuLaden();
   const [projektId, setProjektId] = useState("");
   const [dateien, setDateien] = useState<File[]>([]);
@@ -67,7 +69,7 @@ export function FotoDialog({
   const hochladen = async () => {
     if (!projektId || dateien.length === 0) return;
     setLaedt(true);
-    const erg = await dateienHochladen(projektId, dateien, beschreibung.trim(), dok ? "dokument" : undefined);
+    const erg = await dateienHochladen(projektId, dateien, beschreibung.trim(), dok ? "dokument" : undefined, planung);
     setLaedt(false);
     if (erg.ok > 0) {
       toast.success(`${erg.ok} ${erg.ok === 1 ? "Datei" : "Dateien"} abgelegt`);
@@ -85,8 +87,9 @@ export function FotoDialog({
       <FormularDialog
         open={open && !serieOffen}
         onOpenChange={onOpenChange}
-        titel={dok ? "Dokument zum Projekt" : "Foto zum Projekt"}
-        beschreibung={dok ? "Pläne, PDFs, Lieferscheine — landet im Projekt unter Dokumente." : "Landet direkt im Projekt unter Fotos."}
+        titel={planung ? "Planung zum Projekt" : dok ? "Dokument zum Projekt" : "Foto zum Projekt"}
+        beschreibung={planung ? "PV-Plan, Stringplan, Dachbelegung — steht oben im Projekt unter Planung."
+          : dok ? "Pläne, PDFs, Lieferscheine — landet im Projekt unter Dokumente." : "Landet direkt im Projekt unter Fotos."}
         gesperrt={laedt}
         fuss={
           <>

@@ -393,6 +393,17 @@ describe("Arbeitszeit je Lohnart", () => {
       ["Arbeitszeit", "10", "72,00"], ["Arbeitszeit Lehrling", "6", "42,00"],
     ]);
   });
+
+  it("eigener Satz der Person geht vor der Lohnart und bekommt eine eigene Zeile", () => {
+    const mitSatz = [...zeiten, { ...zeit("d", "meister", "Hans Meister", null, 3), satz: 92 }, { ...zeit("e", "lisa2", "Eva", "Lehrling", 2), satz: 50 }];
+    const p = arbeitszeitPositionen(mitSatz, { ...basis, stundenJeMitarbeiter: false }, false);
+    expect(p.map((x) => [x.bezeichnung, x.menge, x.einzelpreis])).toEqual([
+      ["Arbeitszeit", "10", "72,00"], ["Arbeitszeit Lehrling", "6", "42,00"],
+      ["Arbeitszeit Hans Meister", "3", "92,00"], ["Arbeitszeit Eva", "2", "50,00"],
+    ]);
+    const je = arbeitszeitPositionen(mitSatz, { ...basis, stundenJeMitarbeiter: true }, false);
+    expect(je.map((x) => [x.bezeichnung, x.einzelpreis])).toContainEqual(["Arbeitszeit Hans Meister", "92,00"]);
+  });
 });
 
 describe("Stundenarten auf der Rechnung", () => {
