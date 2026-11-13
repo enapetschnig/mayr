@@ -25,6 +25,7 @@ begin
   delete from public.fahrzeuge where name like 'RLS-Test%';
   delete from public.teams where name like 'RLS-Test%';
   delete from public.rabatte where lieferant like 'RLS-Test%';
+  delete from public.rechnung_kategorien where name like 'RLS-Test%';
   delete from public.eingangsrechnungen where lieferant like 'RLS-Test%' or erstellt_von = any(v_user);
   delete from public.eingang_anteile where projekt_id = any(v_projekte);
   delete from public.zahlungen where beleg_id in (select id from public.belege where projekt_id = any(v_projekte) or erstellt_von = any(v_user));

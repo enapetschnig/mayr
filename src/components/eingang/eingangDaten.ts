@@ -31,7 +31,14 @@ export function useEingangsrechnungen(aktiv = true) {
   });
 }
 
-export type ProjektAnteil = AnteilMitProjekt & {
+/** Eine Eingangsrechnung samt Anteilen und Positionen (zum Öffnen aus der Buchhaltung) */
+export async function eingangLaden(id: string): Promise<EingangMitAnteilen | null> {
+  const { data, error } = await supabase.from("eingangsrechnungen").select(FELDER).eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data as unknown as EingangMitAnteilen | null;
+}
+
+export type ProjektAnteil =AnteilMitProjekt & {
   eingangsrechnungen: Pick<Eingangsrechnung, "id" | "lieferant" | "nummer" | "datum" | "kategorie"> | null;
   belege: { id: string; nummer: string | null } | null;
 };
@@ -59,7 +66,7 @@ export async function dateiAdresse(pfad: string): Promise<string> {
 }
 
 export type EingangKopf = Pick<Eingangsrechnung,
-  "lieferant" | "nummer" | "datum" | "faellig_am" | "netto" | "ust_satz" | "ust" | "brutto" | "kategorie" | "reverse_charge" | "betrieb" | "bezahlt_am" | "notiz"
+  "lieferant" | "nummer" | "datum" | "faellig_am" | "netto" | "ust_satz" | "ust" | "brutto" | "kategorie" | "kategorie_id" | "reverse_charge" | "betrieb" | "bezahlt_am" | "notiz"
   | "iban" | "skonto_prozent" | "skonto_bis" | "lieferschein_nummern">;
 
 /** Schon hochgeladene Datei (z. B. für die KI vor dem ersten Speichern) */

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Seite } from "@/components/PageHeader";
 import { Leer } from "@/components/Bausteine";
 import { BelegEditor } from "@/components/belege/BelegEditor";
+import { AltrechnungAnsicht } from "@/components/buchhaltung/AltrechnungAnsicht";
 import { useBeleg } from "@/components/belege/daten";
 import { empfaengerAusKunde, kopfNeu, neueId, type BelegTyp } from "@/components/belege/editor";
 import { useKunden, useProjekt } from "@/hooks/useDaten";
@@ -52,6 +53,8 @@ function VorhandenerBeleg({ id }: { id: string }) {
       </Seite>
     );
   }
+  // Altrechnung aus dem bisherigen Programm: keine Positionen, kein Editor
+  if (data.beleg.altbestand) return <AltrechnungAnsicht beleg={data.beleg} />;
   return <BelegEditor id={id} daten={data} />;
 }
 

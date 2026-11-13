@@ -39,6 +39,8 @@ export type FibuBeleg = {
   teil_nr: number | null;
   storno_von: string | null;
   kunde: { nummer: number; name: string; strasse: string | null; plz: string | null; ort: string | null; uid: string | null } | null;
+  /** Erlöskonto der Kategorie (nur 20 % normal), sonst der Vorschlag aus den Fibu-Konten */
+  kategorie_konto?: number | null;
   /** Pfad im ZIP, wenn das Original-PDF mitgeht */
   datei?: string | null;
 };
@@ -56,6 +58,8 @@ export type FibuEingang = {
   reverse_charge: boolean;
   kategorie: string;
   datei_pfad: string | null;
+  /** Aufwandskonto der Kategorie, sonst das der Art */
+  kategorie_konto?: number | null;
   kreditor?: number;
   datei?: string | null;
 };
@@ -73,17 +77,19 @@ export const debitorKonto = (b: Pick<FibuBeleg, "kunde">, sammel = 20000) => (b.
 const AUFWAND: Record<string, keyof FibuKonten> = {
   material: "material", fremdleistung: "fremdleistung", werkzeug: "werkzeug", fahrzeug: "fahrzeug", buero: "buero", sonstiges: "sonstiges",
 };
-export const aufwandKonto = (e: Pick<FibuEingang, "kategorie">, k: FibuKonten) => k[AUFWAND[e.kategorie] ?? "sonstiges"];
+export const aufwandKonto = (e: Pick<FibuEingang, "kategorie" | "kategorie_konto">, k: FibuKonten) => e.kategorie_konto || k[AUFWAND[e.kategorie] ?? "sonstiges"];
 
 export type ErloesFall = "normal" | "bau" | "klein";
 export const erloesFall = (b: Pick<FibuBeleg, "reverse_charge" | "ust">, kleinunternehmer: boolean): ErloesFall =>
   b.reverse_charge ? "bau" : kleinunternehmer && !Number(b.ust) ? "klein" : "normal";
 
-export function erloesKonto(b: Pick<FibuBeleg, "reverse_charge" | "ust" | "ust_satz">, k: FibuKonten, kleinunternehmer: boolean) {
+export function erloesKonto(b: Pick<FibuBeleg, "reverse_charge" | "ust" | "ust_satz" | "kategorie_konto">, k: FibuKonten, kleinunternehmer: boolean) {
   const fall = erloesFall(b, kleinunternehmer);
   if (fall === "bau") return k.erloesBau;
   if (fall === "klein") return k.erloes0;
   const satz = Number(b.ust_satz);
+  // Ein eigenes Erlöskonto je Kategorie gilt nur für den Normalfall 20 % — 13 %, 10 %, Reverse Charge haben eigene Konten
+  if (satz === 20 && b.kategorie_konto) return b.kategorie_konto;
   return satz === 13 ? k.erloes13 : satz === 10 ? k.erloes10 : satz === 0 ? k.erloes0 : k.erloes20;
 }
 

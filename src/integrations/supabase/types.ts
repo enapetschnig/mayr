@@ -382,6 +382,8 @@ export type Database = {
       belege: {
         Row: {
           abgezogen_in: string | null
+          altbestand: boolean
+          kategorie_id: string | null
           angebot_id: string | null
           betreff: string | null
           bezahlt_am: string | null
@@ -421,6 +423,8 @@ export type Database = {
         }
         Insert: {
           abgezogen_in?: string | null
+          altbestand?: boolean
+          kategorie_id?: string | null
           angebot_id?: string | null
           betreff?: string | null
           bezahlt_am?: string | null
@@ -460,6 +464,8 @@ export type Database = {
         }
         Update: {
           abgezogen_in?: string | null
+          altbestand?: boolean
+          kategorie_id?: string | null
           angebot_id?: string | null
           betreff?: string | null
           bezahlt_am?: string | null
@@ -880,6 +886,7 @@ export type Database = {
           iban: string | null
           id: string
           kategorie: string
+          kategorie_id: string | null
           lieferant: string
           lieferschein_nummern: string[]
           netto: number
@@ -910,6 +917,7 @@ export type Database = {
           iban?: string | null
           id?: string
           kategorie?: string
+          kategorie_id?: string | null
           lieferant: string
           lieferschein_nummern?: string[]
           netto?: number
@@ -940,6 +948,7 @@ export type Database = {
           iban?: string | null
           id?: string
           kategorie?: string
+          kategorie_id?: string | null
           lieferant?: string
           lieferschein_nummern?: string[]
           netto?: number
@@ -1984,6 +1993,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rechnung_kategorien: {
+        Row: {
+          art: string | null
+          created_at: string
+          id: string
+          konto: number | null
+          name: string
+          richtung: string
+          sortierung: number
+          stichworte: string
+        }
+        Insert: {
+          art?: string | null
+          created_at?: string
+          id?: string
+          konto?: number | null
+          name: string
+          richtung: string
+          sortierung?: number
+          stichworte?: string
+        }
+        Update: {
+          art?: string | null
+          created_at?: string
+          id?: string
+          konto?: number | null
+          name?: string
+          richtung?: string
+          sortierung?: number
+          stichworte?: string
+        }
+        Relationships: []
       }
       rabatte: {
         Row: {

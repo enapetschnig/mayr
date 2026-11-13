@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  bmdAusgang, bmdEingang, buchungenText, kontrolle, personenkontenText, rzlAusgang, rzlEingang, windows1252,
+  aufwandKonto, bmdAusgang, bmdEingang, buchungenText, erloesKonto, kontrolle, personenkontenText, rzlAusgang, rzlEingang, windows1252,
   type FibuBeleg, type FibuEingang, type FibuKonten,
 } from "./fibu";
 
@@ -130,5 +130,19 @@ describe("Kontrollliste", () => {
     expect(t).toMatch(/kein Foto oder PDF/);
     expect(t).toMatch(/ohne Vorsteuer/);
     expect(t).toMatch(/2 Rechnungen sind noch Entwurf/);
+  });
+});
+
+describe("Konto aus der Kategorie", () => {
+  it("Eingang: Konto der Kategorie vor dem der Art", () => {
+    expect(aufwandKonto(eingang(), konten)).toBe(5100);
+    expect(aufwandKonto(eingang({ kategorie_konto: 5130 }), konten)).toBe(5130);
+    expect(bmdEingang(eingang({ kategorie_konto: 5130 }), konten).split(";")[2]).toBe("5130");
+  });
+  it("Ausgang: nur im Normalfall 20 %", () => {
+    expect(erloesKonto(beleg({ kategorie_konto: 4125 }), konten, false)).toBe(4125);
+    expect(erloesKonto(beleg({ kategorie_konto: 4125, ust_satz: 13 }), konten, false)).toBe(4005);
+    expect(erloesKonto(beleg({ kategorie_konto: 4125, reverse_charge: true, ust: 0 }), konten, false)).toBe(4106);
+    expect(erloesKonto(beleg(), konten, false)).toBe(4120);
   });
 });

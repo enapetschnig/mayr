@@ -77,6 +77,7 @@ Projekt-Stundensatz nur der Chef und über 0 €; Zugang, Abgang und Inventur
 | `termine` | Kalender und Einsätze; `mitarbeiter uuid[]`, `status` geplant/begonnen/erledigt, `dringend`, `geaendert_am` (Trigger, nur bei Zeit, Ort, Personen) |
 | `abwesenheiten` | Urlaub, Krank, Arzt, Berufsschule, Zeitausgleich, Sonstiges je Person; `status` beantragt/genehmigt/abgelehnt |
 | `fibu_uebergaben` + `fibu_uebergabe_belege` | Was an die Kanzlei ging, je Beleg einmal; zurücknehmen löscht die Übergabe |
+| `rechnung_kategorien` | Kategorien für Ausgangs- und Eingangsrechnungen (`belege.kategorie_id`, `eingangsrechnungen.kategorie_id`); `belege.altbestand` = Altrechnung |
 | `kreditor_konten` | Kreditorennummer je Lieferant (ab 30001), einmal vergeben; Lieferanten sind sonst freier Text |
 | `konto_buchungen` | Korrekturen am Überstunden- und Urlaubskonto (Anfangsbestand, Auszahlung, Übertrag); nur der Chef schreibt |
 | `nummernkreise` | nur über `naechste_nummer()` |
@@ -274,7 +275,36 @@ Terminänderung. Verschiebt das Büro einen Termin, sieht der Monteur beim
 nächsten Öffnen „Termin geändert“; was schon gesehen wurde, merkt sich das Gerät (`elektro.termine.gesehen`). Der
 Chef sieht auf der Startseite Anträge und „erledigter Einsatz, noch nicht verrechnet“.
 
-### Buchhaltung (`lib/fibu.ts`, Seite `/buchhaltung`)
+### Buchhaltung (`lib/fibu.ts`, `components/buchhaltung/`, Seite `/buchhaltung`)
+
+Vier Reiter (`?reiter=`): **Ausgang** (unsere fertigen Rechnungen), **Eingang** (Lieferanten), **Altrechnungen**,
+**Kanzlei** (die Monatsübergabe unten). Ausgang und Eingang je Monat oder Jahr: Netto, USt/Vorsteuer, Brutto,
+noch offen; Balken je Kategorie (antippen = Filter), Offen/Bezahlt, Suche, CSV. Zeile antippen öffnet die
+Rechnung (`/belege/:id`) bzw. die Eingangsrechnung, das Symbol daneben das Original (Archiv-PDF bzw. Foto/PDF).
+
+- **Kategorien** (`rechnung_kategorien`, Migration `20261113118000`): pflegbar getrennt für Ausgang und Eingang
+  (Kopf → „Kategorien“), mit Stichworten und optional eigenem Konto. Eine Eingangs-Kategorie trägt die Art
+  (Material, Fremdleistung … = `eingangsrechnungen.kategorie`) — im Eingangsformular ersetzt die Kategorie
+  das Feld „Art“. Vorschlag (`buchhaltungLogik.ts`, getestet): Eingang zuerst die letzte Kategorie desselben
+  Lieferanten, sonst Stichworte in Lieferant und (KI-)Positionen; Ausgang Stichworte in Betreff, Projekt und
+  Positionen. Vorschläge stehen grau mit „?“ da, „… Vorschläge übernehmen“ setzt sie. `kategorie_id` ist auch
+  an fertigen Rechnungen änderbar (`beleg_schutz` lässt sie frei, steht auf keinem PDF). Trigger
+  `kategorie_richtung_pruefen`: Ausgangs-Kategorie nur an `belege`, Eingangs-Kategorie nur an Eingangsrechnungen.
+  Konto der Kategorie im Export: Eingang immer vor dem der Art, Ausgang nur bei 20 % (13/10 %, Reverse Charge
+  behalten ihre Konten).
+- **Altrechnungen** (`belege.altbestand`): Rechnungen aus dem bisherigen Programm, damit Offene Posten, Mahnen
+  und Kundenhistorie stimmen. Nummer frei (nicht aus dem Nummernkreis, eindeutig wie jede Belegnummer),
+  keine Positionen, offen angelegt; schon Bezahltes wird eine Zahlung. Erfassen als Tabelle zum Durchtippen
+  (Enter in „Bezahlt“ der letzten Zeile = neue Zeile; Netto oder Brutto genügt) oder CSV mit wählbaren
+  Spalten (UTF-8 oder Windows-1252); je Zeile optional das Original-PDF (ins Rechnungsarchiv). Unbekannte
+  Kunden legt das Speichern an. `/belege/:id` zeigt statt des Editors `AltrechnungAnsicht`: Daten,
+  Kategorie, Original, Zahlungen/Ausbuchen/Mahnen (`OpKarte`), Bearbeiten, Löschen. Regeln in der Datenbank
+  (`altrechnung_anlegen`, `beleg_schutz`): Nummer, Kunde, Netto + USt = Brutto > 0; nicht festgeschrieben,
+  aber nie storniert, nie zurück zur normalen Rechnung; Betrag geändert → Status aus den Zahlungen neu (nicht
+  unter das Bezahlte); löschen geht (samt Zahlungen und Mahnungen). **Nie in der Übergabe**: der Export
+  filtert sie, `fibu_uebergeben` lehnt sie ab, der Reiter Kanzlei nennt ihre Zahl.
+- „Ausbuchen“ = `ZahlungDialog`: Zahlung (auch Teilzahlung), Skonto oder Ausbuchen (uneinbringlich). In den
+  Listen heißt eine erledigte Rechnung mit Ausbuchung „Ausgebucht“ (`zahlStatus`).
 
 Ein ZIP je Monat: Buchungen, Personenkonten, Belegliste für Excel, Original-PDFs und ein LIESMICH für die Kanzlei.
 Das Format wählt der Betrieb (`firma.fibu_format`), die Konten stehen in `firma.fibu_konten` und sind nur ein
