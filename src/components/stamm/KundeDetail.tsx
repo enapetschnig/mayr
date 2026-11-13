@@ -1,16 +1,18 @@
 import type { ComponentType, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, FileText, Mail, Navigation, Pencil, Phone, Receipt } from "lucide-react";
+import { ChevronRight, FileText, Mail, MessageCircle, Navigation, Pencil, Phone, Receipt } from "lucide-react";
 import { Karte, Kennzahl, ProjektStatusBadge, StatusBadge, StatusPille } from "@/components/Bausteine";
 import { Button } from "@/components/ui/button";
 import type { ProjektMitKunde } from "@/hooks/useDaten";
 import { datum, euro, isoTag, zahl } from "@/lib/format";
 import { belegStatus, type Kunde } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { useKundeBelege } from "./stammDaten";
 import { KundeAnlagen } from "@/components/anlagen/KundeAnlagen";
 import { KONTAKT_ART, kontaktArt } from "@/components/kontakte/kontaktLogik";
 import { useKreditor } from "@/components/kontakte/kontaktDaten";
 import { LieferantBelege } from "@/components/kontakte/LieferantBelege";
+import { istFestnetz, waNummer } from "@/lib/whatsapp";
 
 const adresse = (k: Pick<Kunde, "strasse" | "plz" | "ort">) =>
   [k.strasse, [k.plz, k.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ");
@@ -52,6 +54,9 @@ export function KundeDetail({
   const summe = (l: typeof belege) => l.reduce((s, b) => s + Number(b.brutto ?? 0), 0);
   const bezahlt = rechnungen.filter((b) => b.status === "bezahlt");
   const adr = adresse(kunde);
+  // WhatsApp nur bei einer Handynummer (Vorlagen gibt es im Projekt)
+  const waRoh = waNummer(kunde.telefon);
+  const wa = waRoh && !istFestnetz(waRoh) ? waRoh : null;
 
   return (
     <div className="space-y-5">
@@ -91,8 +96,9 @@ export function KundeDetail({
           {art !== "kunde" && kreditor != null && <Angabe titel="Kreditor (Buchhaltung)"><span className="font-mono">{kreditor}</span></Angabe>}
           {lieferant && (kunde.namen ?? []).length > 0 && <Angabe titel="Auf Belegen auch">{(kunde.namen ?? []).join(", ")}</Angabe>}
         </dl>
-        <div className="grid grid-cols-3 gap-2">
+        <div className={cn("grid gap-2", wa ? "grid-cols-4" : "grid-cols-3")}>
           <AktionsLink href={telLink(kunde.telefon)} icon={Phone} text="Anrufen" />
+          {wa && <AktionsLink href={`https://wa.me/${wa}`} icon={MessageCircle} text="WhatsApp" extern />}
           <AktionsLink href={mailLink(kunde.email)} icon={Mail} text="E-Mail" />
           <AktionsLink href={kartenLink(kunde)} icon={Navigation} text="Navigation" extern titel={adr ? `Route zu ${adr}` : undefined} />
         </div>

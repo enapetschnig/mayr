@@ -11,6 +11,7 @@ import { StatusPille } from "@/components/Bausteine";
 import { useBeimOeffnen } from "@/components/stamm/Felder";
 import { fehlerText } from "@/components/stamm/stammDaten";
 import { useNeuLaden, type ProjektMitKunde } from "@/hooks/useDaten";
+import { useSitzung } from "@/hooks/useSitzung";
 import { datum, dezimalLesen, euro, isoTag } from "@/lib/format";
 import { FOERDER_STELLEN, foerderFrist, fristText, istFoerderStatus } from "@/lib/foerderung";
 import { runden2 } from "@/lib/preise";
@@ -121,6 +122,7 @@ export function FoerderDialog({ open, onOpenChange, projekt }: { open: boolean; 
 /** Karte in der Projektübersicht — nur wenn erfasst; sonst ein schlichter Knopf */
 export function FoerderKarte({ projekt }: { projekt: ProjektMitKunde }) {
   const [offen, setOffen] = useState(false);
+  const { istChef } = useSitzung();
   const status = istFoerderStatus(projekt.foerder_status) ? projekt.foerder_status : null;
   const frist = foerderFrist(projekt, isoTag());
 
@@ -148,7 +150,8 @@ export function FoerderKarte({ projekt }: { projekt: ProjektMitKunde }) {
         </section>
       ) : null}
       <FoerderDialog open={offen} onOpenChange={setOffen} projekt={projekt} />
-      {!status && <FoerderErfassen oeffnen={() => setOffen(true)} />}
+      {/* Erfassen ist Büroarbeit — der Monteur sieht nur eine erfasste Förderung (ändern geht im Projekt-Menü) */}
+      {!status && istChef && <FoerderErfassen oeffnen={() => setOffen(true)} />}
     </>
   );
 }

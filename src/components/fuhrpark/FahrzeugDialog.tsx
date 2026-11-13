@@ -180,7 +180,7 @@ export function FahrzeugDialog({
             </Feld>
             {mitKennzeichen && (
               <Feld id="f-kz" label="Kennzeichen">
-                <Input id="f-kz" className="h-11 uppercase" value={w.kennzeichen} onChange={(e) => setz({ kennzeichen: e.target.value })} placeholder="z. B. KL-123 AB" />
+                <Input id="f-kz" className="h-11 uppercase" value={w.kennzeichen} onChange={(e) => setz({ kennzeichen: e.target.value })} placeholder="z. B. BM-123 AB" />
               </Feld>
             )}
             <Feld id="f-typ" label={<>Marke und Typ<Zusatz>(optional)</Zusatz></>}>

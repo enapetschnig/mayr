@@ -6,13 +6,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSitzung } from "@/hooks/useSitzung";
 import { useIstPc } from "@/components/AppLayout";
 import { sichtbareNavigation } from "@/lib/navigation";
+import { projekteSuchen } from "@/lib/projektSuche";
+import { useProjekte } from "@/hooks/useDaten";
 import { cn } from "@/lib/utils";
 import { neuStarten, useNeuAktionen } from "./NeuMenue";
 
 /*
   Suche mit Strg+K wie bei Lengauer Stockner: Projekte, Kunden, Belege
   (nur Chef), Seiten und „Neu anlegen“. Die Datenbank prüft ohnehin mit
-  (RLS). ilike auf Name/Nummer, je Gruppe höchstens 5 Treffer.
+  (RLS). Projekte aus der geladenen Liste wie jede Projektwahl (`projekteSuchen`:
+  Nummer, Name, Kunde, Ort, alle Wörter, Umlaute egal), Kunden und Belege per
+  ilike, je Gruppe höchstens 5 Treffer.
   Am Handy öffnet die Lupe im Kopf der Startseite dieselbe Suche.
 */
 
@@ -27,14 +31,15 @@ export function sucheOeffnen() {
   window.dispatchEvent(new Event(EREIGNIS));
 }
 
-type DbTreffer = { projekte: Treffer[]; kunden: Treffer[]; belege: Treffer[] };
-const LEER: DbTreffer = { projekte: [], kunden: [], belege: [] };
+type DbTreffer = { kunden: Treffer[]; belege: Treffer[] };
+const LEER: DbTreffer = { kunden: [], belege: [] };
 
 export function Suchpalette() {
   const navigate = useNavigate();
   const pc = useIstPc();
   const { istChef } = useSitzung();
   const neuAktionen = useNeuAktionen();
+  const { data: projekte = [] } = useProjekte();
   const [offen, setOffen] = useState(false);
   const [text, setText] = useState("");
   const [db, setDb] = useState<DbTreffer>(LEER);
@@ -67,9 +72,7 @@ export function Suchpalette() {
     setLaedt(true);
     const t = window.setTimeout(async () => {
       const m = `%${q}%`;
-      const [p, k, b] = await Promise.all([
-        supabase.from("projekte").select("id, nummer, name, ort")
-          .or(`name.ilike.${m},nummer.ilike.${m},ort.ilike.${m}`).order("nummer", { ascending: false }).limit(5),
+      const [k, b] = await Promise.all([
         supabase.from("kunden").select("id, name, ort, ansprechpartner")
           .or(`name.ilike.${m},ort.ilike.${m},ansprechpartner.ilike.${m}`).order("name").limit(5),
         istChef
@@ -79,10 +82,6 @@ export function Suchpalette() {
       ]);
       if (nr !== lauf.current) return;
       setDb({
-        projekte: (p.data ?? []).map((x) => ({
-          schluessel: `p-${x.id}`, titel: `${x.nummer} · ${x.name}`, zusatz: x.ort ?? undefined, icon: FolderKanban,
-          los: () => gehe(`/projekte/${x.id}`),
-        })),
         kunden: (k.data ?? []).map((x) => ({
           schluessel: `k-${x.id}`, titel: x.name, zusatz: [x.ansprechpartner, x.ort].filter(Boolean).join(" · ") || undefined, icon: Users,
           los: () => gehe(`/kunden?k=${x.id}`),
@@ -103,8 +102,14 @@ export function Suchpalette() {
   // Seiten und Neu-Aktionen per Teilwort — „Dach“ soll nicht „Buchhaltung“ finden
   const q = sauber(text).toLowerCase();
   const passt = (t: string) => !q || t.toLowerCase().includes(q);
+  const projektTreffer: Treffer[] = useMemo(() => (text.trim().length < 2 ? [] : projekteSuchen(projekte, text).slice(0, 5).map((x) => ({
+    schluessel: `p-${x.id}`, titel: `${x.nummer} · ${x.name}`, zusatz: [x.kunden?.name, x.ort].filter(Boolean).join(" · ") || undefined,
+    icon: FolderKanban, los: () => gehe(`/projekte/${x.id}`),
+  }))),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [projekte, text]);
   const gruppen: Gruppe[] = useMemo(() => [
-    { titel: "Projekte", treffer: db.projekte },
+    { titel: "Projekte", treffer: projektTreffer },
     { titel: "Kunden", treffer: db.kunden },
     { titel: "Belege", treffer: db.belege },
     {
@@ -121,7 +126,7 @@ export function Suchpalette() {
       })),
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ].filter((g) => g.treffer.length > 0), [db, q, istChef, pc, neuAktionen]);
+  ].filter((g) => g.treffer.length > 0), [db, projektTreffer, q, istChef, pc, neuAktionen]);
   const alle = gruppen.flatMap((g) => g.treffer);
 
   useEffect(() => { setMarkiert(0); }, [text, db]);

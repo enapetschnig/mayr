@@ -75,7 +75,17 @@ export function waNummer(roh: string | null | undefined): string | null {
     else if (t.startsWith("0")) t = "43" + t.slice(1);
     else if (!t.startsWith("43")) t = "43" + t;
   }
+  // „+43 0664 …“ bzw. „0049 0151 …“: die 0 nach der Ländervorwahl gehört weg
+  t = t.replace(/^(43|49|41)0/, "$1");
   return t.length >= 9 && t.length <= 15 ? t : null;
+}
+
+/**
+ * Österreichische Festnetznummer (+43 und keine Handy-Vorwahl 650–699)?
+ * Dann hat der Kunde dort meist kein WhatsApp — die App weist darauf hin.
+ */
+export function istFestnetz(nr: string | null): boolean {
+  return !!nr && nr.startsWith("43") && !/^436[5-9]/.test(nr);
 }
 
 /** Lesbar für die Anzeige: 436641234567 → „+43 664 1234567“ */

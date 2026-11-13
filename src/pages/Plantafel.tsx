@@ -223,7 +223,7 @@ export default function Plantafel() {
         </div>}
         {kalender && <Segment klein werte={[["alle", "Alle"], ["meine", "Meine"]]} wert={nurMeine ? "meine" : "alle"} onChange={(w) => setNurMeine(w === "meine")} />}
         <label className="flex items-center gap-1.5 text-sm text-muted-foreground">Gehe zu
-          <input type="date" className="h-9 rounded-md border bg-card px-2 text-sm text-foreground" onChange={(e) => e.target.value && setBezug(e.target.value)} />
+          <input type="date" className="h-9 rounded-md border bg-card px-2 text-base text-foreground [@media(pointer:fine)]:text-sm" onChange={(e) => e.target.value && setBezug(e.target.value)} />
         </label>
         {liste.length > 0 && <KonfliktKnopf liste={liste} termine={termine} mitarbeiter={mitarbeiter} fahrzeuge={fahrzeuge} onTermin={(t) => setDialog({ termin: t })} />}
       </div>

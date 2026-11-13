@@ -11,6 +11,7 @@ import { useIstPc } from "@/components/AppLayout";
 import { useProjekte, useProjektZahlen, type ProjektMitKunde } from "@/hooks/useDaten";
 import { stunden } from "@/lib/format";
 import { foerderPille } from "@/lib/foerderung";
+import { projektPasst } from "@/lib/projektSuche";
 import { FOERDER_STATUS, type FoerderStatus, type ProjektZahlen } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -70,15 +71,14 @@ export default function Projekte() {
   }, [params, setParams]);
 
   const liste = useMemo(() => {
-    const s = suche.trim().toLowerCase();
-    return projekte.filter((p) => {
-      if (!passt(p, filter, zahlen[p.id])) return false;
-      if (foerder && p.foerder_status !== foerder) return false;
-      if (!s) return true;
-      return [p.nummer, p.name, p.kunden?.name, p.ort, p.strasse].some((x) => x?.toLowerCase().includes(s));
-    });
+    // wie jede Projektwahl: alle Wörter, Umlaute egal („mueller kindberg“)
+    return projekte.filter((p) => passt(p, filter, zahlen[p.id]) && (!foerder || p.foerder_status === foerder) && projektPasst(p, suche));
   }, [projekte, zahlen, filter, foerder, suche]);
 
+  // Suche ohne Treffer in dieser Ansicht: wo gäbe es welche? (meist „Abgeschlossen“)
+  const woanders = suche.trim() && liste.length === 0
+    ? FILTER.map((f) => ({ ...f, n: projekte.filter((p) => passt(p, f.wert, zahlen[p.id]) && projektPasst(p, suche)).length })).find((f) => f.n > 0)
+    : undefined;
   const anzahl = (f: Filter) => projekte.filter((p) => passt(p, f, zahlen[p.id])).length;
   const filterSetzen = (f: Filter) => setParams(f === "laufend" ? {} : { filter: f }, { replace: true });
 
@@ -136,7 +136,8 @@ export default function Projekte() {
       {isLoading ? (
         <p className="py-8 text-center text-muted-foreground">Lädt…</p>
       ) : liste.length === 0 ? (
-        <Leer icon={FolderKanban} text={suche ? "Nichts gefunden." : "Keine Projekte in dieser Ansicht."}>
+        <Leer icon={FolderKanban} text={suche ? `Unter „${FILTER.find((f) => f.wert === filter)!.text}“ nichts gefunden.` : "Keine Projekte in dieser Ansicht."}>
+          {woanders && <Button variant="outline" className="h-11" onClick={() => filterSetzen(woanders.wert)}>{woanders.n} unter „{woanders.text}“ zeigen</Button>}
           {!suche && <Button onClick={() => setNeuOffen(true)}>Projekt anlegen</Button>}
         </Leer>
       ) : !pc || ansicht === "kacheln" ? (
