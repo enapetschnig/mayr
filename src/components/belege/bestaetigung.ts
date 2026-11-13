@@ -70,3 +70,11 @@ export function telefonFuerWhatsapp(telefon: string | null | undefined): string 
 export function unterschriftPfad(token: string, zufall: string): string {
   return `${token}/${zufall.replace(/[^A-Za-z0-9-]/g, "").slice(0, 64)}.png`;
 }
+
+/**
+ * Im Browser einer App (WhatsApp, Facebook, Instagram, Android-WebView)?
+ * Dort gehen PDF-Downloads oft nicht — die Seite rät dann, sie im Browser zu öffnen.
+ */
+export function inAppBrowser(ua: string): boolean {
+  return /WhatsApp|FBAN|FBAV|FB_IAB|Instagram|Line\/|; wv\)/i.test(ua);
+}

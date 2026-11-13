@@ -303,11 +303,19 @@ function Bereich({
 }) {
   return (
     <section className="space-y-1.5">
-      <div className="flex items-center gap-2 px-1">
-        {alle && <Checkbox checked={alle.an} onCheckedChange={(v) => alle.onAn(!!v)} aria-label="alle" className="h-5 w-5" />}
-        <h3 className="flex-1 text-sm font-semibold">{titel}</h3>
-        {rechts && <span className="text-sm">{rechts}</span>}
-      </div>
+      {/* mit „alle“: die ganze Überschrift ist antippbar, nicht nur das kleine Kästchen */}
+      {alle ? (
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 px-1">
+          <Checkbox checked={alle.an} onCheckedChange={(v) => alle.onAn(!!v)} aria-label={`${titel}: alle`} className="h-5 w-5" />
+          <h3 className="flex-1 text-sm font-semibold">{titel}</h3>
+          {rechts && <span className="text-sm">{rechts}</span>}
+        </label>
+      ) : (
+        <div className="flex items-center gap-2 px-1">
+          <h3 className="flex-1 text-sm font-semibold">{titel}</h3>
+          {rechts && <span className="text-sm">{rechts}</span>}
+        </div>
+      )}
       {hinweis && <p className="px-1 text-xs text-muted-foreground">{hinweis}</p>}
       <div className="divide-y rounded-lg border bg-card">{children}</div>
     </section>

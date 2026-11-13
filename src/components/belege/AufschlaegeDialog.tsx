@@ -60,7 +60,8 @@ export function AufschlaegeDialog({
   const ohneEk = positionen.filter((p) => (p.art === "artikel" || p.art === "material" || p.art === "leistung") && p.ek_preis == null && p.minuten == null).length;
 
   const schnell = (feld: "m" | "s", d: number) => {
-    if (feld === "m") setMaterial(zahl(Math.round(((m ?? 0) + d) * 10) / 10));
+    // auf ganze Prozent: aus „35,2“ wird mit +5 „40“, nicht „40,2“
+    if (feld === "m") setMaterial(zahl(Math.round((m ?? 0) + d)));
     else setSatz(zahl(Math.max(0, (sz ?? 0) + d)));
   };
 

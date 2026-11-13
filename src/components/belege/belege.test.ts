@@ -274,7 +274,14 @@ describe("Rechnung aus dem Projekt", () => {
     expect(aus.positionen.some((p) => p.art === "text")).toBe(false);
   });
 
-  it("Angebot schon im Entwurf: nur die Abgegolten-Zeile, ans Ende", () => {
+  it("Angebot schon im Entwurf: Abgegolten-Zeile vor den Regieberichten, nicht in deren Titel", () => {
+    const r = importPositionen({ ...daten, angebotImEntwurf: { id: "an1", nummer: "AN-2026-001" } }, { ...nurAngebot, angebote: [], regie: daten.regie.map((x) => x.id) },
+      { ...opt, abgegolten: true }, FIRMA, true);
+    expect(r.positionen[0].bezeichnung).toBe(ABGEGOLTEN_TEXT);
+    expect(r.positionen[1].art).toBe("titel");
+  });
+
+  it("Angebot schon im Entwurf: nur die Abgegolten-Zeile", () => {
     const r = importPositionen({ ...daten, angebotImEntwurf: { id: "an1", nummer: "AN-2026-001" } }, { ...nurAngebot, angebote: [] },
       { ...opt, abgegolten: true }, FIRMA, true);
     expect(r.positionen.map((p) => p.art)).toEqual(["text"]);
