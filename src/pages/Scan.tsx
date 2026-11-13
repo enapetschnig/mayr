@@ -865,6 +865,17 @@ export default function Scan() {
   const sichtbareModi = REIHENFOLGE.filter((m) => istChef || !MODI[m].nurChef);
   const zweiterKnopf = modus === "direkt" || modus === "korrektur";
 
+  const buchenLeiste = (
+    <div className="-mx-3 border-t bg-background px-3 pt-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:rounded-lg lg:border lg:bg-card lg:px-4"
+      style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+      <p className="mb-2 truncate text-xs text-muted-foreground">{ziel}</p>
+      <Button className="h-12 w-full text-base" onClick={() => void buchen()} disabled={bucht}>
+        {bucht ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Check className="mr-2 h-5 w-5" />}
+        {modus === "korrektur" ? "Differenzen prüfen" : `${positionen} ${info.verb}`}
+      </Button>
+    </div>
+  );
+
   return (
     <Seite
       titel="Material"
@@ -901,7 +912,7 @@ export default function Scan() {
               {sichtbareModi.map((m) => (
                 <button key={m} type="button" role="radio" aria-checked={modus === m} onClick={() => modusWaehlen(m)}
                   className={cn(
-                    "h-11 min-w-0 truncate rounded-md px-1 text-sm font-medium transition-colors",
+                    "h-11 min-w-0 truncate rounded-md px-0.5 text-[13px] font-medium transition-colors sm:px-1 sm:text-sm",
                     modus === m ? "bg-card font-semibold text-primary ring-1 ring-primary/30" : "text-muted-foreground hover:text-foreground",
                   )}>
                   {MODI[m].kurz}
@@ -1083,18 +1094,12 @@ export default function Scan() {
             </div>
           )}
 
-          {n > 0 && (
-            <div className="sticky bottom-0 z-10 -mx-3 border-t bg-background px-3 pt-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:rounded-lg lg:border lg:bg-card lg:px-4"
-              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
-              <p className="mb-2 truncate text-xs text-muted-foreground">{ziel}</p>
-              <Button className="h-12 w-full text-base" onClick={() => void buchen()} disabled={bucht}>
-                {bucht ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Check className="mr-2 h-5 w-5" />}
-                {modus === "korrektur" ? "Differenzen prüfen" : `${positionen} ${info.verb}`}
-              </Button>
-            </div>
-          )}
+          {n > 0 && <div className="hidden lg:block">{buchenLeiste}</div>}
         </div>
       </div>
+      {/* Handy/Tablet: außerhalb der Spalten, sonst klebt die Leiste erst, wenn die Liste im Bild ist —
+          nach einem Tipp auf „Laut Angebot“ wäre der Buchen-Knopf dann nicht zu sehen */}
+      {n > 0 && <div className="sticky bottom-0 z-10 lg:hidden">{buchenLeiste}</div>}
 
       <ScanDialog
         open={scanOffen}

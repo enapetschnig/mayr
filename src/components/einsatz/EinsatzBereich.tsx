@@ -18,8 +18,19 @@ import { cn } from "@/lib/utils";
 type Einsatz = Termin & { projekte: { nummer: string; name: string; kunden: { name: string; telefon: string | null } | null } | null };
 
 const GESEHEN = "elektro.termine.gesehen";
+/** Ab wann dieses Gerät mitschaut — vorher Geändertes kennt der Monteur gar nicht anders (frisch installiert) */
+const GESEHEN_AB = "elektro.termine.gesehen.ab";
 const gesehenLesen = (): Record<string, string> => {
   try { return JSON.parse(localStorage.getItem(GESEHEN) ?? "{}") as Record<string, string>; } catch { return {}; }
+};
+const gesehenAbLesen = (): string => {
+  try {
+    const ab = localStorage.getItem(GESEHEN_AB);
+    if (ab) return ab;
+    const jetzt = new Date().toISOString();
+    localStorage.setItem(GESEHEN_AB, jetzt);
+    return jetzt;
+  } catch { return ""; }
 };
 
 const zeitText = (t: Termin) => (t.ganztags || !t.von ? "ganztägig" : `${uhrzeit(t.von)}${t.bis ? `–${uhrzeit(t.bis)}` : ""}`);
@@ -40,6 +51,7 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
     return t;
   }, [heute]);
   const [gesehen, setGesehen] = useState(gesehenLesen);
+  const [gesehenAb] = useState(gesehenAbLesen);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   /** Aufgeklappte Einsätze (Projekt, Kunde, Adresse …) */
   const [auf, setAuf] = useState<string[]>([]);
@@ -63,7 +75,9 @@ export function EinsatzBereich({ onStunden }: { onStunden: (projektId?: string) 
 
   const heuteListe = einsaetze.filter((t) => amTag(t, heute)).sort(reihung);
   const morgenListe = einsaetze.filter((t) => amTag(t, naechster) && t.status !== "erledigt").sort(reihung);
-  const geaendert = einsaetze.filter((t) => t.status !== "erledigt" && t.geaendert_am && t.geaendert_von !== profil?.id && gesehen[t.id] !== t.geaendert_am);
+  // Nur was ein Mensch (Büro, Kollege) geändert hat, seit dieses Gerät mitschaut — kein Skript, nicht ich selbst
+  const geaendert = einsaetze.filter((t) => t.status !== "erledigt" && t.geaendert_am && t.geaendert_von && t.geaendert_von !== profil?.id
+    && gesehen[t.id] !== t.geaendert_am && (!gesehenAb || new Date(t.geaendert_am) > new Date(gesehenAb)));
 
   const statusSetzen = async (t: Einsatz, status: "erledigt") => {
     setLaeuft(t.id);

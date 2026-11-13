@@ -551,12 +551,13 @@ export function RegieEditor({ voll }: { voll: RegieVoll | null }) {
           ) : (
             <Button
               variant="outline"
-              className="h-12 shrink-0 gap-1.5 px-4"
+              className="h-12 shrink-0 gap-1.5 px-3.5 min-[375px]:px-4"
               disabled={speichert || loescht || !entwurf.projektId}
               onClick={() => void speichern()}
             >
               {speichert ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Speichern
+              {/* iPhone SE: nur das Symbol, sonst passt „Unterschreiben lassen“ nicht */}
+              <span className="sr-only min-[375px]:not-sr-only">Speichern</span>
             </Button>
           )}
           <Button className="h-12 min-w-0 flex-1 gap-2 text-base lg:max-w-sm" disabled={speichert || loescht} onClick={() => void unterschreibenStarten()}>

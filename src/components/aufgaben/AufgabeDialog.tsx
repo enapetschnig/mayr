@@ -165,7 +165,8 @@ export function AufgabeDialog({
           <div className="flex flex-wrap gap-2">
             <button type="button" className={pille(!wiederholung)} onClick={() => setWiederholung("")}>Einmalig</button>
             {Object.entries(WIEDERHOLUNG).map(([w, t]) => (
-              <button key={w} type="button" className={pille(wiederholung === w)} onClick={() => setWiederholung(w)}>{t}</button>
+              <button key={w} type="button" className={pille(wiederholung === w)}
+                onClick={() => { setWiederholung(w); if (!faellig) setFaellig(heute); /* erste Runde: heute, statt Fehlermeldung */ }}>{t}</button>
             ))}
           </div>
           {wiederholung && <p className="text-xs text-muted-foreground">Ist sie erledigt, legt die App die nächste an — mit dem Termin eine Runde später.</p>}
